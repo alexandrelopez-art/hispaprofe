@@ -7,9 +7,9 @@ process.loadEnvFile();
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! });
 const prisma = new PrismaClient({ adapter });
 
-// Cada recorrido con sus pasos. La estructura de 9 pasos / 2 ciclos es una
-// PLANTILLA, no una regla: el 5º recorrido lo demuestra (7 pasos, dos
-// andamiajes seguidos y sin micro tarea). Para añadir más, suma objetos aquí.
+// La estructura de 9 pasos / 2 ciclos es una PLANTILLA, no una regla.
+// El paso 2 de "Tiempo libre" lleva bloques de ejemplo (los 5 tipos) para
+// demostrar el contenido. El resto de pasos aún no tienen bloques.
 const recorridosData = [
   {
     titulo: "Tiempo libre: aficiones y planes",
@@ -19,7 +19,19 @@ const recorridosData = [
     publicado: true,
     pasos: [
       { orden: 1, ciclo: 1, tipo: "ACTIVACION",  destreza: "EO",  titulo: "¿Qué haces en tu tiempo libre?" },
-      { orden: 2, ciclo: 1, tipo: "ACTIVIDAD",   destreza: "CO",  titulo: "Vídeo: jóvenes hablan de sus aficiones" },
+      {
+        orden: 2, ciclo: 1, tipo: "ACTIVIDAD", destreza: "CO",
+        titulo: "Vídeo: jóvenes hablan de sus aficiones",
+        bloques: {
+          create: [
+            { orden: 1, tipo: "TEXTO",  texto: "Antes de ver el vídeo, piensa: ¿cuáles son tus tres aficiones favoritas?\n\nFíjate en el vocabulario nuevo mientras escuchas y anota las expresiones que no conozcas." },
+            { orden: 2, tipo: "IMAGEN", url: "https://picsum.photos/seed/aficiones/800/450", etiqueta: "Jóvenes practicando diferentes aficiones" },
+            { orden: 3, tipo: "AUDIO",  url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3", etiqueta: "Audio de apoyo: entrevista sobre aficiones" },
+            { orden: 4, tipo: "EMBED",  url: "https://www.youtube.com/embed/jNQXAC9IVRw", etiqueta: "Vídeo: jóvenes hablan de sus aficiones" },
+            { orden: 5, tipo: "ENLACE", url: "https://www.rae.es", etiqueta: "Consultar palabras en el diccionario de la RAE" },
+          ],
+        },
+      },
       { orden: 3, ciclo: 1, tipo: "ANDAMIAJE",   destreza: null,  titulo: "Verbos de afición (gustar, encantar) y frecuencia" },
       { orden: 4, ciclo: 1, tipo: "ACTIVIDAD",   destreza: "CE",  titulo: "Leer un chat sobre planes de fin de semana" },
       { orden: 5, ciclo: 1, tipo: "MICRO_TAREA", destreza: "EE",  titulo: "Mensaje proponiendo un plan (40-50 palabras)" },
@@ -84,8 +96,7 @@ const recorridosData = [
     ],
   },
   {
-    // ── Recorrido IRREGULAR (demostración de flexibilidad) ──
-    // 7 pasos · dos andamiajes seguidos (3 y 4) · sin micro tarea.
+    // Recorrido IRREGULAR: 7 pasos, dos andamiajes seguidos, sin micro tarea.
     titulo: "El cine español: analizar una película",
     descripcion: "Estructura libre: doble andamiaje para la parte difícil y sin micro tarea.",
     nivel: "B2",
@@ -104,8 +115,9 @@ const recorridosData = [
 ];
 
 async function main() {
-  // Limpia SOLO el contenido para poder re-ejecutar el seed sin duplicar.
-  // Nunca toca la tabla User. Paso primero por su relación con Recorrido.
+  // Limpia el contenido para poder re-ejecutar el seed sin duplicar.
+  // Orden por las relaciones: Bloque → Paso → Recorrido. Nunca toca User.
+  await prisma.bloque.deleteMany();
   await prisma.paso.deleteMany();
   await prisma.recorrido.deleteMany();
 

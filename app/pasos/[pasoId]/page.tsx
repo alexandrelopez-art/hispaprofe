@@ -34,6 +34,89 @@ const tipoDescripcion: Record<string, string> = {
     "Macro tarea: producción final que integra todo el recorrido.",
 };
 
+type BloqueData = {
+  id: string;
+  tipo: string;
+  texto: string | null;
+  url: string | null;
+  etiqueta: string | null;
+};
+
+// Renderiza un bloque según su tipo.
+function BloqueContenido({ bloque }: { bloque: BloqueData }) {
+  switch (bloque.tipo) {
+    case "TEXTO":
+      return (
+        <p className="whitespace-pre-line leading-relaxed text-slate-700">
+          {bloque.texto}
+        </p>
+      );
+
+    case "IMAGEN":
+      return (
+        <figure>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={bloque.url ?? ""}
+            alt={bloque.etiqueta ?? ""}
+            className="w-full rounded-xl border border-slate-200"
+          />
+          {bloque.etiqueta && (
+            <figcaption className="mt-2 text-xs text-slate-400">
+              {bloque.etiqueta}
+            </figcaption>
+          )}
+        </figure>
+      );
+
+    case "AUDIO":
+      return (
+        <div>
+          {bloque.etiqueta && (
+            <p className="mb-2 text-sm font-medium text-slate-600">
+              {bloque.etiqueta}
+            </p>
+          )}
+          <audio controls className="w-full" src={bloque.url ?? ""} />
+        </div>
+      );
+
+    case "EMBED":
+      return (
+        <div>
+          {bloque.etiqueta && (
+            <p className="mb-2 text-sm font-medium text-slate-600">
+              {bloque.etiqueta}
+            </p>
+          )}
+          <div className="aspect-video w-full overflow-hidden rounded-xl border border-slate-200">
+            <iframe
+              src={bloque.url ?? ""}
+              title={bloque.etiqueta ?? "Contenido embebido"}
+              className="h-full w-full"
+              allowFullScreen
+            />
+          </div>
+        </div>
+      );
+
+    case "ENLACE":
+      return (
+        <a
+          href={bloque.url ?? "#"}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-indigo-600 transition hover:bg-slate-50"
+        >
+          {bloque.etiqueta ?? bloque.url} ↗
+        </a>
+      );
+
+    default:
+      return null;
+  }
+}
+
 export default async function PasoPage({
   params,
 }: {
@@ -43,7 +126,10 @@ export default async function PasoPage({
 
   const paso = await prisma.paso.findUnique({
     where: { id: pasoId },
-    include: { recorrido: true },
+    include: {
+      recorrido: true,
+      bloques: { orderBy: { orden: "asc" } },
+    },
   });
 
   if (!paso) notFound();
@@ -60,7 +146,7 @@ export default async function PasoPage({
   const siguiente = hermanos[indice + 1];
 
   return (
-    <main className="mx-auto max-w-2xl px-6 py-12">
+    <main className="mx-auto max-w-4xl px-6 py-12">
       <Link
         href={`/recorridos/${paso.recorridoId}`}
         className="text-sm font-medium text-slate-500 hover:text-slate-900"
@@ -100,12 +186,20 @@ export default async function PasoPage({
         {tipoDescripcion[paso.tipo] ?? ""}
       </p>
 
-      {/* Área de contenido — pendiente de añadir el campo al modelo Paso. */}
-      <div className="mt-8 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-10 text-center">
-        <p className="text-sm text-slate-400">
-          El contenido de esta actividad aparecerá aquí.
-        </p>
-      </div>
+      {/* Contenido: bloques ordenados, o área reservada si aún no hay. */}
+      {paso.bloques.length > 0 ? (
+        <div className="mt-8 space-y-6">
+          {paso.bloques.map((bloque) => (
+            <BloqueContenido key={bloque.id} bloque={bloque} />
+          ))}
+        </div>
+      ) : (
+        <div className="mt-8 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-10 text-center">
+          <p className="text-sm text-slate-400">
+            Este paso todavía no tiene contenido.
+          </p>
+        </div>
+      )}
 
       {/* Navegación anterior / siguiente dentro del recorrido. */}
       <nav className="mt-10 flex items-stretch justify-between gap-4 border-t border-slate-200 pt-6">
