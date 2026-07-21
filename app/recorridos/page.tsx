@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import Link from "next/link";
 
 // Fuerza render dinámico: la página lee de la base en cada visita.
 export const dynamic = "force-dynamic";
@@ -43,9 +44,10 @@ export default async function RecorridosPage() {
 
       <div className="mt-10 space-y-10">
         {recorridos.map((recorrido) => (
-          <article
+          <Link
             key={recorrido.id}
-            className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
+            href={`/recorridos/${recorrido.id}`}
+            className="block rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition hover:border-indigo-300 hover:shadow-md"
           >
             <div className="flex items-start justify-between gap-4">
               <div>
@@ -102,7 +104,7 @@ export default async function RecorridosPage() {
                 </section>
               );
             })}
-          </article>
+          </Link>
         ))}
       </div>
     </main>
