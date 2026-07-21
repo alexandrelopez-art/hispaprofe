@@ -73,7 +73,10 @@ export default async function RecorridoDetallePage({
                     <span className="absolute -left-[41px] flex h-6 w-6 items-center justify-center rounded-full bg-slate-900 text-xs font-bold text-white ring-4 ring-white">
                       {paso.orden}
                     </span>
-                    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                    <Link
+                      href={`/pasos/${paso.id}`}
+                      className="block rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-indigo-300 hover:shadow-md"
+                    >
                       <div className="flex items-center gap-2">
                         <span
                           className={`rounded-md px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${
@@ -92,7 +95,7 @@ export default async function RecorridoDetallePage({
                       <p className="mt-2 text-sm font-medium text-slate-800">
                         {paso.titulo}
                       </p>
-                    </div>
+                    </Link>
                   </li>
                 ))}
               </ol>

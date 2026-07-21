@@ -38,6 +38,14 @@ enum Destreza {
   EEI
 }
 
+enum TipoBloque {
+  TEXTO
+  IMAGEN
+  AUDIO
+  EMBED
+  ENLACE
+}
+
 model User {
   id        String   @id @default(cuid())
   clerkId   String   @unique
@@ -70,6 +78,20 @@ model Paso {
   tipo        TipoPaso
   destreza    Destreza?
   titulo      String
+  bloques     Bloque[]
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+}
+
+model Bloque {
+  id        String     @id @default(cuid())
+  paso      Paso       @relation(fields: [pasoId], references: [id])
+  pasoId    String
+  orden     Int
+  tipo      TipoBloque
+  texto     String? // para TEXTO
+  url       String? // para IMAGEN (src) / AUDIO (mp3) / EMBED (iframe) / ENLACE (href)
+  etiqueta  String? // descripción de imagen, título del embed/audio o texto del enlace
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
 }
