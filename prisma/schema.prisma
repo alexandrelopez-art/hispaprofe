@@ -16,6 +16,28 @@ enum Role {
   ADMIN
 }
 
+enum Nivel {
+  A2_B1_ESCOLAR
+  B2
+}
+
+enum TipoPaso {
+  ACTIVACION
+  ACTIVIDAD
+  ANDAMIAJE
+  MICRO_TAREA
+  MACRO_TAREA
+}
+
+enum Destreza {
+  CO
+  CE
+  EO
+  EE
+  EOI
+  EEI
+}
+
 model User {
   id        String   @id @default(cuid())
   clerkId   String   @unique
@@ -25,4 +47,29 @@ model User {
   role      Role     @default(STUDENT)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model Recorrido {
+  id          String   @id @default(cuid())
+  titulo      String
+  descripcion String?
+  nivel       Nivel
+  orden       Int
+  publicado   Boolean  @default(false)
+  pasos       Paso[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Paso {
+  id          String    @id @default(cuid())
+  recorrido   Recorrido @relation(fields: [recorridoId], references: [id])
+  recorridoId String
+  orden       Int
+  ciclo       Int
+  tipo        TipoPaso
+  destreza    Destreza?
+  titulo      String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 }
