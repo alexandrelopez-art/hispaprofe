@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { crearBloque, obtenerMetadatos } from "@/lib/acciones";
+import TextoRico from "./texto-rico";
 
 type Tipo = "TEXTO" | "EMBED" | "AUDIO" | "IMAGEN" | "ENLACE";
 
@@ -32,7 +33,8 @@ const TIPOS: { id: Tipo; label: string; ayuda: string }[] = [
   {
     id: "AUDIO",
     label: "Audio",
-    ayuda: "Dirección directa de un archivo mp3.",
+    ayuda:
+      "Dirección directa de un archivo mp3. Si es de Google Drive, se convierte solo en reproductor incrustado.",
   },
 ];
 
@@ -65,23 +67,30 @@ function extraerSrc(entrada: string): string {
   return t;
 }
 
+/** Saca el ID de un enlace de Google Drive, venga en la forma que venga. */
+function idDrive(t: string): string {
+  return (
+    t.match(/drive\.google\.com\/file\/d\/([\w-]+)/)?.[1] ??
+    t.match(/drive\.google\.com\/open\?id=([\w-]+)/)?.[1] ??
+    t.match(/[?&]id=([\w-]{20,})/)?.[1] ??
+    ""
+  );
+}
+
 /**
  * Convierte enlaces de Google Drive y Dropbox al archivo directo.
- * Son los dos casos que más se pegan por error creyendo que son imágenes.
+ * Son los dos casos que más se pegan por error creyendo que apuntan
+ * al archivo, cuando apuntan a la página que lo contiene.
  */
-function urlDirectaImagen(entrada: string): string {
+function urlDirectaMedia(entrada: string): string {
   const t = entrada.trim();
   if (!t) return "";
 
-  const drive = t.match(/drive\.google\.com\/file\/d\/([\w-]+)/);
-  if (drive) return `https://drive.google.com/uc?export=view&id=${drive[1]}`;
-
-  const driveAbierto = t.match(/drive\.google\.com\/open\?id=([\w-]+)/);
-  if (driveAbierto)
-    return `https://drive.google.com/uc?export=view&id=${driveAbierto[1]}`;
+  const drive = idDrive(t);
+  if (drive) return `https://drive.google.com/uc?export=view&id=${drive}`;
 
   if (t.includes("dropbox.com")) {
-    return t.replace(/[?&]dl=0/, "").replace("www.dropbox.com", "dl.dropboxusercontent.com");
+    return t.replace(/[?&]dl=0/, "").replace(/$/, t.includes("?") ? "&raw=1" : "?raw=1");
   }
 
   return t;
@@ -100,6 +109,37 @@ function origenDe(src: string): string {
 const campo =
   "w-full rounded-full border border-hp-200 bg-white px-4 py-2 text-sm text-tinta outline-none focus:border-hp-400";
 
+/**
+ * Botones de formato. `envuelve` rodea lo seleccionado; `prefijo` se pone
+ * al principio de la linea; `plantilla` inserta un bloque entero.
+ */
+const FORMATO: {
+  label: string;
+  titulo: string;
+  envuelve?: string;
+  prefijo?: string;
+  plantilla?: string;
+  ejemplo?: string;
+}[] = [
+  { label: "N", titulo: "Negrita", envuelve: "**", ejemplo: "negrita" },
+  { label: "C", titulo: "Cursiva", envuelve: "*", ejemplo: "cursiva" },
+  { label: "Título", titulo: "Título de sección", prefijo: "## " },
+  { label: "Lista", titulo: "Lista con viñetas", prefijo: "- " },
+  { label: "Numerada", titulo: "Lista numerada", prefijo: "1. " },
+  {
+    label: "Enlace",
+    titulo: "Enlace",
+    plantilla: "[texto del enlace](https://…)",
+  },
+  {
+    label: "Tabla",
+    titulo: "Tabla",
+    plantilla:
+      "\n| Columna 1 | Columna 2 |\n| --- | --- |\n| dato | dato |\n| dato | dato |\n",
+  },
+  { label: "Cita", titulo: "Cita", prefijo: "> " },
+];
+
 export default function EditorBloques({ pasoId }: { pasoId: string }) {
   const [tipo, setTipo] = useState<Tipo>("TEXTO");
   const [entrada, setEntrada] = useState("");
@@ -110,14 +150,60 @@ export default function EditorBloques({ pasoId }: { pasoId: string }) {
   const [aviso, setAviso] = useState("");
   const [falloImagen, setFalloImagen] = useState(false);
   const [enviando, setEnviando] = useState(false);
+  const [verFormato, setVerFormato] = useState(false);
+  const areaTexto = useRef<HTMLTextAreaElement>(null);
+
+  /** Aplica un formato Markdown sobre lo que haya seleccionado. */
+  function aplicarFormato(f: (typeof FORMATO)[number]) {
+    const area = areaTexto.current;
+    if (!area) return;
+
+    const inicio = area.selectionStart;
+    const fin = area.selectionEnd;
+    const seleccion = texto.slice(inicio, fin);
+    let nuevo = texto;
+    let cursor = fin;
+
+    if (f.envuelve) {
+      const contenido = seleccion || f.ejemplo || "texto";
+      nuevo =
+        texto.slice(0, inicio) +
+        f.envuelve +
+        contenido +
+        f.envuelve +
+        texto.slice(fin);
+      cursor = inicio + f.envuelve.length + contenido.length + f.envuelve.length;
+    } else if (f.prefijo) {
+      // Al principio de la linea donde esté el cursor.
+      const inicioLinea = texto.lastIndexOf("\n", inicio - 1) + 1;
+      nuevo = texto.slice(0, inicioLinea) + f.prefijo + texto.slice(inicioLinea);
+      cursor = fin + f.prefijo.length;
+    } else if (f.plantilla) {
+      nuevo = texto.slice(0, inicio) + f.plantilla + texto.slice(fin);
+      cursor = inicio + f.plantilla.length;
+    }
+
+    setTexto(nuevo);
+    requestAnimationFrame(() => {
+      area.focus();
+      area.setSelectionRange(cursor, cursor);
+    });
+  }
+
+  // Drive no sirve audio para reproduccion directa, pero si ofrece su
+  // propio reproductor incrustable. Se guarda como EMBED, no como AUDIO.
+  const audioDeDrive = tipo === "AUDIO" ? idDrive(entrada) : "";
 
   const src =
     tipo === "TEXTO"
       ? ""
-      : tipo === "IMAGEN"
-        ? urlDirectaImagen(entrada)
-        : extraerSrc(entrada);
+      : audioDeDrive
+        ? `https://drive.google.com/file/d/${audioDeDrive}/preview`
+        : tipo === "IMAGEN" || tipo === "AUDIO"
+          ? urlDirectaMedia(entrada)
+          : extraerSrc(entrada);
 
+  const tipoFinal: Tipo = audioDeDrive ? "EMBED" : tipo;
   const origen = origenDe(src);
   const listo = tipo === "TEXTO" ? texto.trim() !== "" : src !== "";
   const ayuda = TIPOS.find((t) => t.id === tipo)!.ayuda;
@@ -129,6 +215,7 @@ export default function EditorBloques({ pasoId }: { pasoId: string }) {
     setImagen("");
     setAviso("");
     setFalloImagen(false);
+    setVerFormato(false);
   }
 
   function cambiarTipo(nuevo: Tipo) {
@@ -171,7 +258,7 @@ export default function EditorBloques({ pasoId }: { pasoId: string }) {
     try {
       const fd = new FormData();
       fd.set("pasoId", pasoId);
-      fd.set("tipo", tipo);
+      fd.set("tipo", tipoFinal);
       fd.set("texto", texto);
       fd.set("url", src);
       fd.set("etiqueta", etiqueta);
@@ -207,13 +294,53 @@ export default function EditorBloques({ pasoId }: { pasoId: string }) {
       <p className="mt-2 text-xs text-tinta-suave">{ayuda}</p>
 
       {tipo === "TEXTO" ? (
-        <textarea
-          value={texto}
-          onChange={(e) => setTexto(e.target.value)}
-          rows={5}
-          placeholder="Escribe aquí…"
-          className="mt-3 w-full rounded-2xl border border-hp-200 bg-white px-4 py-3 text-sm text-tinta outline-none focus:border-hp-400"
-        />
+        <div className="mt-3">
+          <div className="flex flex-wrap items-center gap-1.5">
+            {FORMATO.map((f) => (
+              <button
+                key={f.label}
+                type="button"
+                title={f.titulo}
+                onClick={() => aplicarFormato(f)}
+                className={`rounded-lg border border-hp-200 px-2.5 py-1 text-xs text-tinta-suave transition-colors hover:border-hp-400 hover:text-hp-600 ${
+                  f.label === "N"
+                    ? "font-extrabold"
+                    : f.label === "C"
+                      ? "italic"
+                      : "font-semibold"
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={() => setVerFormato((v) => !v)}
+              className="ml-auto rounded-lg px-2.5 py-1 text-xs font-semibold text-tinta-suave hover:text-hp-600"
+            >
+              {verFormato ? "Seguir escribiendo" : "Ver cómo queda"}
+            </button>
+          </div>
+
+          {verFormato ? (
+            <div className="mt-2 min-h-32 rounded-2xl border border-dashed border-hp-200 bg-fondo p-4">
+              {texto.trim() ? (
+                <TextoRico>{texto}</TextoRico>
+              ) : (
+                <p className="text-sm text-tinta-suave">Nada escrito todavía.</p>
+              )}
+            </div>
+          ) : (
+            <textarea
+              ref={areaTexto}
+              value={texto}
+              onChange={(e) => setTexto(e.target.value)}
+              rows={8}
+              placeholder="Escribe aquí. Selecciona una palabra y pulsa N para ponerla en negrita."
+              className="mt-2 w-full rounded-2xl border border-hp-200 bg-white px-4 py-3 text-sm text-tinta outline-none focus:border-hp-400"
+            />
+          )}
+        </div>
       ) : (
         <textarea
           value={entrada}
@@ -311,7 +438,36 @@ export default function EditorBloques({ pasoId }: { pasoId: string }) {
               />
             ))}
 
-          {tipo === "AUDIO" && <audio controls className="w-full" src={src} />}
+          {tipo === "AUDIO" &&
+            (audioDeDrive ? (
+              <div>
+                <iframe
+                  src={src}
+                  title="Audio de Drive"
+                  className="h-24 w-full rounded-xl border border-hp-100 bg-white"
+                  allow="autoplay"
+                />
+                <p className="mt-2 text-xs text-tinta-suave">
+                  Reproductor de Drive. El archivo tiene que estar compartido
+                  como «cualquier persona con el enlace», o al estudiante le
+                  saldrá vacío.
+                </p>
+              </div>
+            ) : falloImagen ? (
+              <p className="rounded-xl bg-bloque3/20 px-3 py-2 text-xs text-tinta">
+                Esa dirección no reproduce ningún audio. Tiene que ser el
+                archivo en sí, terminado en .mp3 o .m4a. Si está en SoundCloud,
+                Ivoox o Spotify, usa «Genially, vídeo o actividad» y pega su
+                código de inserción.
+              </p>
+            ) : (
+              <audio
+                controls
+                className="w-full"
+                src={src}
+                onError={() => setFalloImagen(true)}
+              />
+            ))}
 
           {tipo === "ENLACE" && (
             <div className="overflow-hidden rounded-xl border border-hp-100 bg-white">
@@ -365,6 +521,14 @@ export default function EditorBloques({ pasoId }: { pasoId: string }) {
         <p className="mt-3 text-xs text-tinta-suave">
           Si la vista previa sale en blanco, ese sitio no permite incrustarse.
           Ponlo entonces como enlace.
+        </p>
+      )}
+
+      {audioDeDrive && (
+        <p className="mt-3 text-xs text-tinta-suave">
+          Detecté un archivo de Google Drive. Se guardará como reproductor
+          incrustado, que es la única forma en que Drive deja escuchar audio
+          desde otra web.
         </p>
       )}
     </section>

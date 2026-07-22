@@ -486,11 +486,34 @@ export async function obtenerMetadatos(url: string): Promise<{
     if (tipoContenido.startsWith("image/")) {
       return { titulo: "", descripcion: "", imagen: objetivo.toString() };
     }
-    if (!tipoContenido.includes("html")) {
-      return { ...vacio, error: "Ese enlace no es una página web." };
+    // Solo se descarta lo que seguro no es texto. Hay sitios que declaran
+    // mal el tipo de contenido y aun asi devuelven HTML perfectamente legible.
+    if (/^(audio|video|application\/(pdf|zip|octet))/.test(tipoContenido)) {
+      return { ...vacio, error: "Ese enlace es un archivo, no una página." };
     }
 
-    const html = (await respuesta.text()).slice(0, 200_000);
+    // Muchos medios en espanol siguen sirviendo ISO-8859-1. Leer los bytes
+    // y decidir la codificacion evita que las tildes salgan como rombos.
+    const bytes = await respuesta.arrayBuffer();
+
+    let codificacion =
+      tipoContenido.match(/charset=["']?([\w-]+)/i)?.[1]?.toLowerCase() ?? "";
+
+    if (!codificacion) {
+      const cabeza = new TextDecoder("latin1").decode(bytes.slice(0, 4096));
+      codificacion =
+        cabeza
+          .match(/<meta[^>]+charset=["']?([\w-]+)/i)?.[1]
+          ?.toLowerCase() ?? "utf-8";
+    }
+
+    let html: string;
+    try {
+      html = new TextDecoder(codificacion).decode(bytes);
+    } catch {
+      html = new TextDecoder("utf-8").decode(bytes);
+    }
+    html = html.slice(0, 200_000);
 
     const meta = (propiedad: string) => {
       const patron = new RegExp(
@@ -522,8 +545,26 @@ export async function obtenerMetadatos(url: string): Promise<{
       }
     }
 
+    const ENTIDADES: Record<string, string> = {
+      amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " ",
+      aacute: "á", eacute: "é", iacute: "í", oacute: "ó", uacute: "ú",
+      Aacute: "Á", Eacute: "É", Iacute: "Í", Oacute: "Ó", Uacute: "Ú",
+      ntilde: "ñ", Ntilde: "Ñ", uuml: "ü", Uuml: "Ü",
+      iexcl: "¡", iquest: "¿", laquo: "«", raquo: "»",
+      mdash: "—", ndash: "–", hellip: "…",
+      lsquo: "‘", rsquo: "’", ldquo: "“", rdquo: "”",
+      agrave: "à", egrave: "è", ccedil: "ç", euro: "€", deg: "°",
+    };
+
     const limpiar = (s: string) =>
-      s.replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#39;/g, "'").trim();
+      s
+        .replace(/&#x([\da-f]+);/gi, (_, h) =>
+          String.fromCodePoint(parseInt(h, 16)),
+        )
+        .replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(Number(d)))
+        .replace(/&(\w+);/g, (entera, nombre) => ENTIDADES[nombre] ?? entera)
+        .replace(/\s+/g, " ")
+        .trim();
 
     return {
       titulo: limpiar(titulo).slice(0, 200),

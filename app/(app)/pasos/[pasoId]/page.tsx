@@ -9,6 +9,7 @@ import {
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import EditorBloques from "./editor-bloques";
+import TextoRico from "./texto-rico";
 
 // Fuerza render dinámico: lee de la base en cada visita.
 export const dynamic = "force-dynamic";
@@ -51,15 +52,16 @@ type BloqueData = {
   imagen: string | null;
 };
 
+/** Los audios de Drive van en iframe, pero no necesitan alto de vídeo. */
+function esAudioDeDrive(url: string | null): boolean {
+  return Boolean(url && url.includes("drive.google.com") && url.endsWith("/preview"));
+}
+
 // Renderiza un bloque según su tipo.
 function BloqueContenido({ bloque }: { bloque: BloqueData }) {
   switch (bloque.tipo) {
     case "TEXTO":
-      return (
-        <p className="whitespace-pre-line leading-relaxed text-tinta">
-          {bloque.texto}
-        </p>
-      );
+      return <TextoRico>{bloque.texto ?? ""}</TextoRico>;
 
     case "IMAGEN":
       return (
@@ -86,7 +88,11 @@ function BloqueContenido({ bloque }: { bloque: BloqueData }) {
               {bloque.etiqueta}
             </p>
           )}
-          <audio controls className="w-full" src={bloque.url ?? ""} />
+          <audio controls preload="metadata" className="w-full" src={bloque.url ?? ""}>
+            <a href={bloque.url ?? "#"} target="_blank" rel="noopener noreferrer">
+              Abrir el audio
+            </a>
+          </audio>
         </div>
       );
 
@@ -98,11 +104,16 @@ function BloqueContenido({ bloque }: { bloque: BloqueData }) {
               {bloque.etiqueta}
             </p>
           )}
-          <div className="aspect-video w-full overflow-hidden rounded-xl border border-hp-100">
+          <div
+            className={`w-full overflow-hidden rounded-xl border border-hp-100 ${
+              esAudioDeDrive(bloque.url) ? "h-24" : "aspect-video"
+            }`}
+          >
             <iframe
               src={bloque.url ?? ""}
               title={bloque.etiqueta ?? "Contenido embebido"}
               className="h-full w-full"
+              allow="autoplay"
               allowFullScreen
             />
           </div>
