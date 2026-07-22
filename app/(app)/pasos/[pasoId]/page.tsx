@@ -1,6 +1,11 @@
 import { prisma } from "@/lib/prisma";
 import { getUsuarioActual } from "@/lib/usuario";
-import { marcarPasoHecho, desmarcarPasoHecho } from "@/lib/acciones";
+import {
+  borrarBloque,
+  crearBloque,
+  desmarcarPasoHecho,
+  marcarPasoHecho,
+} from "@/lib/acciones";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 
@@ -162,6 +167,8 @@ export default async function PasoPage({
     : null;
 
   const puedeMarcar = Boolean(asignacion && !asignacion.archivada);
+  const esProfe =
+    usuario?.role === "PROFESOR" || usuario?.role === "ADMIN";
 
   const hecho = puedeMarcar
     ? Boolean(
@@ -221,7 +228,24 @@ export default async function PasoPage({
       {paso.bloques.length > 0 ? (
         <div className="mt-8 space-y-6">
           {paso.bloques.map((bloque) => (
-            <BloqueContenido key={bloque.id} bloque={bloque} />
+            <div key={bloque.id} className="group relative">
+              {esProfe && (
+                <form
+                  action={borrarBloque}
+                  className="absolute -right-2 -top-2 z-10 opacity-0 transition-opacity group-hover:opacity-100"
+                >
+                  <input type="hidden" name="bloqueId" value={bloque.id} />
+                  <button
+                    type="submit"
+                    className="rounded-full border border-hp-200 bg-white px-2 py-0.5 text-[11px] font-bold text-tinta-suave transition-colors hover:border-bloque3 hover:text-tinta"
+                    title="Borrar bloque"
+                  >
+                    Borrar
+                  </button>
+                </form>
+              )}
+              <BloqueContenido bloque={bloque} />
+            </div>
           ))}
         </div>
       ) : (
@@ -230,6 +254,70 @@ export default async function PasoPage({
             Este paso todavía no tiene contenido.
           </p>
         </div>
+      )}
+
+      {/* Editor: añadir bloque de contenido (solo profes). */}
+      {esProfe && (
+        <section className="mt-8 rounded-tarjeta border border-hp-100 bg-white p-5 shadow-suave">
+          <h2 className="text-lg font-bold text-tinta">Añadir contenido</h2>
+          <form action={crearBloque} className="mt-3">
+            <input type="hidden" name="pasoId" value={paso.id} />
+
+            <div className="flex flex-wrap gap-3">
+              <label className="text-sm font-semibold text-tinta">
+                Tipo
+                <select
+                  name="tipo"
+                  required
+                  defaultValue="TEXTO"
+                  className="mt-1 h-10 w-full rounded-full border border-hp-200 bg-white px-4 text-sm font-normal text-tinta outline-none focus:border-hp-400"
+                >
+                  <option value="TEXTO">Texto</option>
+                  <option value="IMAGEN">Imagen (URL)</option>
+                  <option value="AUDIO">Audio (URL mp3)</option>
+                  <option value="EMBED">Embed (YouTube, etc.)</option>
+                  <option value="ENLACE">Enlace</option>
+                </select>
+              </label>
+
+              <label className="min-w-48 flex-1 text-sm font-semibold text-tinta">
+                URL (para imagen, audio, embed o enlace)
+                <input
+                  type="url"
+                  name="url"
+                  placeholder="https://..."
+                  className="mt-1 h-10 w-full rounded-full border border-hp-200 bg-white px-4 text-sm font-normal text-tinta outline-none focus:border-hp-400"
+                />
+              </label>
+
+              <label className="min-w-48 flex-1 text-sm font-semibold text-tinta">
+                Etiqueta (opcional)
+                <input
+                  type="text"
+                  name="etiqueta"
+                  placeholder="Descripción o título"
+                  className="mt-1 h-10 w-full rounded-full border border-hp-200 bg-white px-4 text-sm font-normal text-tinta outline-none focus:border-hp-400"
+                />
+              </label>
+            </div>
+
+            <label className="mt-3 block text-sm font-semibold text-tinta">
+              Texto (solo para bloques de texto)
+              <textarea
+                name="texto"
+                rows={4}
+                className="mt-1 w-full rounded-2xl border border-hp-200 bg-white px-4 py-3 text-sm font-normal text-tinta outline-none focus:border-hp-400"
+              />
+            </label>
+
+            <button
+              type="submit"
+              className="mt-4 h-10 rounded-full bg-hp-400 px-5 text-sm font-bold text-white transition-colors hover:bg-hp-500"
+            >
+              Añadir bloque
+            </button>
+          </form>
+        </section>
       )}
 
       {/* Marcar como hecho: solo con asignación viva de este recorrido. */}

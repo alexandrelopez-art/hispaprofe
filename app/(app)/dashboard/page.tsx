@@ -174,22 +174,22 @@ export default async function DashboardPage() {
 
       <div className="mt-6 flex flex-wrap gap-3">
         <Link
-          href="/profe/grupos"
+          href="/profe/secuencias/nueva"
           className="h-10 rounded-full bg-hp-400 px-5 text-sm font-bold leading-10 text-white transition-colors hover:bg-hp-500"
         >
-          Grupos ({grupos})
+          + Nueva secuencia
         </Link>
         <Link
-          href="/profe/alumnos"
+          href="/profe/grupos"
           className="h-10 rounded-full border-2 border-hp-200 px-5 text-sm font-bold leading-9 text-hp-600 transition-colors hover:border-hp-400"
         >
-          Estudiantes
+          + Nuevo grupo ({grupos})
         </Link>
         <Link
-          href="/recorridos"
+          href="/profe/alumnos/nuevo"
           className="h-10 rounded-full border-2 border-hp-200 px-5 text-sm font-bold leading-9 text-hp-600 transition-colors hover:border-hp-400"
         >
-          Secuencias
+          + Nuevo estudiante
         </Link>
       </div>
 

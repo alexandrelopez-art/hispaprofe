@@ -1,6 +1,10 @@
 import { prisma } from "@/lib/prisma";
 import { getUsuarioActual } from "@/lib/usuario";
-import { asignarSecuenciaAVarios } from "@/lib/acciones";
+import {
+  asignarSecuenciaAVarios,
+  borrarPaso,
+  crearPaso,
+} from "@/lib/acciones";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 
@@ -224,6 +228,21 @@ export default async function RecorridoDetallePage({
                     <span className="absolute -left-[41px] flex h-6 w-6 items-center justify-center rounded-full bg-tinta text-xs font-bold text-white ring-4 ring-fondo">
                       {paso.orden}
                     </span>
+                    {esProfe && (
+                      <form
+                        action={borrarPaso}
+                        className="absolute right-3 top-3 z-10"
+                      >
+                        <input type="hidden" name="pasoId" value={paso.id} />
+                        <button
+                          type="submit"
+                          className="rounded-full border border-hp-200 px-2 py-0.5 text-[11px] font-bold text-tinta-suave transition-colors hover:border-bloque3 hover:text-tinta"
+                          title="Borrar paso"
+                        >
+                          Borrar
+                        </button>
+                      </form>
+                    )}
                     <Link
                       href={`/pasos/${paso.id}`}
                       className="block rounded-xl border border-hp-100 bg-white p-4 shadow-suave transition hover:border-hp-300 hover:shadow-tarjeta"
@@ -253,6 +272,82 @@ export default async function RecorridoDetallePage({
             </section>
           );
         })}
+
+        {esProfe && (
+          <section className="mt-4 rounded-tarjeta border border-hp-100 bg-white p-5 shadow-suave">
+            <h2 className="text-lg font-bold text-tinta">Añadir un paso</h2>
+            <form action={crearPaso} className="mt-3">
+              <input type="hidden" name="recorridoId" value={recorrido.id} />
+
+              <label className="block text-sm font-semibold text-tinta">
+                Título
+                <input
+                  type="text"
+                  name="titulo"
+                  required
+                  placeholder="Vocabulario del barrio"
+                  className="mt-1 h-10 w-full rounded-full border border-hp-200 bg-white px-4 text-sm font-normal text-tinta outline-none focus:border-hp-400"
+                />
+              </label>
+
+              <div className="mt-3 flex flex-wrap gap-3">
+                <label className="flex-1 text-sm font-semibold text-tinta">
+                  Tipo
+                  <select
+                    name="tipo"
+                    required
+                    defaultValue=""
+                    className="mt-1 h-10 w-full rounded-full border border-hp-200 bg-white px-4 text-sm font-normal text-tinta outline-none focus:border-hp-400"
+                  >
+                    <option value="" disabled>
+                      Elige
+                    </option>
+                    <option value="ACTIVACION">Activación</option>
+                    <option value="ACTIVIDAD">Actividad</option>
+                    <option value="ANDAMIAJE">Andamiaje</option>
+                    <option value="MICRO_TAREA">Micro tarea</option>
+                    <option value="MACRO_TAREA">Macro tarea</option>
+                  </select>
+                </label>
+
+                <label className="w-24 text-sm font-semibold text-tinta">
+                  Ciclo
+                  <input
+                    type="number"
+                    name="ciclo"
+                    min={1}
+                    defaultValue={1}
+                    className="mt-1 h-10 w-full rounded-full border border-hp-200 bg-white px-4 text-sm font-normal text-tinta outline-none focus:border-hp-400"
+                  />
+                </label>
+
+                <label className="flex-1 text-sm font-semibold text-tinta">
+                  Destreza
+                  <select
+                    name="destreza"
+                    defaultValue=""
+                    className="mt-1 h-10 w-full rounded-full border border-hp-200 bg-white px-4 text-sm font-normal text-tinta outline-none focus:border-hp-400"
+                  >
+                    <option value="">Ninguna</option>
+                    <option value="CO">CO · comprensión oral</option>
+                    <option value="CE">CE · comprensión escrita</option>
+                    <option value="EO">EO · expresión oral</option>
+                    <option value="EE">EE · expresión escrita</option>
+                    <option value="EOI">EOI · interacción oral</option>
+                    <option value="EEI">EEI · interacción escrita</option>
+                  </select>
+                </label>
+              </div>
+
+              <button
+                type="submit"
+                className="mt-4 h-10 rounded-full bg-hp-400 px-5 text-sm font-bold text-white transition-colors hover:bg-hp-500"
+              >
+                Añadir paso
+              </button>
+            </form>
+          </section>
+        )}
       </div>
     </div>
   );

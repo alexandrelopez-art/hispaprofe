@@ -4,7 +4,13 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getUsuarioActual } from "@/lib/usuario";
-import type { Nivel } from "@/lib/generated/prisma";
+import type {
+  Destreza,
+  Nivel,
+  TipoBloque,
+  TipoPaso,
+  TipoRecorrido,
+} from "@/lib/generated/prisma";
 
 async function exigirProfesor() {
   const usuario = await getUsuarioActual();
@@ -206,6 +212,154 @@ export async function quitarDeGrupo(formData: FormData) {
 
   revalidatePath(`/profe/grupos/${miembro.grupoId}`);
   revalidatePath("/dashboard");
+}
+
+// ─── Estudiantes ─────────────────────────────────────────────────────────
+
+/** Crea la ficha de un estudiante suelto, sin cuenta todavía. */
+export async function crearEstudiante(formData: FormData) {
+  await exigirProfesor();
+  const email = String(formData.get("email") ?? "")
+    .trim()
+    .toLowerCase();
+  const firstName = String(formData.get("firstName") ?? "").trim() || null;
+  const lastName = String(formData.get("lastName") ?? "").trim() || null;
+  const nivel = comoNivel(String(formData.get("nivel") ?? ""));
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return;
+
+  const estudiante = await prisma.user.upsert({
+    where: { email },
+    update: {},
+    create: { email, firstName, lastName, nivel, role: "STUDENT" },
+  });
+
+  revalidatePath("/profe/alumnos");
+  revalidatePath("/dashboard");
+  redirect(`/profe/alumnos/${estudiante.id}`);
+}
+
+// ─── Editor de secuencias ────────────────────────────────────────────────
+
+export async function crearSecuencia(formData: FormData) {
+  const profesor = await exigirProfesor();
+  const titulo = String(formData.get("titulo") ?? "").trim();
+  const descripcion =
+    String(formData.get("descripcion") ?? "").trim() || null;
+  const nivel = comoNivel(String(formData.get("nivel") ?? ""));
+  const tipo = String(formData.get("tipo") ?? "RECORRIDO") as TipoRecorrido;
+  if (!titulo || !nivel) return;
+
+  const ultimo = await prisma.recorrido.aggregate({
+    where: { tipo },
+    _max: { orden: true },
+  });
+
+  const secuencia = await prisma.recorrido.create({
+    data: {
+      titulo,
+      descripcion,
+      nivel,
+      tipo,
+      orden: (ultimo._max.orden ?? 0) + 1,
+      autorId: profesor.id,
+    },
+  });
+
+  revalidatePath("/recorridos");
+  revalidatePath("/dashboard");
+  redirect(`/recorridos/${secuencia.id}`);
+}
+
+export async function crearPaso(formData: FormData) {
+  await exigirProfesor();
+  const recorridoId = String(formData.get("recorridoId") ?? "");
+  const titulo = String(formData.get("titulo") ?? "").trim();
+  const tipo = String(formData.get("tipo") ?? "") as TipoPaso;
+  const ciclo = Number(formData.get("ciclo") ?? 1) || 1;
+  const destrezaBruta = String(formData.get("destreza") ?? "");
+  const destreza = destrezaBruta ? (destrezaBruta as Destreza) : null;
+  if (!recorridoId || !titulo || !tipo) return;
+
+  const ultimo = await prisma.paso.aggregate({
+    where: { recorridoId },
+    _max: { orden: true },
+  });
+
+  await prisma.paso.create({
+    data: {
+      recorridoId,
+      titulo,
+      tipo,
+      ciclo,
+      destreza,
+      orden: (ultimo._max.orden ?? 0) + 1,
+    },
+  });
+
+  revalidatePath(`/recorridos/${recorridoId}`);
+  revalidatePath("/recorridos");
+}
+
+/** Borra un paso con sus bloques y su historial de completado. */
+export async function borrarPaso(formData: FormData) {
+  await exigirProfesor();
+  const pasoId = String(formData.get("pasoId") ?? "");
+  if (!pasoId) return;
+
+  const paso = await prisma.paso.findUnique({
+    where: { id: pasoId },
+    select: { recorridoId: true },
+  });
+  if (!paso) return;
+
+  await prisma.$transaction([
+    prisma.pasoCompletado.deleteMany({ where: { pasoId } }),
+    prisma.bloque.deleteMany({ where: { pasoId } }),
+    prisma.paso.delete({ where: { id: pasoId } }),
+  ]);
+
+  revalidatePath(`/recorridos/${paso.recorridoId}`);
+  revalidatePath("/recorridos");
+  redirect(`/recorridos/${paso.recorridoId}`);
+}
+
+export async function crearBloque(formData: FormData) {
+  await exigirProfesor();
+  const pasoId = String(formData.get("pasoId") ?? "");
+  const tipo = String(formData.get("tipo") ?? "") as TipoBloque;
+  const texto = String(formData.get("texto") ?? "").trim() || null;
+  const url = String(formData.get("url") ?? "").trim() || null;
+  const etiqueta = String(formData.get("etiqueta") ?? "").trim() || null;
+  if (!pasoId || !tipo) return;
+  if (tipo === "TEXTO" && !texto) return;
+  if (tipo !== "TEXTO" && !url) return;
+
+  const ultimo = await prisma.bloque.aggregate({
+    where: { pasoId },
+    _max: { orden: true },
+  });
+
+  await prisma.bloque.create({
+    data: {
+      pasoId,
+      tipo,
+      texto,
+      url,
+      etiqueta,
+      orden: (ultimo._max.orden ?? 0) + 1,
+    },
+  });
+
+  revalidatePath(`/pasos/${pasoId}`);
+}
+
+export async function borrarBloque(formData: FormData) {
+  await exigirProfesor();
+  const id = String(formData.get("bloqueId") ?? "");
+  if (!id) return;
+
+  const bloque = await prisma.bloque.delete({ where: { id } });
+  revalidatePath(`/pasos/${bloque.pasoId}`);
 }
 
 // ─── Progreso del estudiante ─────────────────────────────────────────────
