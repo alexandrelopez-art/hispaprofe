@@ -1,13 +1,27 @@
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
+import type { Prisma } from "@/lib/generated/prisma";
 
-// Fuerza render dinámico: la página lee de la base en cada visita.
 export const dynamic = "force-dynamic";
 
 const nivelLabel: Record<string, string> = {
   A2_B1_ESCOLAR: "A2/B1 escolar",
   B2: "B2",
 };
+
+const servicioLabel: Record<string, string> = {
+  RECORRIDO: "Clases particulares",
+  PREPARACION: "Preparación DELE",
+};
+
+// Orden fijo para que la composición se lea siempre igual.
+const TIPOS = [
+  "ACTIVACION",
+  "ACTIVIDAD",
+  "ANDAMIAJE",
+  "MICRO_TAREA",
+  "MACRO_TAREA",
+] as const;
 
 const tipoLabel: Record<string, string> = {
   ACTIVACION: "Activación",
@@ -25,94 +39,144 @@ const tipoStyle: Record<string, string> = {
   MACRO_TAREA: "bg-bloque3/25 text-tinta ring-bloque3/50",
 };
 
-export default async function RecorridosPage() {
+const campoBase =
+  "h-10 rounded-full border border-hp-200 bg-white px-4 text-sm text-tinta outline-none focus:border-hp-400";
+
+export default async function RecorridosPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string; nivel?: string; servicio?: string }>;
+}) {
+  const { q = "", nivel = "", servicio = "" } = await searchParams;
+
+  const where: Prisma.RecorridoWhereInput = {};
+  if (servicio) where.tipo = servicio as Prisma.RecorridoWhereInput["tipo"];
+  if (nivel) where.nivel = nivel as Prisma.RecorridoWhereInput["nivel"];
+  if (q) {
+    where.OR = [
+      { titulo: { contains: q, mode: "insensitive" } },
+      { descripcion: { contains: q, mode: "insensitive" } },
+    ];
+  }
+
   const recorridos = await prisma.recorrido.findMany({
-    where: { tipo: "RECORRIDO" },
-    orderBy: { orden: "asc" },
-    include: { pasos: { orderBy: { orden: "asc" } } },
+    where,
+    orderBy: [{ tipo: "asc" }, { orden: "asc" }],
+    include: { pasos: { select: { tipo: true, ciclo: true } } },
   });
 
+  const hayFiltro = Boolean(q || nivel || servicio);
+
   return (
-    <div className="mx-auto max-w-3xl px-6 py-12">
+    <div className="mx-auto max-w-5xl px-6 py-12">
       <h1 className="text-3xl font-extrabold tracking-tight text-tinta">
-        Recorridos
+        Secuencias
       </h1>
       <p className="mt-2 text-tinta-suave">
-        {recorridos.length} recorrido{recorridos.length !== 1 ? "s" : ""}{" "}
-        disponible{recorridos.length !== 1 ? "s" : ""}.
+        Busca una secuencia lista y ábrela para ver sus pasos.
       </p>
 
-      {recorridos.length === 0 && (
-        <p className="mt-10 rounded-tarjeta border border-dashed border-hp-200 p-8 text-center text-tinta-suave">
-          No hay recorridos todavía. Ejecuta el seed para crear uno.
-        </p>
-      )}
-
-      <div className="mt-10 space-y-8">
-        {recorridos.map((recorrido) => (
+      <form className="mt-8 flex flex-wrap items-center gap-3">
+        <input
+          type="search"
+          name="q"
+          defaultValue={q}
+          placeholder="Buscar por título o tema"
+          className={`${campoBase} min-w-56 flex-1`}
+        />
+        <select name="servicio" defaultValue={servicio} className={campoBase}>
+          <option value="">Todos los servicios</option>
+          <option value="RECORRIDO">Clases particulares</option>
+          <option value="PREPARACION">Preparación DELE</option>
+        </select>
+        <select name="nivel" defaultValue={nivel} className={campoBase}>
+          <option value="">Todos los niveles</option>
+          <option value="A2_B1_ESCOLAR">A2/B1 escolar</option>
+          <option value="B2">B2</option>
+        </select>
+        <button
+          type="submit"
+          className="h-10 rounded-full bg-hp-400 px-5 text-sm font-bold text-white transition-colors hover:bg-hp-500"
+        >
+          Buscar
+        </button>
+        {hayFiltro && (
           <Link
-            key={recorrido.id}
-            href={`/recorridos/${recorrido.id}`}
-            className="block rounded-tarjeta border border-hp-100 bg-white p-6 shadow-suave transition hover:border-hp-300 hover:shadow-tarjeta"
+            href="/recorridos"
+            className="text-sm font-semibold text-tinta-suave hover:text-hp-500"
           >
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <h2 className="text-xl font-bold text-tinta">
+            Limpiar
+          </Link>
+        )}
+      </form>
+
+      <p className="mt-6 text-sm text-tinta-suave">
+        {recorridos.length} secuencia{recorridos.length !== 1 ? "s" : ""}
+        {hayFiltro ? " encontrada" : " disponible"}
+        {recorridos.length !== 1 ? "s" : ""}.
+      </p>
+
+      {recorridos.length === 0 ? (
+        <p className="mt-6 rounded-tarjeta border border-dashed border-hp-200 p-10 text-center text-tinta-suave">
+          Ninguna secuencia coincide con la búsqueda.
+        </p>
+      ) : (
+        <div className="mt-4 grid gap-5 md:grid-cols-2">
+          {recorridos.map((recorrido) => {
+            const total = recorrido.pasos.length;
+            const ciclos = new Set(recorrido.pasos.map((p) => p.ciclo)).size;
+            const composicion = TIPOS.map((tipo) => ({
+              tipo,
+              n: recorrido.pasos.filter((p) => p.tipo === tipo).length,
+            })).filter((c) => c.n > 0);
+
+            return (
+              <Link
+                key={recorrido.id}
+                href={`/recorridos/${recorrido.id}`}
+                className="flex flex-col rounded-tarjeta border border-hp-100 bg-white p-5 shadow-suave transition hover:border-hp-300 hover:shadow-tarjeta"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-tinta-suave">
+                    {servicioLabel[recorrido.tipo] ?? recorrido.tipo}
+                  </span>
+                  <span className="shrink-0 rounded-full bg-hp-400 px-2.5 py-0.5 text-[11px] font-bold text-white">
+                    {nivelLabel[recorrido.nivel] ?? recorrido.nivel}
+                  </span>
+                </div>
+
+                <h2 className="mt-2 line-clamp-2 text-lg font-bold text-tinta">
                   {recorrido.titulo}
                 </h2>
                 {recorrido.descripcion && (
-                  <p className="mt-1 text-sm text-tinta-suave">
+                  <p className="mt-1 line-clamp-2 text-sm text-tinta-suave">
                     {recorrido.descripcion}
                   </p>
                 )}
-              </div>
-              <span className="shrink-0 rounded-full bg-hp-400 px-3 py-1 text-xs font-bold text-white">
-                {nivelLabel[recorrido.nivel] ?? recorrido.nivel}
-              </span>
-            </div>
 
-            {[1, 2].map((ciclo) => {
-              const pasos = recorrido.pasos.filter((p) => p.ciclo === ciclo);
-              if (pasos.length === 0) return null;
-              return (
-                <section key={ciclo} className="mt-6">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-tinta-suave">
-                    Ciclo {ciclo}
-                  </h3>
-                  <ol className="mt-3 space-y-2">
-                    {pasos.map((paso) => (
-                      <li
-                        key={paso.id}
-                        className="flex items-center gap-3 rounded-xl border border-hp-50 bg-fondo px-3 py-2"
+                <div className="mt-auto pt-4">
+                  <p className="text-xs font-semibold text-tinta-suave">
+                    {total} paso{total !== 1 ? "s" : ""} · {ciclos} ciclo
+                    {ciclos !== 1 ? "s" : ""}
+                  </p>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {composicion.map(({ tipo, n }) => (
+                      <span
+                        key={tipo}
+                        className={`rounded-md px-2 py-0.5 text-[11px] font-semibold ring-1 ring-inset ${
+                          tipoStyle[tipo] ?? "bg-hp-50 text-tinta ring-hp-200"
+                        }`}
                       >
-                        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-tinta text-xs font-bold text-white">
-                          {paso.orden}
-                        </span>
-                        <span
-                          className={`shrink-0 rounded-md px-2 py-0.5 text-xs font-semibold ring-1 ring-inset ${
-                            tipoStyle[paso.tipo] ??
-                            "bg-hp-50 text-tinta ring-hp-200"
-                          }`}
-                        >
-                          {tipoLabel[paso.tipo] ?? paso.tipo}
-                        </span>
-                        <span className="flex-1 text-sm text-tinta">
-                          {paso.titulo}
-                        </span>
-                        {paso.destreza && (
-                          <span className="shrink-0 rounded bg-hp-100 px-1.5 py-0.5 text-[10px] font-bold text-hp-700">
-                            {paso.destreza}
-                          </span>
-                        )}
-                      </li>
+                        {n} {tipoLabel[tipo]}
+                      </span>
                     ))}
-                  </ol>
-                </section>
-              );
-            })}
-          </Link>
-        ))}
-      </div>
+                  </div>
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

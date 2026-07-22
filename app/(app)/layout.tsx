@@ -1,11 +1,17 @@
 import Link from "next/link";
 import { UserButton } from "@clerk/nextjs";
+import { getUsuarioActual } from "@/lib/usuario";
 
-export default function AppLayout({
+export default async function AppLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Crea la fila de User la primera vez que entra. Va en el layout para
+  // que ocurra en cualquier página de la zona con sesión, no solo en el panel.
+  const usuario = await getUsuarioActual();
+  const esProfe = usuario?.role === "PROFESOR" || usuario?.role === "ADMIN";
+
   return (
     <>
       <header className="sticky top-0 z-10 bg-white/85 backdrop-blur border-b border-hp-100">
@@ -30,14 +36,16 @@ export default function AppLayout({
               href="/recorridos"
               className="hover:text-hp-500 transition-colors"
             >
-              Recorridos
+              Secuencias
             </Link>
-            <Link
-              href="/preparacion"
-              className="hover:text-hp-500 transition-colors"
-            >
-              Preparación
-            </Link>
+            {esProfe && (
+              <Link
+                href="/profe/alumnos"
+                className="hover:text-hp-500 transition-colors"
+              >
+                Estudiantes
+              </Link>
+            )}
           </nav>
 
           <div className="ml-auto">

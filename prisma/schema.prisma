@@ -16,15 +16,19 @@ enum Role {
   ADMIN
 }
 
+// Niveles MCER para clases particulares, mas el nivel combinado del
+// DELE A2/B1 para escolares, que es un examen unico y no un nivel MCER.
 enum Nivel {
-  A2_B1_ESCOLAR
+  A1
+  A2
+  B1
   B2
+  C1
+  A2_B1_ESCOLAR
 }
 
-// RECORRIDO   = secuencia temática (Tiempo libre, Vida sana...)
-// PREPARACION = bloque de preparación DELE. Se muestra como "Bloque 1", "Bloque 3"
-//               segun el campo `orden`. En schema no se usa la palabra "bloque"
-//               porque ya designa los trozos de contenido de un Paso.
+// RECORRIDO   = clases particulares
+// PREPARACION = preparacion DELE
 enum TipoRecorrido {
   RECORRIDO
   PREPARACION
@@ -56,34 +60,48 @@ enum TipoBloque {
 }
 
 model User {
+  // clerkId es opcional a proposito: el profesor puede crear la ficha del
+  // estudiante desde una lista de correos antes de que exista la cuenta.
+  // Se rellena la primera vez que esa persona entra, emparejando por email.
   id        String   @id @default(cuid())
-  clerkId   String   @unique
+  clerkId   String?  @unique
   email     String   @unique
   firstName String?
   lastName  String?
   role      Role     @default(STUDENT)
+  nivel     Nivel?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  asignacionesRecibidas Asignacion[]   @relation("AsignacionEstudiante")
+  asignacionesCreadas   Asignacion[]   @relation("AsignacionProfesor")
+  recorridosCreados     Recorrido[]    @relation("AutorRecorrido")
+  gruposCreados         Grupo[]        @relation("ProfesorGrupo")
+  membresias            MiembroGrupo[] @relation("EstudianteGrupo")
 }
 
 model Recorrido {
-  id          String        @id @default(cuid())
-  titulo      String
-  descripcion String?
-  nivel       Nivel
-  tipo        TipoRecorrido @default(RECORRIDO)
-  orden       Int
-  publicado   Boolean       @default(false)
-  pasos       Paso[]
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  id           String        @id @default(cuid())
+  titulo       String
+  descripcion  String?
+  nivel        Nivel
+  tipo         TipoRecorrido @default(RECORRIDO)
+  orden        Int
+  publicado    Boolean       @default(false)
+  autor        User?         @relation("AutorRecorrido", fields: [autorId], references: [id])
+  autorId      String?
+  pasos        Paso[]
+  asignaciones Asignacion[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
 
   @@index([tipo, nivel, orden])
+  @@index([autorId])
 }
 
 model Paso {
-  id          String    @id @default(cuid())
-  recorrido   Recorrido @relation(fields: [recorridoId], references: [id])
+  id          String           @id @default(cuid())
+  recorrido   Recorrido        @relation(fields: [recorridoId], references: [id])
   recorridoId String
   orden       Int
   ciclo       Int
@@ -91,8 +109,9 @@ model Paso {
   destreza    Destreza?
   titulo      String
   bloques     Bloque[]
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  completados PasoCompletado[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
 }
 
 model Bloque {
@@ -106,4 +125,68 @@ model Bloque {
   etiqueta  String? // descripción de imagen, título del embed/audio o texto del enlace
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
+}
+
+// Cohorte. Sirve para asignar a veinticinco personas de una vez.
+model Grupo {
+  id          String         @id @default(cuid())
+  nombre      String
+  descripcion String?
+  nivel       Nivel?
+  profesor    User           @relation("ProfesorGrupo", fields: [profesorId], references: [id])
+  profesorId  String
+  archivado   Boolean        @default(false)
+  miembros    MiembroGrupo[]
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@index([profesorId, archivado])
+}
+
+model MiembroGrupo {
+  id           String   @id @default(cuid())
+  grupo        Grupo    @relation(fields: [grupoId], references: [id], onDelete: Cascade)
+  grupoId      String
+  estudiante   User     @relation("EstudianteGrupo", fields: [estudianteId], references: [id], onDelete: Cascade)
+  estudianteId String
+  createdAt    DateTime @default(now())
+
+  @@unique([grupoId, estudianteId])
+  @@index([estudianteId])
+}
+
+// El profesor asigna la secuencia entera. No hay seleccion de pasos sueltos:
+// para dar menos trabajo se crea una secuencia mas corta.
+model Asignacion {
+  id           String    @id @default(cuid())
+  estudiante   User      @relation("AsignacionEstudiante", fields: [estudianteId], references: [id])
+  estudianteId String
+  profesor     User      @relation("AsignacionProfesor", fields: [profesorId], references: [id])
+  profesorId   String
+  recorrido    Recorrido @relation(fields: [recorridoId], references: [id])
+  recorridoId  String
+  nota         String? // instruccion del profe para este estudiante
+  venceEl      DateTime?
+  archivada    Boolean   @default(false)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  completados PasoCompletado[]
+
+  @@unique([estudianteId, recorridoId])
+  @@index([estudianteId, archivada])
+  @@index([profesorId])
+  @@index([recorridoId, archivada])
+}
+
+model PasoCompletado {
+  id           String     @id @default(cuid())
+  asignacion   Asignacion @relation(fields: [asignacionId], references: [id], onDelete: Cascade)
+  asignacionId String
+  paso         Paso       @relation(fields: [pasoId], references: [id])
+  pasoId       String
+  completadoEl DateTime   @default(now())
+
+  @@unique([asignacionId, pasoId])
+  @@index([asignacionId])
 }

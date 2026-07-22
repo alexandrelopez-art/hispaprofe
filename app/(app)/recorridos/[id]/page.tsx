@@ -1,9 +1,24 @@
 import { prisma } from "@/lib/prisma";
+import { getUsuarioActual } from "@/lib/usuario";
+import { asignarSecuenciaAVarios } from "@/lib/acciones";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 
-// Fuerza render dinámico: lee de la base en cada visita.
 export const dynamic = "force-dynamic";
+
+const nivelLabel: Record<string, string> = {
+  A1: "A1",
+  A2: "A2",
+  B1: "B1",
+  B2: "B2",
+  C1: "C1",
+  A2_B1_ESCOLAR: "A2/B1 escolar",
+};
+
+const servicioLabel: Record<string, string> = {
+  RECORRIDO: "Clases particulares",
+  PREPARACION: "Preparación DELE",
+};
 
 const tipoLabel: Record<string, string> = {
   ACTIVACION: "Activación",
@@ -14,12 +29,20 @@ const tipoLabel: Record<string, string> = {
 };
 
 const tipoStyle: Record<string, string> = {
-  ACTIVACION: "bg-emerald-100 text-emerald-800 ring-emerald-200",
-  ACTIVIDAD: "bg-teal-100 text-teal-800 ring-teal-200",
-  ANDAMIAJE: "bg-slate-100 text-slate-700 ring-slate-200",
-  MICRO_TAREA: "bg-amber-100 text-amber-800 ring-amber-200",
-  MACRO_TAREA: "bg-rose-100 text-rose-800 ring-rose-200",
+  ACTIVACION: "bg-bloque2/25 text-tinta ring-bloque2/50",
+  ACTIVIDAD: "bg-hp-100 text-hp-700 ring-hp-200",
+  ANDAMIAJE: "bg-bloque1/25 text-tinta ring-bloque1/50",
+  MICRO_TAREA: "bg-sol-200/70 text-tinta ring-sol-400/60",
+  MACRO_TAREA: "bg-bloque3/25 text-tinta ring-bloque3/50",
 };
+
+function nombreDe(u: {
+  firstName: string | null;
+  lastName: string | null;
+  email: string;
+}) {
+  return [u.firstName, u.lastName].filter(Boolean).join(" ") || u.email;
+}
 
 export default async function RecorridoDetallePage({
   params,
@@ -35,64 +58,192 @@ export default async function RecorridoDetallePage({
 
   if (!recorrido) notFound();
 
+  const usuario = await getUsuarioActual();
+  const esProfe =
+    usuario?.role === "PROFESOR" || usuario?.role === "ADMIN";
+
+  const [estudiantes, asignaciones] = esProfe
+    ? await Promise.all([
+        prisma.user.findMany({
+          where: { role: "STUDENT" },
+          orderBy: [{ firstName: "asc" }, { email: "asc" }],
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            nivel: true,
+          },
+        }),
+        prisma.asignacion.findMany({
+          where: { recorridoId: id, archivada: false },
+          include: {
+            estudiante: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+              },
+            },
+            _count: { select: { completados: true } },
+          },
+        }),
+      ])
+    : [[], []];
+
+  const yaAsignados = new Set(asignaciones.map((a) => a.estudianteId));
+  const pendientes = estudiantes.filter((e) => !yaAsignados.has(e.id));
+  const totalPasos = recorrido.pasos.length;
+
+  // Los ciclos salen de los datos, no de una lista fija: una secuencia
+  // de tres ciclos ya no se queda a medias.
+  const ciclos = [...new Set(recorrido.pasos.map((p) => p.ciclo))].sort(
+    (a, b) => a - b,
+  );
+
   return (
-    <main className="mx-auto max-w-3xl px-6 py-12">
+    <div className="mx-auto max-w-3xl px-6 py-12">
       <Link
         href="/recorridos"
-        className="text-sm font-medium text-slate-500 hover:text-slate-900"
+        className="text-sm font-semibold text-tinta-suave hover:text-hp-500"
       >
-        ← Recorridos
+        ← Secuencias
       </Link>
 
       <div className="mt-6 flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-slate-900">
+          <p className="text-[11px] font-bold uppercase tracking-wider text-tinta-suave">
+            {servicioLabel[recorrido.tipo] ?? recorrido.tipo}
+          </p>
+          <h1 className="mt-1 text-3xl font-extrabold tracking-tight text-tinta">
             {recorrido.titulo}
           </h1>
           {recorrido.descripcion && (
-            <p className="mt-2 text-slate-500">{recorrido.descripcion}</p>
+            <p className="mt-2 text-tinta-suave">{recorrido.descripcion}</p>
           )}
         </div>
-        <span className="shrink-0 rounded-full bg-indigo-600 px-3 py-1 text-xs font-semibold text-white">
-          {recorrido.nivel.replace(/_/g, " ")}
+        <span className="shrink-0 rounded-full bg-hp-400 px-3 py-1 text-xs font-bold text-white">
+          {nivelLabel[recorrido.nivel] ?? recorrido.nivel}
         </span>
       </div>
 
+      {esProfe && (
+        <section className="mt-8 rounded-tarjeta border border-hp-100 bg-white p-5 shadow-suave">
+          <h2 className="text-lg font-bold text-tinta">Asignar esta secuencia</h2>
+
+          {asignaciones.length > 0 && (
+            <div className="mt-3">
+              <p className="text-xs font-bold uppercase tracking-wider text-tinta-suave">
+                Ya asignada a {asignaciones.length}
+              </p>
+              <ul className="mt-2 flex flex-wrap gap-2">
+                {asignaciones.map((asignacion) => (
+                  <li key={asignacion.id}>
+                    <Link
+                      href={`/profe/alumnos/${asignacion.estudiante.id}`}
+                      className="inline-flex items-center gap-2 rounded-full bg-fondo px-3 py-1 text-xs font-semibold text-tinta hover:bg-hp-50"
+                    >
+                      {nombreDe(asignacion.estudiante)}
+                      <span className="text-tinta-suave">
+                        {asignacion._count.completados}/{totalPasos}
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {pendientes.length === 0 ? (
+            <p className="mt-4 text-sm text-tinta-suave">
+              {estudiantes.length === 0
+                ? "Todavía no hay estudiantes registrados."
+                : "Todos los estudiantes ya la tienen asignada."}
+            </p>
+          ) : (
+            <form action={asignarSecuenciaAVarios} className="mt-4">
+              <input type="hidden" name="recorridoId" value={recorrido.id} />
+
+              <fieldset>
+                <legend className="text-sm font-semibold text-tinta">
+                  Elige a quién
+                </legend>
+                <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                  {pendientes.map((estudiante) => (
+                    <label
+                      key={estudiante.id}
+                      className="flex items-center gap-2 rounded-xl border border-hp-100 bg-fondo px-3 py-2 text-sm text-tinta"
+                    >
+                      <input
+                        type="checkbox"
+                        name="estudianteIds"
+                        value={estudiante.id}
+                        className="h-4 w-4 accent-hp-400"
+                      />
+                      <span className="truncate">{nombreDe(estudiante)}</span>
+                      {estudiante.nivel && (
+                        <span className="ml-auto shrink-0 text-[11px] font-bold text-tinta-suave">
+                          {nivelLabel[estudiante.nivel] ?? estudiante.nivel}
+                        </span>
+                      )}
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+
+              <input
+                type="text"
+                name="nota"
+                placeholder="Nota para el estudiante (opcional)"
+                className="mt-4 h-10 w-full rounded-full border border-hp-200 bg-white px-4 text-sm text-tinta outline-none focus:border-hp-400"
+              />
+
+              <button
+                type="submit"
+                className="mt-4 h-10 rounded-full bg-hp-400 px-5 text-sm font-bold text-white transition-colors hover:bg-hp-500"
+              >
+                Asignar a los seleccionados
+              </button>
+            </form>
+          )}
+        </section>
+      )}
+
       <div className="mt-10">
-        {[1, 2].map((ciclo) => {
+        {ciclos.map((ciclo) => {
           const pasos = recorrido.pasos.filter((p) => p.ciclo === ciclo);
-          if (pasos.length === 0) return null;
           return (
             <section key={ciclo} className="mb-8">
-              <h2 className="mb-4 text-xs font-bold uppercase tracking-wider text-slate-400">
+              <h2 className="mb-4 text-xs font-bold uppercase tracking-wider text-tinta-suave">
                 Ciclo {ciclo}
               </h2>
-              <ol className="relative border-l-2 border-slate-200 pl-8">
+              <ol className="relative border-l-2 border-hp-100 pl-8">
                 {pasos.map((paso) => (
                   <li key={paso.id} className="relative mb-5 last:mb-0">
-                    <span className="absolute -left-[41px] flex h-6 w-6 items-center justify-center rounded-full bg-slate-900 text-xs font-bold text-white ring-4 ring-white">
+                    <span className="absolute -left-[41px] flex h-6 w-6 items-center justify-center rounded-full bg-tinta text-xs font-bold text-white ring-4 ring-fondo">
                       {paso.orden}
                     </span>
                     <Link
                       href={`/pasos/${paso.id}`}
-                      className="block rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-indigo-300 hover:shadow-md"
+                      className="block rounded-xl border border-hp-100 bg-white p-4 shadow-suave transition hover:border-hp-300 hover:shadow-tarjeta"
                     >
                       <div className="flex items-center gap-2">
                         <span
-                          className={`rounded-md px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${
+                          className={`rounded-md px-2 py-0.5 text-xs font-semibold ring-1 ring-inset ${
                             tipoStyle[paso.tipo] ??
-                            "bg-slate-100 text-slate-700 ring-slate-200"
+                            "bg-hp-50 text-tinta ring-hp-200"
                           }`}
                         >
                           {tipoLabel[paso.tipo] ?? paso.tipo}
                         </span>
                         {paso.destreza && (
-                          <span className="rounded bg-slate-200 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600">
+                          <span className="rounded bg-hp-100 px-1.5 py-0.5 text-[10px] font-bold text-hp-700">
                             {paso.destreza}
                           </span>
                         )}
                       </div>
-                      <p className="mt-2 text-sm font-medium text-slate-800">
+                      <p className="mt-2 text-sm font-semibold text-tinta">
                         {paso.titulo}
                       </p>
                     </Link>
@@ -103,6 +254,6 @@ export default async function RecorridoDetallePage({
           );
         })}
       </div>
-    </main>
+    </div>
   );
 }
