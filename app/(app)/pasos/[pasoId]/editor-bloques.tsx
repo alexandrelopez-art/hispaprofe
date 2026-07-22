@@ -1,8 +1,8 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { crearBloque, obtenerMetadatos } from "@/lib/acciones";
-import TextoRico from "./texto-rico";
+import EditorTexto from "@/components/editor-texto";
 
 type Tipo = "TEXTO" | "EMBED" | "AUDIO" | "IMAGEN" | "ENLACE";
 
@@ -109,37 +109,6 @@ function origenDe(src: string): string {
 const campo =
   "w-full rounded-full border border-hp-200 bg-white px-4 py-2 text-sm text-tinta outline-none focus:border-hp-400";
 
-/**
- * Botones de formato. `envuelve` rodea lo seleccionado; `prefijo` se pone
- * al principio de la linea; `plantilla` inserta un bloque entero.
- */
-const FORMATO: {
-  label: string;
-  titulo: string;
-  envuelve?: string;
-  prefijo?: string;
-  plantilla?: string;
-  ejemplo?: string;
-}[] = [
-  { label: "N", titulo: "Negrita", envuelve: "**", ejemplo: "negrita" },
-  { label: "C", titulo: "Cursiva", envuelve: "*", ejemplo: "cursiva" },
-  { label: "Título", titulo: "Título de sección", prefijo: "## " },
-  { label: "Lista", titulo: "Lista con viñetas", prefijo: "- " },
-  { label: "Numerada", titulo: "Lista numerada", prefijo: "1. " },
-  {
-    label: "Enlace",
-    titulo: "Enlace",
-    plantilla: "[texto del enlace](https://…)",
-  },
-  {
-    label: "Tabla",
-    titulo: "Tabla",
-    plantilla:
-      "\n| Columna 1 | Columna 2 |\n| --- | --- |\n| dato | dato |\n| dato | dato |\n",
-  },
-  { label: "Cita", titulo: "Cita", prefijo: "> " },
-];
-
 export default function EditorBloques({ pasoId }: { pasoId: string }) {
   const [tipo, setTipo] = useState<Tipo>("TEXTO");
   const [entrada, setEntrada] = useState("");
@@ -150,46 +119,6 @@ export default function EditorBloques({ pasoId }: { pasoId: string }) {
   const [aviso, setAviso] = useState("");
   const [falloImagen, setFalloImagen] = useState(false);
   const [enviando, setEnviando] = useState(false);
-  const [verFormato, setVerFormato] = useState(false);
-  const areaTexto = useRef<HTMLTextAreaElement>(null);
-
-  /** Aplica un formato Markdown sobre lo que haya seleccionado. */
-  function aplicarFormato(f: (typeof FORMATO)[number]) {
-    const area = areaTexto.current;
-    if (!area) return;
-
-    const inicio = area.selectionStart;
-    const fin = area.selectionEnd;
-    const seleccion = texto.slice(inicio, fin);
-    let nuevo = texto;
-    let cursor = fin;
-
-    if (f.envuelve) {
-      const contenido = seleccion || f.ejemplo || "texto";
-      nuevo =
-        texto.slice(0, inicio) +
-        f.envuelve +
-        contenido +
-        f.envuelve +
-        texto.slice(fin);
-      cursor = inicio + f.envuelve.length + contenido.length + f.envuelve.length;
-    } else if (f.prefijo) {
-      // Al principio de la linea donde esté el cursor.
-      const inicioLinea = texto.lastIndexOf("\n", inicio - 1) + 1;
-      nuevo = texto.slice(0, inicioLinea) + f.prefijo + texto.slice(inicioLinea);
-      cursor = fin + f.prefijo.length;
-    } else if (f.plantilla) {
-      nuevo = texto.slice(0, inicio) + f.plantilla + texto.slice(fin);
-      cursor = inicio + f.plantilla.length;
-    }
-
-    setTexto(nuevo);
-    requestAnimationFrame(() => {
-      area.focus();
-      area.setSelectionRange(cursor, cursor);
-    });
-  }
-
   // Drive no sirve audio para reproduccion directa, pero si ofrece su
   // propio reproductor incrustable. Se guarda como EMBED, no como AUDIO.
   const audioDeDrive = tipo === "AUDIO" ? idDrive(entrada) : "";
@@ -215,7 +144,6 @@ export default function EditorBloques({ pasoId }: { pasoId: string }) {
     setImagen("");
     setAviso("");
     setFalloImagen(false);
-    setVerFormato(false);
   }
 
   function cambiarTipo(nuevo: Tipo) {
@@ -295,51 +223,7 @@ export default function EditorBloques({ pasoId }: { pasoId: string }) {
 
       {tipo === "TEXTO" ? (
         <div className="mt-3">
-          <div className="flex flex-wrap items-center gap-1.5">
-            {FORMATO.map((f) => (
-              <button
-                key={f.label}
-                type="button"
-                title={f.titulo}
-                onClick={() => aplicarFormato(f)}
-                className={`rounded-lg border border-hp-200 px-2.5 py-1 text-xs text-tinta-suave transition-colors hover:border-hp-400 hover:text-hp-600 ${
-                  f.label === "N"
-                    ? "font-extrabold"
-                    : f.label === "C"
-                      ? "italic"
-                      : "font-semibold"
-                }`}
-              >
-                {f.label}
-              </button>
-            ))}
-            <button
-              type="button"
-              onClick={() => setVerFormato((v) => !v)}
-              className="ml-auto rounded-lg px-2.5 py-1 text-xs font-semibold text-tinta-suave hover:text-hp-600"
-            >
-              {verFormato ? "Seguir escribiendo" : "Ver cómo queda"}
-            </button>
-          </div>
-
-          {verFormato ? (
-            <div className="mt-2 min-h-32 rounded-2xl border border-dashed border-hp-200 bg-fondo p-4">
-              {texto.trim() ? (
-                <TextoRico>{texto}</TextoRico>
-              ) : (
-                <p className="text-sm text-tinta-suave">Nada escrito todavía.</p>
-              )}
-            </div>
-          ) : (
-            <textarea
-              ref={areaTexto}
-              value={texto}
-              onChange={(e) => setTexto(e.target.value)}
-              rows={8}
-              placeholder="Escribe aquí. Selecciona una palabra y pulsa N para ponerla en negrita."
-              className="mt-2 w-full rounded-2xl border border-hp-200 bg-white px-4 py-3 text-sm text-tinta outline-none focus:border-hp-400"
-            />
-          )}
+          <EditorTexto valor={texto} alCambiar={setTexto} />
         </div>
       ) : (
         <textarea

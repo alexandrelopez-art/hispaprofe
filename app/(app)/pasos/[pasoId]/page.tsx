@@ -1,17 +1,11 @@
 import { prisma } from "@/lib/prisma";
 import { getUsuarioActual } from "@/lib/usuario";
-import {
-  borrarBloque,
-  desmarcarPasoHecho,
-  marcarPasoHecho,
-  moverBloque,
-  renombrarPaso,
-} from "@/lib/acciones";
-import BotonConfirmar from "@/components/boton-confirmar";
+import { desmarcarPasoHecho, marcarPasoHecho, renombrarPaso } from "@/lib/acciones";
+import BloqueEditable from "./bloque-editable";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import EditorBloques from "./editor-bloques";
-import TextoRico from "./texto-rico";
+import TextoRico from "@/components/texto-rico";
 
 // Fuerza render dinámico: lee de la base en cada visita.
 export const dynamic = "force-dynamic";
@@ -52,14 +46,6 @@ type BloqueData = {
   url: string | null;
   etiqueta: string | null;
   imagen: string | null;
-};
-
-const etiquetaTipo: Record<string, string> = {
-  TEXTO: "Texto",
-  IMAGEN: "Imagen",
-  AUDIO: "Audio",
-  EMBED: "Incrustado",
-  ENLACE: "Enlace",
 };
 
 /** Los audios de Drive van en iframe, pero no necesitan alto de vídeo. */
@@ -266,55 +252,20 @@ export default async function PasoPage({
       {/* Contenido: bloques ordenados, o área reservada si aún no hay. */}
       {paso.bloques.length > 0 ? (
         <div className="mt-8 space-y-6">
-          {paso.bloques.map((bloque, i) => (
-            <div key={bloque.id}>
-              {esProfe && (
-                <div className="mb-2 flex items-center gap-1.5">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-tinta-suave">
-                    {etiquetaTipo[bloque.tipo] ?? bloque.tipo}
-                  </span>
-
-                  <form action={moverBloque} className="ml-auto">
-                    <input type="hidden" name="bloqueId" value={bloque.id} />
-                    <input type="hidden" name="direccion" value="arriba" />
-                    <button
-                      type="submit"
-                      disabled={i === 0}
-                      title="Subir"
-                      className="rounded-lg border border-hp-200 px-2 py-0.5 text-xs font-bold text-tinta-suave transition-colors hover:border-hp-400 hover:text-hp-600 disabled:opacity-30"
-                    >
-                      ↑
-                    </button>
-                  </form>
-
-                  <form action={moverBloque}>
-                    <input type="hidden" name="bloqueId" value={bloque.id} />
-                    <input type="hidden" name="direccion" value="abajo" />
-                    <button
-                      type="submit"
-                      disabled={i === paso.bloques.length - 1}
-                      title="Bajar"
-                      className="rounded-lg border border-hp-200 px-2 py-0.5 text-xs font-bold text-tinta-suave transition-colors hover:border-hp-400 hover:text-hp-600 disabled:opacity-30"
-                    >
-                      ↓
-                    </button>
-                  </form>
-
-                  <form action={borrarBloque}>
-                    <input type="hidden" name="bloqueId" value={bloque.id} />
-                    <BotonConfirmar
-                      aviso="¿Borrar este bloque de contenido?"
-                      title="Borrar"
-                      className="rounded-lg border border-hp-200 px-2 py-0.5 text-xs font-bold text-tinta-suave transition-colors hover:border-bloque3 hover:text-tinta"
-                    >
-                      Borrar
-                    </BotonConfirmar>
-                  </form>
-                </div>
-              )}
-              <BloqueContenido bloque={bloque} />
-            </div>
-          ))}
+          {paso.bloques.map((bloque, i) =>
+            esProfe ? (
+              <BloqueEditable
+                key={bloque.id}
+                bloque={bloque}
+                indice={i}
+                total={paso.bloques.length}
+              >
+                <BloqueContenido bloque={bloque} />
+              </BloqueEditable>
+            ) : (
+              <BloqueContenido key={bloque.id} bloque={bloque} />
+            ),
+          )}
         </div>
       ) : (
         <div className="mt-8 rounded-tarjeta border border-dashed border-hp-200 bg-white p-10 text-center">

@@ -647,20 +647,30 @@ export async function moverPaso(formData: FormData) {
   revalidatePath(`/pasos/${paso.id}`);
 }
 
-/** Reemplaza el texto de un bloque de tipo TEXTO. */
-export async function editarTextoBloque(formData: FormData) {
+/** Actualiza el contenido de un bloque ya creado. */
+export async function editarBloque(formData: FormData) {
   await exigirProfesor();
   const id = String(formData.get("bloqueId") ?? "");
-  const texto = String(formData.get("texto") ?? "");
-  if (!id || !texto.trim()) return;
+  if (!id) return;
 
-  const bloque = await prisma.bloque.update({
+  const existente = await prisma.bloque.findUnique({ where: { id } });
+  if (!existente) return;
+
+  const texto = String(formData.get("texto") ?? "").trim() || null;
+  const url = String(formData.get("url") ?? "").trim() || null;
+  const etiqueta = String(formData.get("etiqueta") ?? "").trim() || null;
+  const imagen = String(formData.get("imagen") ?? "").trim() || null;
+
+  // Un bloque vacio no se guarda: para eso está el botón de borrar.
+  if (existente.tipo === "TEXTO" && !texto) return;
+  if (existente.tipo !== "TEXTO" && !url) return;
+
+  await prisma.bloque.update({
     where: { id },
-    data: { texto },
-    select: { pasoId: true },
+    data: { texto, url, etiqueta, imagen },
   });
 
-  revalidatePath(`/pasos/${bloque.pasoId}`);
+  revalidatePath(`/pasos/${existente.pasoId}`);
 }
 
 export async function borrarBloque(formData: FormData) {
