@@ -414,6 +414,7 @@ export async function crearBloque(formData: FormData) {
   const texto = String(formData.get("texto") ?? "").trim() || null;
   const url = String(formData.get("url") ?? "").trim() || null;
   const etiqueta = String(formData.get("etiqueta") ?? "").trim() || null;
+  const imagen = String(formData.get("imagen") ?? "").trim() || null;
   if (!pasoId || !tipo) return;
   if (tipo === "TEXTO" && !texto) return;
   if (tipo !== "TEXTO" && !url) return;
@@ -430,11 +431,111 @@ export async function crearBloque(formData: FormData) {
       texto,
       url,
       etiqueta,
+      imagen,
       orden: (ultimo._max.orden ?? 0) + 1,
     },
   });
 
   revalidatePath(`/pasos/${pasoId}`);
+}
+
+/**
+ * Lee las etiquetas Open Graph de una pagina para montar la tarjeta de
+ * enlace con titulo, descripcion y miniatura. Va en el servidor porque el
+ * navegador no puede pedir paginas de otros dominios.
+ */
+export async function obtenerMetadatos(url: string): Promise<{
+  titulo: string;
+  descripcion: string;
+  imagen: string;
+  error?: string;
+}> {
+  await exigirProfesor();
+  const vacio = { titulo: "", descripcion: "", imagen: "" };
+
+  let objetivo: URL;
+  try {
+    objetivo = new URL(url);
+  } catch {
+    return { ...vacio, error: "Eso no parece una dirección web." };
+  }
+
+  // Solo web publica: nada de esquemas raros ni direcciones internas.
+  if (!["http:", "https:"].includes(objetivo.protocol)) {
+    return { ...vacio, error: "Solo se admiten enlaces http o https." };
+  }
+  const host = objetivo.hostname.toLowerCase();
+  if (
+    host === "localhost" ||
+    host.endsWith(".local") ||
+    /^(127\.|10\.|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.)/.test(host)
+  ) {
+    return { ...vacio, error: "Esa dirección no es pública." };
+  }
+
+  try {
+    const respuesta = await fetch(objetivo.toString(), {
+      headers: { "User-Agent": "HispaProfe/1.0 (+lector de enlaces)" },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!respuesta.ok) {
+      return { ...vacio, error: `La página respondió ${respuesta.status}.` };
+    }
+
+    const tipoContenido = respuesta.headers.get("content-type") ?? "";
+    if (tipoContenido.startsWith("image/")) {
+      return { titulo: "", descripcion: "", imagen: objetivo.toString() };
+    }
+    if (!tipoContenido.includes("html")) {
+      return { ...vacio, error: "Ese enlace no es una página web." };
+    }
+
+    const html = (await respuesta.text()).slice(0, 200_000);
+
+    const meta = (propiedad: string) => {
+      const patron = new RegExp(
+        `<meta[^>]+(?:property|name)=["']${propiedad}["'][^>]*content=["']([^"']*)["']`,
+        "i",
+      );
+      const alterno = new RegExp(
+        `<meta[^>]+content=["']([^"']*)["'][^>]*(?:property|name)=["']${propiedad}["']`,
+        "i",
+      );
+      return (html.match(patron) ?? html.match(alterno))?.[1] ?? "";
+    };
+
+    const titulo =
+      meta("og:title") ||
+      meta("twitter:title") ||
+      html.match(/<title[^>]*>([^<]*)<\/title>/i)?.[1]?.trim() ||
+      "";
+    const descripcion =
+      meta("og:description") || meta("description") || meta("twitter:description");
+    let imagen = meta("og:image") || meta("twitter:image");
+
+    // Rutas relativas: completarlas con el dominio.
+    if (imagen && !imagen.startsWith("http")) {
+      try {
+        imagen = new URL(imagen, objetivo).toString();
+      } catch {
+        imagen = "";
+      }
+    }
+
+    const limpiar = (s: string) =>
+      s.replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#39;/g, "'").trim();
+
+    return {
+      titulo: limpiar(titulo).slice(0, 200),
+      descripcion: limpiar(descripcion).slice(0, 300),
+      imagen,
+    };
+  } catch {
+    return {
+      ...vacio,
+      error: "No pude leer esa página. Puede tardar demasiado o bloquear lectores.",
+    };
+  }
 }
 
 export async function borrarBloque(formData: FormData) {

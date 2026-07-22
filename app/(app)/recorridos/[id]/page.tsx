@@ -276,6 +276,11 @@ export default async function RecorridoDetallePage({
         {esProfe && (
           <section className="mt-4 rounded-tarjeta border border-hp-100 bg-white p-5 shadow-suave">
             <h2 className="text-lg font-bold text-tinta">Añadir un paso</h2>
+            <p className="mt-1 text-sm text-tinta-suave">
+              Aquí se define el esqueleto. El contenido (texto, vídeo, audio,
+              Genially, enlaces) se añade dentro de cada paso: pulsa uno de la
+              lista de arriba y busca «Añadir contenido» al final.
+            </p>
             <form action={crearPaso} className="mt-3">
               <input type="hidden" name="recorridoId" value={recorrido.id} />
 

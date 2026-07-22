@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "fresh": "pkill -f 'next dev'; sleep 2; rm -rf .next && next dev"
   },
   "dependencies": {
     "@clerk/nextjs": "^7.5.7",

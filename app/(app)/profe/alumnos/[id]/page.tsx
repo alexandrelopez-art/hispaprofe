@@ -1,6 +1,10 @@
 import { prisma } from "@/lib/prisma";
 import { getUsuarioActual } from "@/lib/usuario";
-import { asignarSecuencia, archivarAsignacion } from "@/lib/acciones";
+import {
+  archivarAsignacion,
+  asignarSecuencia,
+  otorgarPuntos,
+} from "@/lib/acciones";
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 
@@ -46,10 +50,20 @@ export default async function AlumnoPage({
             titulo: true,
             nivel: true,
             tipo: true,
-            _count: { select: { pasos: true } },
+            pasos: {
+              orderBy: { orden: "asc" },
+              select: { id: true, orden: true, titulo: true },
+            },
           },
         },
-        _count: { select: { completados: true } },
+        completados: {
+          select: {
+            pasoId: true,
+            puntos: true,
+            verificadoEl: true,
+            completadoEl: true,
+          },
+        },
       },
     }),
     prisma.recorrido.findMany({
@@ -94,9 +108,18 @@ export default async function AlumnoPage({
       ) : (
         <ul className="mt-3 space-y-3">
           {asignaciones.map((asignacion) => {
-            const total = asignacion.recorrido._count.pasos;
-            const hechos = asignacion._count.completados;
+            const total = asignacion.recorrido.pasos.length;
+            const porPaso = new Map(
+              asignacion.completados.map((c) => [c.pasoId, c]),
+            );
+            const hechos = asignacion.completados.filter(
+              (c) => c.completadoEl,
+            ).length;
             const pct = total > 0 ? Math.round((hechos / total) * 100) : 0;
+            const puntosTotales = asignacion.completados.reduce(
+              (suma, c) => suma + (c.puntos ?? 0),
+              0,
+            );
 
             return (
               <li
@@ -147,7 +170,80 @@ export default async function AlumnoPage({
                   <span className="shrink-0 text-xs font-bold text-tinta-suave">
                     {hechos}/{total} pasos
                   </span>
+                  {puntosTotales > 0 && (
+                    <span className="shrink-0 rounded-full bg-sol-200 px-2.5 py-0.5 text-xs font-bold text-tinta">
+                      {puntosTotales} pts
+                    </span>
+                  )}
                 </div>
+
+                <details className="mt-3">
+                  <summary className="cursor-pointer text-xs font-bold text-tinta-suave hover:text-hp-500">
+                    Ver pasos y otorgar puntos
+                  </summary>
+                  <ul className="mt-3 space-y-1.5">
+                    {asignacion.recorrido.pasos.map((paso) => {
+                      const registro = porPaso.get(paso.id);
+                      return (
+                        <li
+                          key={paso.id}
+                          className="flex items-center gap-2 rounded-lg bg-fondo px-3 py-1.5"
+                        >
+                          <span
+                            className={`shrink-0 text-sm ${
+                              registro ? "text-hp-500" : "text-hp-200"
+                            }`}
+                          >
+                            {registro ? "✓" : "○"}
+                          </span>
+                          <Link
+                            href={`/pasos/${paso.id}`}
+                            className="min-w-0 flex-1 truncate text-sm text-tinta hover:text-hp-500"
+                          >
+                            {paso.orden}. {paso.titulo}
+                          </Link>
+                          {registro?.verificadoEl && (
+                            <span
+                              className="shrink-0 text-xs"
+                              title="Puntos verificados por el profesor"
+                            >
+                              ★
+                            </span>
+                          )}
+                          <form
+                            action={otorgarPuntos}
+                            className="flex shrink-0 items-center gap-1"
+                          >
+                            <input
+                              type="hidden"
+                              name="asignacionId"
+                              value={asignacion.id}
+                            />
+                            <input
+                              type="hidden"
+                              name="pasoId"
+                              value={paso.id}
+                            />
+                            <input
+                              type="number"
+                              name="puntos"
+                              min={0}
+                              defaultValue={registro?.puntos ?? ""}
+                              placeholder="pts"
+                              className="h-7 w-16 rounded-full border border-hp-200 bg-white px-2 text-center text-xs text-tinta outline-none focus:border-hp-400"
+                            />
+                            <button
+                              type="submit"
+                              className="h-7 rounded-full border border-hp-200 px-2 text-[11px] font-bold text-tinta-suave transition-colors hover:border-hp-400 hover:text-hp-600"
+                            >
+                              Guardar
+                            </button>
+                          </form>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </details>
               </li>
             );
           })}

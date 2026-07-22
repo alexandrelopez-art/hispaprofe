@@ -120,9 +120,10 @@ model Bloque {
   pasoId    String
   orden     Int
   tipo      TipoBloque
-  texto     String? // para TEXTO
+  texto     String? // para TEXTO, o descripcion del enlace
   url       String? // para IMAGEN (src) / AUDIO (mp3) / EMBED (iframe) / ENLACE (href)
   etiqueta  String? // descripción de imagen, título del embed/audio o texto del enlace
+  imagen    String? // miniatura del enlace (og:image) o del video
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
 }
@@ -186,6 +187,12 @@ model PasoCompletado {
   paso         Paso       @relation(fields: [pasoId], references: [id])
   pasoId       String
   completadoEl DateTime   @default(now())
+
+  // Puntos otorgados por el profesor tras revisar el resultado
+  // (Genially, tarea corregida...). El check lo pone el estudiante;
+  // los puntos solo el profe. Dos niveles de verificacion.
+  puntos       Int?
+  verificadoEl DateTime?
 
   @@unique([asignacionId, pasoId])
   @@index([asignacionId])

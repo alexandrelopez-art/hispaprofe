@@ -2,12 +2,13 @@ import { prisma } from "@/lib/prisma";
 import { getUsuarioActual } from "@/lib/usuario";
 import {
   borrarBloque,
-  crearBloque,
   desmarcarPasoHecho,
   marcarPasoHecho,
+  renombrarPaso,
 } from "@/lib/acciones";
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import EditorBloques from "./editor-bloques";
 
 // Fuerza render dinámico: lee de la base en cada visita.
 export const dynamic = "force-dynamic";
@@ -47,6 +48,7 @@ type BloqueData = {
   texto: string | null;
   url: string | null;
   etiqueta: string | null;
+  imagen: string | null;
 };
 
 // Renderiza un bloque según su tipo.
@@ -113,9 +115,25 @@ function BloqueContenido({ bloque }: { bloque: BloqueData }) {
           href={bloque.url ?? "#"}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-1 rounded-full border border-hp-200 px-4 py-2 text-sm font-bold text-hp-600 transition hover:border-hp-400"
+          className="block overflow-hidden rounded-tarjeta border border-hp-100 bg-white shadow-suave transition hover:border-hp-300 hover:shadow-tarjeta"
         >
-          {bloque.etiqueta ?? bloque.url} ↗
+          {bloque.imagen && (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img
+              src={bloque.imagen}
+              alt=""
+              className="h-48 w-full object-cover"
+            />
+          )}
+          <div className="p-4">
+            <p className="font-bold text-tinta">
+              {bloque.etiqueta ?? bloque.url} ↗
+            </p>
+            {bloque.texto && (
+              <p className="mt-1 text-sm text-tinta-suave">{bloque.texto}</p>
+            )}
+            <p className="mt-1 truncate text-xs text-hp-600">{bloque.url}</p>
+          </div>
         </a>
       );
 
@@ -259,66 +277,28 @@ export default async function PasoPage({
       {/* Editor: añadir bloque de contenido (solo profes). */}
       {esProfe && (
         <section className="mt-8 rounded-tarjeta border border-hp-100 bg-white p-5 shadow-suave">
-          <h2 className="text-lg font-bold text-tinta">Añadir contenido</h2>
-          <form action={crearBloque} className="mt-3">
+          <h2 className="text-lg font-bold text-tinta">Editar este paso</h2>
+          <form action={renombrarPaso} className="mt-3 flex gap-2">
             <input type="hidden" name="pasoId" value={paso.id} />
-
-            <div className="flex flex-wrap gap-3">
-              <label className="text-sm font-semibold text-tinta">
-                Tipo
-                <select
-                  name="tipo"
-                  required
-                  defaultValue="TEXTO"
-                  className="mt-1 h-10 w-full rounded-full border border-hp-200 bg-white px-4 text-sm font-normal text-tinta outline-none focus:border-hp-400"
-                >
-                  <option value="TEXTO">Texto</option>
-                  <option value="IMAGEN">Imagen (URL)</option>
-                  <option value="AUDIO">Audio (URL mp3)</option>
-                  <option value="EMBED">Embed (YouTube, etc.)</option>
-                  <option value="ENLACE">Enlace</option>
-                </select>
-              </label>
-
-              <label className="min-w-48 flex-1 text-sm font-semibold text-tinta">
-                URL (para imagen, audio, embed o enlace)
-                <input
-                  type="url"
-                  name="url"
-                  placeholder="https://..."
-                  className="mt-1 h-10 w-full rounded-full border border-hp-200 bg-white px-4 text-sm font-normal text-tinta outline-none focus:border-hp-400"
-                />
-              </label>
-
-              <label className="min-w-48 flex-1 text-sm font-semibold text-tinta">
-                Etiqueta (opcional)
-                <input
-                  type="text"
-                  name="etiqueta"
-                  placeholder="Descripción o título"
-                  className="mt-1 h-10 w-full rounded-full border border-hp-200 bg-white px-4 text-sm font-normal text-tinta outline-none focus:border-hp-400"
-                />
-              </label>
-            </div>
-
-            <label className="mt-3 block text-sm font-semibold text-tinta">
-              Texto (solo para bloques de texto)
-              <textarea
-                name="texto"
-                rows={4}
-                className="mt-1 w-full rounded-2xl border border-hp-200 bg-white px-4 py-3 text-sm font-normal text-tinta outline-none focus:border-hp-400"
-              />
-            </label>
-
+            <input
+              type="text"
+              name="titulo"
+              required
+              defaultValue={paso.titulo}
+              className="h-10 min-w-0 flex-1 rounded-full border border-hp-200 bg-white px-4 text-sm text-tinta outline-none focus:border-hp-400"
+            />
             <button
               type="submit"
-              className="mt-4 h-10 rounded-full bg-hp-400 px-5 text-sm font-bold text-white transition-colors hover:bg-hp-500"
+              className="h-10 shrink-0 rounded-full border-2 border-hp-200 px-4 text-sm font-bold text-hp-600 transition-colors hover:border-hp-400"
             >
-              Añadir bloque
+              Renombrar
             </button>
           </form>
+
         </section>
       )}
+
+      {esProfe && <EditorBloques pasoId={paso.id} />}
 
       {/* Marcar como hecho: solo con asignación viva de este recorrido. */}
       {puedeMarcar && (

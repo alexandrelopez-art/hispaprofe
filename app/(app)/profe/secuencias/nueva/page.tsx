@@ -79,6 +79,26 @@ export default async function NuevaSecuenciaPage() {
           </label>
         </div>
 
+        <label className="mt-5 flex items-start gap-2 text-sm text-tinta">
+          <input
+            type="checkbox"
+            name="plantilla"
+            defaultChecked
+            className="mt-0.5 h-4 w-4 accent-hp-400"
+          />
+          <span>
+            <span className="font-semibold">
+              Crear con la estructura recomendada
+            </span>
+            <br />
+            <span className="text-tinta-suave">
+              9 pasos en 2 ciclos: activación, actividades, andamiaje y micro
+              tarea; luego actividades, andamiaje y macro tarea. Los títulos
+              son provisionales y se cambian al entrar en cada paso.
+            </span>
+          </span>
+        </label>
+
         <button
           type="submit"
           className="mt-5 h-10 rounded-full bg-hp-400 px-5 text-sm font-bold text-white transition-colors hover:bg-hp-500"
