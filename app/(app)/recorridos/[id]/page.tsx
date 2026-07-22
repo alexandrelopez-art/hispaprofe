@@ -4,7 +4,9 @@ import {
   asignarSecuenciaAVarios,
   borrarPaso,
   crearPaso,
+  moverPaso,
 } from "@/lib/acciones";
+import BotonConfirmar from "@/components/boton-confirmar";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 
@@ -228,21 +230,6 @@ export default async function RecorridoDetallePage({
                     <span className="absolute -left-[41px] flex h-6 w-6 items-center justify-center rounded-full bg-tinta text-xs font-bold text-white ring-4 ring-fondo">
                       {paso.orden}
                     </span>
-                    {esProfe && (
-                      <form
-                        action={borrarPaso}
-                        className="absolute right-3 top-3 z-10"
-                      >
-                        <input type="hidden" name="pasoId" value={paso.id} />
-                        <button
-                          type="submit"
-                          className="rounded-full border border-hp-200 px-2 py-0.5 text-[11px] font-bold text-tinta-suave transition-colors hover:border-bloque3 hover:text-tinta"
-                          title="Borrar paso"
-                        >
-                          Borrar
-                        </button>
-                      </form>
-                    )}
                     <Link
                       href={`/pasos/${paso.id}`}
                       className="block rounded-xl border border-hp-100 bg-white p-4 shadow-suave transition hover:border-hp-300 hover:shadow-tarjeta"
@@ -266,6 +253,55 @@ export default async function RecorridoDetallePage({
                         {paso.titulo}
                       </p>
                     </Link>
+
+                    {esProfe && (
+                      <div className="mt-1.5 flex items-center gap-1.5">
+                        <form action={moverPaso}>
+                          <input type="hidden" name="pasoId" value={paso.id} />
+                          <input
+                            type="hidden"
+                            name="direccion"
+                            value="arriba"
+                          />
+                          <button
+                            type="submit"
+                            disabled={paso.orden === 1}
+                            title="Subir"
+                            className="rounded-lg border border-hp-200 px-2 py-0.5 text-xs font-bold text-tinta-suave transition-colors hover:border-hp-400 hover:text-hp-600 disabled:opacity-30"
+                          >
+                            ↑
+                          </button>
+                        </form>
+
+                        <form action={moverPaso}>
+                          <input type="hidden" name="pasoId" value={paso.id} />
+                          <input
+                            type="hidden"
+                            name="direccion"
+                            value="abajo"
+                          />
+                          <button
+                            type="submit"
+                            disabled={paso.orden === recorrido.pasos.length}
+                            title="Bajar"
+                            className="rounded-lg border border-hp-200 px-2 py-0.5 text-xs font-bold text-tinta-suave transition-colors hover:border-hp-400 hover:text-hp-600 disabled:opacity-30"
+                          >
+                            ↓
+                          </button>
+                        </form>
+
+                        <form action={borrarPaso}>
+                          <input type="hidden" name="pasoId" value={paso.id} />
+                          <BotonConfirmar
+                            aviso={`¿Borrar el paso "${paso.titulo}"? Se borra también su contenido y el registro de quién lo había completado.`}
+                            title="Borrar paso"
+                            className="rounded-lg border border-hp-200 px-2 py-0.5 text-xs font-bold text-tinta-suave transition-colors hover:border-bloque3 hover:text-tinta"
+                          >
+                            Borrar
+                          </BotonConfirmar>
+                        </form>
+                      </div>
+                    )}
                   </li>
                 ))}
               </ol>

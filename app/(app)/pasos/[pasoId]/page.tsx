@@ -4,8 +4,10 @@ import {
   borrarBloque,
   desmarcarPasoHecho,
   marcarPasoHecho,
+  moverBloque,
   renombrarPaso,
 } from "@/lib/acciones";
+import BotonConfirmar from "@/components/boton-confirmar";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import EditorBloques from "./editor-bloques";
@@ -50,6 +52,14 @@ type BloqueData = {
   url: string | null;
   etiqueta: string | null;
   imagen: string | null;
+};
+
+const etiquetaTipo: Record<string, string> = {
+  TEXTO: "Texto",
+  IMAGEN: "Imagen",
+  AUDIO: "Audio",
+  EMBED: "Incrustado",
+  ENLACE: "Enlace",
 };
 
 /** Los audios de Drive van en iframe, pero no necesitan alto de vídeo. */
@@ -256,22 +266,51 @@ export default async function PasoPage({
       {/* Contenido: bloques ordenados, o área reservada si aún no hay. */}
       {paso.bloques.length > 0 ? (
         <div className="mt-8 space-y-6">
-          {paso.bloques.map((bloque) => (
-            <div key={bloque.id} className="group relative">
+          {paso.bloques.map((bloque, i) => (
+            <div key={bloque.id}>
               {esProfe && (
-                <form
-                  action={borrarBloque}
-                  className="absolute -right-2 -top-2 z-10 opacity-0 transition-opacity group-hover:opacity-100"
-                >
-                  <input type="hidden" name="bloqueId" value={bloque.id} />
-                  <button
-                    type="submit"
-                    className="rounded-full border border-hp-200 bg-white px-2 py-0.5 text-[11px] font-bold text-tinta-suave transition-colors hover:border-bloque3 hover:text-tinta"
-                    title="Borrar bloque"
-                  >
-                    Borrar
-                  </button>
-                </form>
+                <div className="mb-2 flex items-center gap-1.5">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-tinta-suave">
+                    {etiquetaTipo[bloque.tipo] ?? bloque.tipo}
+                  </span>
+
+                  <form action={moverBloque} className="ml-auto">
+                    <input type="hidden" name="bloqueId" value={bloque.id} />
+                    <input type="hidden" name="direccion" value="arriba" />
+                    <button
+                      type="submit"
+                      disabled={i === 0}
+                      title="Subir"
+                      className="rounded-lg border border-hp-200 px-2 py-0.5 text-xs font-bold text-tinta-suave transition-colors hover:border-hp-400 hover:text-hp-600 disabled:opacity-30"
+                    >
+                      ↑
+                    </button>
+                  </form>
+
+                  <form action={moverBloque}>
+                    <input type="hidden" name="bloqueId" value={bloque.id} />
+                    <input type="hidden" name="direccion" value="abajo" />
+                    <button
+                      type="submit"
+                      disabled={i === paso.bloques.length - 1}
+                      title="Bajar"
+                      className="rounded-lg border border-hp-200 px-2 py-0.5 text-xs font-bold text-tinta-suave transition-colors hover:border-hp-400 hover:text-hp-600 disabled:opacity-30"
+                    >
+                      ↓
+                    </button>
+                  </form>
+
+                  <form action={borrarBloque}>
+                    <input type="hidden" name="bloqueId" value={bloque.id} />
+                    <BotonConfirmar
+                      aviso="¿Borrar este bloque de contenido?"
+                      title="Borrar"
+                      className="rounded-lg border border-hp-200 px-2 py-0.5 text-xs font-bold text-tinta-suave transition-colors hover:border-bloque3 hover:text-tinta"
+                    >
+                      Borrar
+                    </BotonConfirmar>
+                  </form>
+                </div>
               )}
               <BloqueContenido bloque={bloque} />
             </div>

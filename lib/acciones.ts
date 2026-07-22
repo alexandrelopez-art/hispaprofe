@@ -579,6 +579,90 @@ export async function obtenerMetadatos(url: string): Promise<{
   }
 }
 
+/** Intercambia el orden de un bloque con su vecino. */
+export async function moverBloque(formData: FormData) {
+  await exigirProfesor();
+  const id = String(formData.get("bloqueId") ?? "");
+  const direccion = String(formData.get("direccion") ?? "");
+  if (!id || (direccion !== "arriba" && direccion !== "abajo")) return;
+
+  const bloque = await prisma.bloque.findUnique({ where: { id } });
+  if (!bloque) return;
+
+  const vecino = await prisma.bloque.findFirst({
+    where: {
+      pasoId: bloque.pasoId,
+      orden:
+        direccion === "arriba" ? { lt: bloque.orden } : { gt: bloque.orden },
+    },
+    orderBy: { orden: direccion === "arriba" ? "desc" : "asc" },
+  });
+  if (!vecino) return;
+
+  await prisma.$transaction([
+    prisma.bloque.update({
+      where: { id: bloque.id },
+      data: { orden: vecino.orden },
+    }),
+    prisma.bloque.update({
+      where: { id: vecino.id },
+      data: { orden: bloque.orden },
+    }),
+  ]);
+
+  revalidatePath(`/pasos/${bloque.pasoId}`);
+}
+
+/** Intercambia el orden de un paso con su vecino dentro de la secuencia. */
+export async function moverPaso(formData: FormData) {
+  await exigirProfesor();
+  const id = String(formData.get("pasoId") ?? "");
+  const direccion = String(formData.get("direccion") ?? "");
+  if (!id || (direccion !== "arriba" && direccion !== "abajo")) return;
+
+  const paso = await prisma.paso.findUnique({ where: { id } });
+  if (!paso) return;
+
+  const vecino = await prisma.paso.findFirst({
+    where: {
+      recorridoId: paso.recorridoId,
+      orden: direccion === "arriba" ? { lt: paso.orden } : { gt: paso.orden },
+    },
+    orderBy: { orden: direccion === "arriba" ? "desc" : "asc" },
+  });
+  if (!vecino) return;
+
+  await prisma.$transaction([
+    prisma.paso.update({
+      where: { id: paso.id },
+      data: { orden: vecino.orden },
+    }),
+    prisma.paso.update({
+      where: { id: vecino.id },
+      data: { orden: paso.orden },
+    }),
+  ]);
+
+  revalidatePath(`/recorridos/${paso.recorridoId}`);
+  revalidatePath(`/pasos/${paso.id}`);
+}
+
+/** Reemplaza el texto de un bloque de tipo TEXTO. */
+export async function editarTextoBloque(formData: FormData) {
+  await exigirProfesor();
+  const id = String(formData.get("bloqueId") ?? "");
+  const texto = String(formData.get("texto") ?? "");
+  if (!id || !texto.trim()) return;
+
+  const bloque = await prisma.bloque.update({
+    where: { id },
+    data: { texto },
+    select: { pasoId: true },
+  });
+
+  revalidatePath(`/pasos/${bloque.pasoId}`);
+}
+
 export async function borrarBloque(formData: FormData) {
   await exigirProfesor();
   const id = String(formData.get("bloqueId") ?? "");
