@@ -254,6 +254,8 @@ export async function crearSecuencia(formData: FormData) {
     _max: { orden: true },
   });
 
+  const conPlantilla = formData.get("plantilla") === "on";
+
   const secuencia = await prisma.recorrido.create({
     data: {
       titulo,
@@ -265,9 +267,74 @@ export async function crearSecuencia(formData: FormData) {
     },
   });
 
+  // Estructura recomendada: 9 pasos en 2 ciclos. El ciclo 1 abre con la
+  // activacion y cierra en la micro tarea; el 2 cierra en la macro tarea.
+  if (conPlantilla) {
+    const plantilla: {
+      titulo: string;
+      tipo: TipoPaso;
+      ciclo: number;
+    }[] = [
+      { titulo: "Activación: conecta con el tema", tipo: "ACTIVACION", ciclo: 1 },
+      { titulo: "Actividad 1", tipo: "ACTIVIDAD", ciclo: 1 },
+      { titulo: "Actividad 2", tipo: "ACTIVIDAD", ciclo: 1 },
+      { titulo: "Andamiaje: léxico y gramática del ciclo 1", tipo: "ANDAMIAJE", ciclo: 1 },
+      { titulo: "Micro tarea: producción breve", tipo: "MICRO_TAREA", ciclo: 1 },
+      { titulo: "Actividad 3", tipo: "ACTIVIDAD", ciclo: 2 },
+      { titulo: "Actividad 4", tipo: "ACTIVIDAD", ciclo: 2 },
+      { titulo: "Andamiaje: léxico y gramática del ciclo 2", tipo: "ANDAMIAJE", ciclo: 2 },
+      { titulo: "Macro tarea: producción final", tipo: "MACRO_TAREA", ciclo: 2 },
+    ];
+
+    await prisma.paso.createMany({
+      data: plantilla.map((paso, i) => ({
+        recorridoId: secuencia.id,
+        titulo: paso.titulo,
+        tipo: paso.tipo,
+        ciclo: paso.ciclo,
+        orden: i + 1,
+      })),
+    });
+  }
+
   revalidatePath("/recorridos");
   revalidatePath("/dashboard");
   redirect(`/recorridos/${secuencia.id}`);
+}
+
+/**
+ * Otorga puntos verificados sobre un paso de una asignacion. Si el
+ * estudiante no habia marcado el paso, la fila se crea igualmente:
+ * verificar implica que el trabajo existe.
+ */
+export async function otorgarPuntos(formData: FormData) {
+  await exigirProfesor();
+  const asignacionId = String(formData.get("asignacionId") ?? "");
+  const pasoId = String(formData.get("pasoId") ?? "");
+  const bruto = String(formData.get("puntos") ?? "").trim();
+  if (!asignacionId || !pasoId) return;
+
+  const puntos = bruto === "" ? null : Math.max(0, Number(bruto) || 0);
+
+  const asignacion = await prisma.asignacion.findUnique({
+    where: { id: asignacionId },
+    select: { estudianteId: true },
+  });
+  if (!asignacion) return;
+
+  await prisma.pasoCompletado.upsert({
+    where: { asignacionId_pasoId: { asignacionId, pasoId } },
+    update: { puntos, verificadoEl: puntos === null ? null : new Date() },
+    create: {
+      asignacionId,
+      pasoId,
+      puntos,
+      verificadoEl: puntos === null ? null : new Date(),
+    },
+  });
+
+  revalidatePath(`/profe/alumnos/${asignacion.estudianteId}`);
+  revalidatePath("/dashboard");
 }
 
 export async function crearPaso(formData: FormData) {
@@ -298,6 +365,23 @@ export async function crearPaso(formData: FormData) {
 
   revalidatePath(`/recorridos/${recorridoId}`);
   revalidatePath("/recorridos");
+}
+
+/** Renombra un paso. Pensado para los títulos provisionales de la plantilla. */
+export async function renombrarPaso(formData: FormData) {
+  await exigirProfesor();
+  const pasoId = String(formData.get("pasoId") ?? "");
+  const titulo = String(formData.get("titulo") ?? "").trim();
+  if (!pasoId || !titulo) return;
+
+  const paso = await prisma.paso.update({
+    where: { id: pasoId },
+    data: { titulo },
+    select: { recorridoId: true },
+  });
+
+  revalidatePath(`/pasos/${pasoId}`);
+  revalidatePath(`/recorridos/${paso.recorridoId}`);
 }
 
 /** Borra un paso con sus bloques y su historial de completado. */
@@ -360,6 +444,52 @@ export async function borrarBloque(formData: FormData) {
 
   const bloque = await prisma.bloque.delete({ where: { id } });
   revalidatePath(`/pasos/${bloque.pasoId}`);
+}
+
+/**
+ * Importa puntos en lote desde un informe externo (Genially, etc.),
+ * ya revisados y emparejados por el profesor en la interfaz.
+ * Crea la asignacion si el estudiante no la tenia: recibir puntos
+ * de una secuencia implica estar asignado a ella.
+ */
+export async function importarPuntos(formData: FormData) {
+  const profesor = await exigirProfesor();
+  const recorridoId = String(formData.get("recorridoId") ?? "");
+  const pasoId = String(formData.get("pasoId") ?? "");
+  const estudianteIds = formData.getAll("estudianteIds").map(String);
+  const puntosLista = formData.getAll("puntos").map((p) => Number(p) || 0);
+  if (!recorridoId || !pasoId || estudianteIds.length === 0) return;
+
+  for (let i = 0; i < estudianteIds.length; i++) {
+    const estudianteId = estudianteIds[i];
+    const puntos = Math.max(0, puntosLista[i] ?? 0);
+    if (!estudianteId) continue;
+
+    const asignacion = await prisma.asignacion.upsert({
+      where: { estudianteId_recorridoId: { estudianteId, recorridoId } },
+      update: { archivada: false },
+      create: { estudianteId, recorridoId, profesorId: profesor.id },
+    });
+
+    await prisma.pasoCompletado.upsert({
+      where: {
+        asignacionId_pasoId: { asignacionId: asignacion.id, pasoId },
+      },
+      update: { puntos, verificadoEl: new Date() },
+      create: {
+        asignacionId: asignacion.id,
+        pasoId,
+        puntos,
+        verificadoEl: new Date(),
+      },
+    });
+  }
+
+  revalidatePath("/profe/alumnos");
+  revalidatePath("/dashboard");
+  for (const estudianteId of estudianteIds) {
+    if (estudianteId) revalidatePath(`/profe/alumnos/${estudianteId}`);
+  }
 }
 
 // ─── Progreso del estudiante ─────────────────────────────────────────────

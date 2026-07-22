@@ -191,6 +191,12 @@ export default async function DashboardPage() {
         >
           + Nuevo estudiante
         </Link>
+        <Link
+          href="/profe/importar"
+          className="h-10 rounded-full border-2 border-hp-200 px-5 text-sm font-bold leading-9 text-hp-600 transition-colors hover:border-hp-400"
+        >
+          Importar resultados
+        </Link>
       </div>
 
       <h2 className="mt-10 text-lg font-bold text-tinta">
