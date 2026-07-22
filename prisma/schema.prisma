@@ -21,6 +21,15 @@ enum Nivel {
   B2
 }
 
+// RECORRIDO   = secuencia temática (Tiempo libre, Vida sana...)
+// PREPARACION = bloque de preparación DELE. Se muestra como "Bloque 1", "Bloque 3"
+//               segun el campo `orden`. En schema no se usa la palabra "bloque"
+//               porque ya designa los trozos de contenido de un Paso.
+enum TipoRecorrido {
+  RECORRIDO
+  PREPARACION
+}
+
 enum TipoPaso {
   ACTIVACION
   ACTIVIDAD
@@ -58,15 +67,18 @@ model User {
 }
 
 model Recorrido {
-  id          String   @id @default(cuid())
+  id          String        @id @default(cuid())
   titulo      String
   descripcion String?
   nivel       Nivel
+  tipo        TipoRecorrido @default(RECORRIDO)
   orden       Int
-  publicado   Boolean  @default(false)
+  publicado   Boolean       @default(false)
   pasos       Paso[]
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([tipo, nivel, orden])
 }
 
 model Paso {
