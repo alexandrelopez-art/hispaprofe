@@ -79,6 +79,7 @@ model User {
   archivos              Archivo[]      @relation("AutorArchivo")
   gruposCreados         Grupo[]        @relation("ProfesorGrupo")
   membresias            MiembroGrupo[] @relation("EstudianteGrupo")
+  ejerciciosCreados     Ejercicio[]    @relation("AutorEjercicio")
 }
 
 model Recorrido {
@@ -110,6 +111,7 @@ model Paso {
   destreza    Destreza?
   titulo      String
   bloques     Bloque[]
+  ejercicios  PasoEjercicio[]
   completados PasoCompletado[]
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
@@ -213,4 +215,44 @@ model Archivo {
   createdAt   DateTime @default(now())
 
   @@index([subidoPorId])
+}
+
+enum TipoEjercicio {
+  WIDGET
+  OPCION_MULTIPLE
+  HUECOS
+  RELACIONAR
+  ORDENAR
+}
+
+model Ejercicio {
+  id        String        @id @default(cuid())
+  tipo      TipoEjercicio
+  titulo    String
+  nivel     Nivel
+  destreza  Destreza?
+  etiquetas String[]
+  datos     Json
+  publicado Boolean       @default(false)
+  autor     User?         @relation("AutorEjercicio", fields: [autorId], references: [id])
+  autorId   String?
+  pasos     PasoEjercicio[]
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  @@index([nivel, destreza])
+  @@index([tipo])
+  @@index([autorId])
+}
+
+model PasoEjercicio {
+  id          String    @id @default(cuid())
+  paso        Paso      @relation(fields: [pasoId], references: [id], onDelete: Cascade)
+  pasoId      String
+  ejercicio   Ejercicio @relation(fields: [ejercicioId], references: [id])
+  ejercicioId String
+  orden       Int
+
+  @@unique([pasoId, ejercicioId])
+  @@index([ejercicioId])
 }
