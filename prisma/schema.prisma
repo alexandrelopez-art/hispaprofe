@@ -76,6 +76,7 @@ model User {
   asignacionesRecibidas Asignacion[]   @relation("AsignacionEstudiante")
   asignacionesCreadas   Asignacion[]   @relation("AsignacionProfesor")
   recorridosCreados     Recorrido[]    @relation("AutorRecorrido")
+  archivos              Archivo[]      @relation("AutorArchivo")
   gruposCreados         Grupo[]        @relation("ProfesorGrupo")
   membresias            MiembroGrupo[] @relation("EstudianteGrupo")
 }
@@ -196,4 +197,20 @@ model PasoCompletado {
 
   @@unique([asignacionId, pasoId])
   @@index([asignacionId])
+}
+
+// Imagenes subidas por el profesor. Se guardan en la propia base para no
+// depender de ningun servicio externo y para que viajen con la copia de
+// seguridad. Se sirven desde /api/archivos/[id].
+model Archivo {
+  id          String   @id @default(cuid())
+  nombre      String
+  tipo        String // mime, por ejemplo image/webp
+  tamano      Int // en bytes, ya redimensionada
+  datos       Bytes
+  subidoPor   User?    @relation("AutorArchivo", fields: [subidoPorId], references: [id])
+  subidoPorId String?
+  createdAt   DateTime @default(now())
+
+  @@index([subidoPorId])
 }

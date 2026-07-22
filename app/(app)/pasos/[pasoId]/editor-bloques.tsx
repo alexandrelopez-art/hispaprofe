@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { crearBloque, obtenerMetadatos } from "@/lib/acciones";
 import EditorTexto from "@/components/editor-texto";
+import SubirImagen from "@/components/subir-imagen";
 
 type Tipo = "TEXTO" | "EMBED" | "AUDIO" | "IMAGEN" | "ENLACE";
 
@@ -28,7 +29,7 @@ const TIPOS: { id: Tipo; label: string; ayuda: string }[] = [
     id: "IMAGEN",
     label: "Imagen",
     ayuda:
-      "La dirección del archivo, terminada en .jpg, .png o .webp. No sirve el enlace de una página que contiene la imagen.",
+      "Sube un archivo desde tu ordenador, o pega la dirección de una imagen ya publicada en internet.",
   },
   {
     id: "AUDIO",
@@ -243,6 +244,18 @@ export default function EditorBloques({ pasoId }: { pasoId: string }) {
         />
       )}
 
+      {tipo === "IMAGEN" && (
+        <div className="mt-3">
+          <SubirImagen
+            alSubir={(url) => {
+              setEntrada(url);
+              setFalloImagen(false);
+            }}
+            etiqueta="Subir desde el ordenador"
+          />
+        </div>
+      )}
+
       {buscando && (
         <p className="mt-2 text-xs font-semibold text-tinta-suave">
           Leyendo la página…
@@ -285,6 +298,9 @@ export default function EditorBloques({ pasoId }: { pasoId: string }) {
             placeholder="Imagen de la tarjeta (se rellena sola)"
             className={`mt-3 ${campo} font-mono text-xs`}
           />
+          <div className="mt-2">
+            <SubirImagen alSubir={setImagen} etiqueta="Usar otra imagen" />
+          </div>
         </>
       )}
 

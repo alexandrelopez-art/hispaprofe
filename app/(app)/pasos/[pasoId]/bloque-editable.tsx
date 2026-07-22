@@ -8,6 +8,7 @@ import {
 } from "@/lib/acciones";
 import BotonConfirmar from "@/components/boton-confirmar";
 import EditorTexto from "@/components/editor-texto";
+import SubirImagen from "@/components/subir-imagen";
 
 const etiquetaTipo: Record<string, string> = {
   TEXTO: "Texto",
@@ -152,6 +153,12 @@ export default function BloqueEditable({
                 />
               </label>
 
+              {bloque.tipo === "IMAGEN" && (
+                <div className="mt-2">
+                  <SubirImagen alSubir={setUrl} etiqueta="Cambiar la imagen" />
+                </div>
+              )}
+
               <label className="mt-3 block text-sm font-semibold text-tinta">
                 {bloque.tipo === "ENLACE" ? "Título" : "Etiqueta"}
                 <input
@@ -182,6 +189,9 @@ export default function BloqueEditable({
                       className={`mt-1 ${campo} font-mono text-xs`}
                     />
                   </label>
+                  <div className="mt-2">
+                    <SubirImagen alSubir={setImagen} etiqueta="Usar otra imagen" />
+                  </div>
                 </>
               )}
             </>
