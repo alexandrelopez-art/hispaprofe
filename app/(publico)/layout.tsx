@@ -1,5 +1,14 @@
 import Link from "next/link";
-import { Show, SignInButton, SignUpButton, UserButton } from "@clerk/nextjs";
+import { Show, SignInButton, UserButton } from "@clerk/nextjs";
+
+const enlacesNav = [
+  { href: "/", label: "Inicio" },
+  { href: "/#clases", label: "Clases" },
+  { href: "/#actividades", label: "Actividades" },
+  { href: "/#dele", label: "DELE" },
+  { href: "/#sobre-mi", label: "Sobre mí" },
+  { href: "/#hablared", label: "HablaRed", destacado: true },
+];
 
 export default function PublicoLayout({
   children,
@@ -11,51 +20,43 @@ export default function PublicoLayout({
       <header className="sticky top-0 z-10 bg-white/85 backdrop-blur border-b border-hp-100">
         <div className="mx-auto max-w-6xl flex items-center gap-6 px-6 h-16">
           <Link href="/" className="flex items-center gap-2 shrink-0">
-            <span className="grid place-items-center w-8 h-8 rounded-full bg-sol-300 text-tinta font-extrabold text-sm">
-              H
+            <span className="grid place-items-center w-9 h-9 rounded-xl bg-hp-500 text-white font-extrabold text-xl">
+              ñ
             </span>
-            <span className="font-extrabold text-tinta">HispaProfe</span>
+            <span className="font-extrabold text-tinta text-lg">
+              Hispa<span className="text-coral-500">profe</span>
+            </span>
           </Link>
 
-          <nav className="hidden sm:flex items-center gap-5 text-sm font-semibold text-tinta-suave">
-            <Link
-              href="/#clases-particulares"
-              className="hover:text-hp-500 transition-colors"
-            >
-              Clases particulares
-            </Link>
-            <Link
-              href="/#dele"
-              className="hover:text-hp-500 transition-colors"
-            >
-              DELE
-            </Link>
-            <Link
-              href="/#entre-profes"
-              className="hover:text-hp-500 transition-colors"
-            >
-              Entre profes
-            </Link>
-            <Link
-              href="/#cultura"
-              className="hover:text-hp-500 transition-colors"
-            >
-              Cultura
-            </Link>
+          <nav className="hidden md:flex items-center gap-5 text-sm font-semibold text-tinta-suave">
+            {enlacesNav.map((e) => (
+              <Link
+                key={e.href}
+                href={e.href}
+                className={`transition-colors ${
+                  e.destacado
+                    ? "text-coral-500 hover:text-coral-600"
+                    : "hover:text-hp-500"
+                }`}
+              >
+                {e.label}
+              </Link>
+            ))}
           </nav>
 
           <div className="ml-auto flex items-center gap-3">
             <Show when="signed-out">
               <SignInButton>
-                <button className="rounded-full bg-hp-400 text-white text-sm font-bold h-10 px-5 cursor-pointer hover:bg-hp-500 transition-colors">
+                <button className="hidden sm:block text-sm font-semibold text-tinta-suave hover:text-hp-500 transition-colors cursor-pointer">
                   Iniciar sesión
                 </button>
               </SignInButton>
-              <SignUpButton>
-                <button className="hidden sm:block rounded-full border-2 border-hp-200 text-hp-600 text-sm font-bold h-10 px-5 cursor-pointer hover:border-hp-400 transition-colors">
-                  Crear cuenta
-                </button>
-              </SignUpButton>
+              <a
+                href="#reservar"
+                className="rounded-full bg-hp-500 text-white text-sm font-bold h-10 px-5 flex items-center justify-center hover:bg-hp-600 transition-colors"
+              >
+                Reserva una clase
+              </a>
             </Show>
             <Show when="signed-in">
               <Link
