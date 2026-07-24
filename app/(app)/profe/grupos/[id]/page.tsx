@@ -3,8 +3,13 @@ import { getUsuarioActual } from "@/lib/usuario";
 import {
   anadirCorreosAGrupo,
   asignarSecuenciaAGrupo,
+  desvincularGrupo,
   quitarDeGrupo,
+  sincronizarGrupo,
+  vincularGrupoConCurso,
 } from "@/lib/acciones";
+import { googleConfigurado, listarCursos } from "@/lib/google";
+import type { CursoClassroom } from "@/lib/google";
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 
@@ -70,6 +75,29 @@ export default async function GrupoPage({
     orderBy: [{ tipo: "asc" }, { orden: "asc" }],
     select: { id: true, titulo: true, nivel: true, tipo: true },
   });
+
+  // Cursos de Classroom, solo si hay cuenta conectada y el grupo aún no
+  // está vinculado. Si Google falla, la página sigue funcionando igual.
+  const cuenta = googleConfigurado()
+    ? await prisma.cuentaGoogle.findUnique({
+        where: { usuarioId: usuario.id },
+        select: { id: true },
+      })
+    : null;
+
+  let cursos: CursoClassroom[] = [];
+  let falloClassroom = "";
+
+  if (cuenta && !grupo.classroomCursoId) {
+    try {
+      cursos = await listarCursos(usuario.id);
+    } catch (e) {
+      falloClassroom =
+        e instanceof Error && e.message === "SIN_CUENTA"
+          ? "La conexión con Google caducó. Vuelve a conectarla desde la lista de grupos."
+          : "No pude leer tus cursos de Classroom ahora mismo.";
+    }
+  }
 
   const sinCuenta = grupo.miembros.filter((m) => !m.estudiante.clerkId).length;
 
@@ -138,6 +166,112 @@ export default async function GrupoPage({
             ))}
           </ul>
         </>
+      )}
+
+      {googleConfigurado() && (
+        <section className="mt-10 rounded-tarjeta border border-hp-100 bg-white p-5 shadow-suave">
+          <h2 className="text-lg font-bold text-tinta">Google Classroom</h2>
+
+          {!cuenta ? (
+            <p className="mt-2 text-sm text-tinta-suave">
+              Conecta tu cuenta desde{" "}
+              <Link
+                href="/profe/grupos"
+                className="font-semibold text-hp-600 hover:text-hp-500"
+              >
+                la lista de grupos
+              </Link>{" "}
+              para traer la lista de alumnos de un curso.
+            </p>
+          ) : grupo.classroomCursoId ? (
+            <div className="mt-2">
+              <p className="text-sm text-tinta-suave">
+                Vinculado con{" "}
+                <span className="font-semibold text-tinta">
+                  {grupo.classroomNombre ?? "un curso de Classroom"}
+                </span>
+                {grupo.sincronizadoEl && (
+                  <>
+                    {" "}
+                    · última sincronización el{" "}
+                    {grupo.sincronizadoEl.toLocaleDateString("es-ES", {
+                      day: "numeric",
+                      month: "long",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </>
+                )}
+              </p>
+
+              <div className="mt-3 flex flex-wrap gap-2">
+                <form action={sincronizarGrupo}>
+                  <input type="hidden" name="grupoId" value={grupo.id} />
+                  <button
+                    type="submit"
+                    className="h-10 rounded-full bg-hp-400 px-5 text-sm font-bold text-white transition-colors hover:bg-hp-500"
+                  >
+                    Sincronizar ahora
+                  </button>
+                </form>
+
+                <form action={desvincularGrupo}>
+                  <input type="hidden" name="grupoId" value={grupo.id} />
+                  <button
+                    type="submit"
+                    className="h-10 rounded-full border-2 border-hp-200 px-5 text-sm font-bold text-tinta-suave transition-colors hover:border-bloque3 hover:text-tinta"
+                  >
+                    Desvincular
+                  </button>
+                </form>
+              </div>
+
+              <p className="mt-3 text-xs text-tinta-suave">
+                Sincronizar trae a los alumnos nuevos. A quien salga del curso
+                no se le quita del grupo: conserva su progreso y sus puntos.
+              </p>
+            </div>
+          ) : falloClassroom ? (
+            <p className="mt-2 rounded-xl bg-sol-100 px-4 py-2 text-sm text-tinta">
+              {falloClassroom}
+            </p>
+          ) : cursos.length === 0 ? (
+            <p className="mt-2 text-sm text-tinta-suave">
+              No encontré cursos activos donde figures como profesor.
+            </p>
+          ) : (
+            <form action={vincularGrupoConCurso} className="mt-3">
+              <input type="hidden" name="grupoId" value={grupo.id} />
+
+              <label className="block text-sm font-semibold text-tinta">
+                Curso
+                <select
+                  name="cursoId"
+                  required
+                  defaultValue=""
+                  className="mt-1 h-10 w-full rounded-full border border-hp-200 bg-white px-4 text-sm font-normal text-tinta outline-none focus:border-hp-400"
+                >
+                  <option value="" disabled>
+                    Elige un curso
+                  </option>
+                  {cursos.map((curso) => (
+                    <option key={curso.id} value={curso.id}>
+                      {curso.name}
+                      {curso.section ? ` · ${curso.section}` : ""}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <button
+                type="submit"
+                className="mt-4 h-10 rounded-full bg-hp-400 px-5 text-sm font-bold text-white transition-colors hover:bg-hp-500"
+              >
+                Vincular y traer la lista
+              </button>
+            </form>
+          )}
+        </section>
       )}
 
       <h2 className="mt-10 text-lg font-bold text-tinta">Añadir estudiantes</h2>

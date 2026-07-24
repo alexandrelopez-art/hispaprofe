@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { getUsuarioActual } from "@/lib/usuario";
-import { crearGrupo } from "@/lib/acciones";
+import { crearGrupo, desconectarGoogle } from "@/lib/acciones";
+import { googleConfigurado } from "@/lib/google";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 
@@ -15,17 +16,37 @@ const nivelLabel: Record<string, string> = {
   A2_B1_ESCOLAR: "A2/B1 escolar",
 };
 
-export default async function GruposPage() {
+const mensajes: Record<string, string> = {
+  ok: "Cuenta de Google conectada.",
+  cancelado: "Se canceló la conexión con Google.",
+  fallo: "Google no aceptó la conexión. Prueba otra vez.",
+  estado: "La vuelta de Google no cuadró. Prueba otra vez.",
+  incompleto: "Google devolvió una respuesta incompleta.",
+};
+
+export default async function GruposPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ google?: string }>;
+}) {
   const usuario = await getUsuarioActual();
   if (!usuario || (usuario.role !== "PROFESOR" && usuario.role !== "ADMIN")) {
     redirect("/dashboard");
   }
 
-  const grupos = await prisma.grupo.findMany({
-    where: { profesorId: usuario.id, archivado: false },
-    orderBy: { createdAt: "desc" },
-    include: { _count: { select: { miembros: true } } },
-  });
+  const { google } = await searchParams;
+
+  const [grupos, cuenta] = await Promise.all([
+    prisma.grupo.findMany({
+      where: { profesorId: usuario.id, archivado: false },
+      orderBy: { createdAt: "desc" },
+      include: { _count: { select: { miembros: true } } },
+    }),
+    prisma.cuentaGoogle.findUnique({
+      where: { usuarioId: usuario.id },
+      select: { email: true },
+    }),
+  ]);
 
   return (
     <div className="mx-auto max-w-3xl px-6 py-12">
@@ -35,6 +56,62 @@ export default async function GruposPage() {
       <p className="mt-2 text-tinta-suave">
         Un grupo permite asignar una secuencia a toda la clase de una vez.
       </p>
+
+      {google && mensajes[google] && (
+        <p
+          className={`mt-4 rounded-xl px-4 py-2 text-sm ${
+            google === "ok"
+              ? "bg-bloque2/25 font-semibold text-tinta"
+              : "bg-sol-100 text-tinta"
+          }`}
+        >
+          {mensajes[google]}
+        </p>
+      )}
+
+      {/* Conexión con Classroom: opcional, solo la usan los grupos vinculados. */}
+      <section className="mt-8 rounded-tarjeta border border-hp-100 bg-white p-5 shadow-suave">
+        <h2 className="text-lg font-bold text-tinta">Google Classroom</h2>
+
+        {!googleConfigurado() ? (
+          <p className="mt-2 text-sm text-tinta-suave">
+            Sin configurar. Faltan las credenciales de Google en el archivo
+            .env del proyecto.
+          </p>
+        ) : cuenta ? (
+          <div className="mt-2 flex flex-wrap items-center gap-3">
+            <p className="text-sm text-tinta-suave">
+              Conectado como{" "}
+              <span className="font-semibold text-tinta">
+                {cuenta.email ?? "tu cuenta de Google"}
+              </span>
+              . Ya puedes vincular un grupo con un curso desde su ficha.
+            </p>
+            <form action={desconectarGoogle} className="ml-auto">
+              <button
+                type="submit"
+                className="h-9 rounded-full border border-hp-200 px-4 text-xs font-bold text-tinta-suave transition-colors hover:border-bloque3 hover:text-tinta"
+              >
+                Desconectar
+              </button>
+            </form>
+          </div>
+        ) : (
+          <div className="mt-2">
+            <p className="text-sm text-tinta-suave">
+              Conecta tu cuenta para traer la lista de alumnos de un curso sin
+              pegar correos a mano. Solo se lee: la plataforma nunca escribe
+              nada en Classroom.
+            </p>
+            <a
+              href="/api/google/conectar"
+              className="mt-3 inline-block h-10 rounded-full bg-hp-400 px-5 text-sm font-bold leading-10 text-white transition-colors hover:bg-hp-500"
+            >
+              Conectar con Google Classroom
+            </a>
+          </div>
+        )}
+      </section>
 
       {grupos.length > 0 && (
         <ul className="mt-8 space-y-3">
@@ -49,8 +126,14 @@ export default async function GruposPage() {
                   <p className="text-sm text-tinta-suave">
                     {grupo._count.miembros} estudiante
                     {grupo._count.miembros !== 1 ? "s" : ""}
+                    {grupo.classroomNombre && ` · ${grupo.classroomNombre}`}
                   </p>
                 </div>
+                {grupo.classroomCursoId && (
+                  <span className="shrink-0 rounded-full bg-bloque2/25 px-2.5 py-0.5 text-[11px] font-bold text-tinta">
+                    Classroom
+                  </span>
+                )}
                 {grupo.nivel && (
                   <span className="shrink-0 rounded-full bg-hp-400 px-2.5 py-0.5 text-[11px] font-bold text-white">
                     {nivelLabel[grupo.nivel] ?? grupo.nivel}
@@ -108,9 +191,7 @@ export default async function GruposPage() {
           />
         </label>
         <p className="mt-1 text-xs text-tinta-suave">
-          Se crea una ficha por cada correo. El estudiante la reclama al
-          registrarse con ese mismo correo, y encuentra sus secuencias ya
-          asignadas.
+          Puedes dejarlo vacío y traer la lista desde Classroom después.
         </p>
 
         <button

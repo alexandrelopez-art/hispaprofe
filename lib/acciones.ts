@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getUsuarioActual } from "@/lib/usuario";
+import { listarEstudiantes } from "@/lib/google";
 import type {
   Destreza,
   Nivel,
@@ -212,6 +213,122 @@ export async function quitarDeGrupo(formData: FormData) {
 
   revalidatePath(`/profe/grupos/${miembro.grupoId}`);
   revalidatePath("/dashboard");
+}
+
+// ─── Google Classroom ────────────────────────────────────────────────────
+
+/** Ata un grupo a un curso de Classroom y trae su lista por primera vez. */
+export async function vincularGrupoConCurso(formData: FormData) {
+  const profesor = await exigirProfesor();
+  const grupoId = String(formData.get("grupoId") ?? "");
+  const cursoId = String(formData.get("cursoId") ?? "");
+  const cursoNombre = String(formData.get("cursoNombre") ?? "").trim();
+  if (!grupoId || !cursoId) return;
+
+  await prisma.grupo.update({
+    where: { id: grupoId },
+    data: { classroomCursoId: cursoId, classroomNombre: cursoNombre || null },
+  });
+
+  await traerListaDeClassroom(grupoId, cursoId, profesor.id);
+
+  revalidatePath(`/profe/grupos/${grupoId}`);
+  revalidatePath("/profe/alumnos");
+  revalidatePath("/dashboard");
+}
+
+/** Suelta el vinculo. Los estudiantes ya traidos se quedan en el grupo. */
+export async function desvincularGrupo(formData: FormData) {
+  await exigirProfesor();
+  const grupoId = String(formData.get("grupoId") ?? "");
+  if (!grupoId) return;
+
+  await prisma.grupo.update({
+    where: { id: grupoId },
+    data: {
+      classroomCursoId: null,
+      classroomNombre: null,
+      sincronizadoEl: null,
+    },
+  });
+
+  revalidatePath(`/profe/grupos/${grupoId}`);
+}
+
+export async function sincronizarGrupo(formData: FormData) {
+  const profesor = await exigirProfesor();
+  const grupoId = String(formData.get("grupoId") ?? "");
+  if (!grupoId) return;
+
+  const grupo = await prisma.grupo.findUnique({
+    where: { id: grupoId },
+    select: { classroomCursoId: true },
+  });
+  if (!grupo?.classroomCursoId) return;
+
+  await traerListaDeClassroom(grupoId, grupo.classroomCursoId, profesor.id);
+
+  revalidatePath(`/profe/grupos/${grupoId}`);
+  revalidatePath("/profe/alumnos");
+  revalidatePath("/dashboard");
+}
+
+/**
+ * Trae la lista del curso y la vuelca en el grupo. Crea la ficha del que
+ * no exista, emparejando por correo, igual que el pegado manual.
+ * A quien esté en el grupo pero ya no en Classroom no se le toca: puede
+ * tener progreso y puntos, y borrarlo en silencio seria peor.
+ */
+async function traerListaDeClassroom(
+  grupoId: string,
+  cursoId: string,
+  profesorId: string,
+) {
+  const alumnos = await listarEstudiantes(profesorId, cursoId);
+
+  for (const alumno of alumnos) {
+    const estudiante = await prisma.user.upsert({
+      where: { email: alumno.email },
+      update: {},
+      create: {
+        email: alumno.email,
+        firstName: alumno.nombre,
+        lastName: alumno.apellido,
+        role: "STUDENT",
+      },
+    });
+
+    // Se rellena el nombre solo si estaba vacio: lo que haya escrito el
+    // profesor a mano manda sobre lo que diga Classroom.
+    if (!estudiante.firstName && alumno.nombre) {
+      await prisma.user.update({
+        where: { id: estudiante.id },
+        data: { firstName: alumno.nombre, lastName: alumno.apellido },
+      });
+    }
+
+    await prisma.miembroGrupo.upsert({
+      where: {
+        grupoId_estudianteId: { grupoId, estudianteId: estudiante.id },
+      },
+      update: {},
+      create: { grupoId, estudianteId: estudiante.id },
+    });
+  }
+
+  await prisma.grupo.update({
+    where: { id: grupoId },
+    data: { sincronizadoEl: new Date() },
+  });
+}
+
+/** Corta la conexión con Google. Los grupos vinculados dejan de sincronizar. */
+export async function desconectarGoogle() {
+  const profesor = await exigirProfesor();
+
+  await prisma.cuentaGoogle.deleteMany({ where: { usuarioId: profesor.id } });
+
+  revalidatePath("/profe/grupos");
 }
 
 // ─── Estudiantes ─────────────────────────────────────────────────────────

@@ -80,6 +80,7 @@ model User {
   gruposCreados         Grupo[]        @relation("ProfesorGrupo")
   membresias            MiembroGrupo[] @relation("EstudianteGrupo")
   ejerciciosCreados     Ejercicio[]    @relation("AutorEjercicio")
+  cuentaGoogle          CuentaGoogle?
 }
 
 model Recorrido {
@@ -133,16 +134,21 @@ model Bloque {
 
 // Cohorte. Sirve para asignar a veinticinco personas de una vez.
 model Grupo {
-  id          String         @id @default(cuid())
-  nombre      String
-  descripcion String?
-  nivel       Nivel?
-  profesor    User           @relation("ProfesorGrupo", fields: [profesorId], references: [id])
-  profesorId  String
-  archivado   Boolean        @default(false)
-  miembros    MiembroGrupo[]
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
+  id               String         @id @default(cuid())
+  nombre           String
+  descripcion      String?
+  nivel            Nivel?
+  profesor         User           @relation("ProfesorGrupo", fields: [profesorId], references: [id])
+  profesorId       String
+  archivado        Boolean        @default(false)
+  miembros         MiembroGrupo[]
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  // Vinculo opcional con un curso de Google Classroom. Los grupos de
+  // clases particulares se quedan sin vincular y funcionan igual.
+  classroomCursoId String?
+  classroomNombre  String?
+  sincronizadoEl   DateTime?
 
   @@index([profesorId, archivado])
 }
@@ -226,19 +232,19 @@ enum TipoEjercicio {
 }
 
 model Ejercicio {
-  id        String        @id @default(cuid())
+  id        String          @id @default(cuid())
   tipo      TipoEjercicio
   titulo    String
   nivel     Nivel
   destreza  Destreza?
   etiquetas String[]
   datos     Json
-  publicado Boolean       @default(false)
-  autor     User?         @relation("AutorEjercicio", fields: [autorId], references: [id])
+  publicado Boolean         @default(false)
+  autor     User?           @relation("AutorEjercicio", fields: [autorId], references: [id])
   autorId   String?
   pasos     PasoEjercicio[]
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
 
   @@index([nivel, destreza])
   @@index([tipo])
@@ -255,4 +261,19 @@ model PasoEjercicio {
 
   @@unique([pasoId, ejercicioId])
   @@index([ejercicioId])
+}
+
+// Credenciales OAuth del profesor para leer sus cursos de Classroom.
+// Se guardan en claro: para el piloto es aceptable, pero antes de abrirlo
+// a mas profesores conviene cifrar el refreshToken en reposo.
+model CuentaGoogle {
+  id           String   @id @default(cuid())
+  usuario      User     @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  usuarioId    String   @unique
+  email        String?
+  accessToken  String
+  refreshToken String?
+  expiraEl     DateTime
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
