@@ -52,7 +52,7 @@ export default function PublicoLayout({
                 </button>
               </SignInButton>
               <a
-                href="#reservar"
+                href="mailto:contacto@hispaprofe.com?subject=Reservar%20una%20clase"
                 className="rounded-full bg-hp-500 text-white text-sm font-bold h-10 px-5 flex items-center justify-center hover:bg-hp-600 transition-colors"
               >
                 Reserva una clase

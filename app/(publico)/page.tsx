@@ -113,7 +113,7 @@ export default function LandingPublica() {
           </p>
           <div className="mt-8 flex flex-wrap gap-4">
             <a
-              href="#reservar"
+              href="mailto:contacto@hispaprofe.com?subject=Reservar%20una%20clase"
               className="rounded-full bg-hp-500 text-white text-sm font-bold h-12 px-8 flex items-center justify-center hover:bg-hp-600 transition-colors"
             >
               Reservar una clase
@@ -208,7 +208,7 @@ export default function LandingPublica() {
                 )}
               </div>
               <a
-                href="#reservar"
+                href="mailto:contacto@hispaprofe.com?subject=Reservar%20una%20clase"
                 className="mt-6 inline-flex items-center gap-2 text-hp-500 font-bold hover:text-hp-600"
               >
                 Reservar una clase →
