@@ -11,7 +11,7 @@ import type {
   TipoBloque,
   TipoPaso,
   TipoRecorrido,
-} from "@/lib/generated/prisma";
+} from "@/lib/generated/prisma/enums";
 
 async function exigirProfesor() {
   const usuario = await getUsuarioActual();
