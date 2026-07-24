@@ -4,9 +4,10 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "DATABASE_URL=\"${DIRECT_URL:-$DATABASE_URL}\" prisma migrate deploy && next build",
     "start": "next start",
     "lint": "eslint",
+    "postinstall": "prisma generate",
     "fresh": "(lsof -ti:3000 | xargs kill -9) 2>/dev/null; sleep 1; rm -rf .next && next dev"
   },
   "dependencies": {
