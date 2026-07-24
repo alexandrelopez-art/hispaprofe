@@ -34,3 +34,23 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+## Configuración inicial
+
+Además de las variables de Clerk y Postgres, la aplicación necesita una clave de cifrado para los tokens de Google Classroom en reposo:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+```
+
+Copia el resultado en tu `.env` como:
+
+```
+ENCRYPTION_KEY=<valor_generado>
+```
+
+Si vas a migrar una instalación existente con tokens en claro, ejecuta una única vez:
+
+```bash
+npx tsx scripts/migrar-cifrado-tokens.ts
+```

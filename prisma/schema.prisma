@@ -264,8 +264,9 @@ model PasoEjercicio {
 }
 
 // Credenciales OAuth del profesor para leer sus cursos de Classroom.
-// Se guardan en claro: para el piloto es aceptable, pero antes de abrirlo
-// a mas profesores conviene cifrar el refreshToken en reposo.
+// accessToken y refreshToken se guardan cifrados con AES-256-GCM
+// (ver lib/crypto.ts). La clave vive en la variable de entorno
+// ENCRYPTION_KEY, nunca en la base de datos.
 model CuentaGoogle {
   id           String   @id @default(cuid())
   usuario      User     @relation(fields: [usuarioId], references: [id], onDelete: Cascade)

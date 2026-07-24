@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { cifrar, descifrar } from "@/lib/crypto";
 
 const AUTORIZAR = "https://accounts.google.com/o/oauth2/v2/auth";
 const TOKEN = "https://oauth2.googleapis.com/token";
@@ -87,20 +88,23 @@ export async function guardarTokens(codigo: string, usuarioId: string) {
 
   const expiraEl = new Date(Date.now() + datos.expires_in * 1000);
 
+  const accessCifrado = cifrar(datos.access_token);
+  const refreshCifrado = datos.refresh_token ? cifrar(datos.refresh_token) : null;
+
   await prisma.cuentaGoogle.upsert({
     where: { usuarioId },
     update: {
-      accessToken: datos.access_token,
+      accessToken: accessCifrado,
       // Google solo manda refresh_token la primera vez. Si no viene,
       // se conserva el que ya habia.
-      ...(datos.refresh_token ? { refreshToken: datos.refresh_token } : {}),
+      ...(refreshCifrado ? { refreshToken: refreshCifrado } : {}),
       expiraEl,
       email,
     },
     create: {
       usuarioId,
-      accessToken: datos.access_token,
-      refreshToken: datos.refresh_token ?? null,
+      accessToken: accessCifrado,
+      refreshToken: refreshCifrado,
       expiraEl,
       email,
     },
@@ -114,7 +118,7 @@ async function tokenValido(usuarioId: string): Promise<string> {
 
   // Margen de un minuto para no usar un token que caduca a mitad de llamada.
   if (cuenta.expiraEl.getTime() - Date.now() > 60_000) {
-    return cuenta.accessToken;
+    return descifrar(cuenta.accessToken);
   }
 
   if (!cuenta.refreshToken) throw new Error("SIN_REFRESCO");
@@ -123,7 +127,7 @@ async function tokenValido(usuarioId: string): Promise<string> {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
-      refresh_token: cuenta.refreshToken,
+      refresh_token: descifrar(cuenta.refreshToken),
       client_id: process.env.GOOGLE_CLIENT_ID ?? "",
       client_secret: process.env.GOOGLE_CLIENT_SECRET ?? "",
       grant_type: "refresh_token",
@@ -144,7 +148,7 @@ async function tokenValido(usuarioId: string): Promise<string> {
   await prisma.cuentaGoogle.update({
     where: { usuarioId },
     data: {
-      accessToken: datos.access_token,
+      accessToken: cifrar(datos.access_token),
       expiraEl: new Date(Date.now() + datos.expires_in * 1000),
     },
   });
