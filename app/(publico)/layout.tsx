@@ -18,17 +18,26 @@ export default function PublicoLayout({
           </Link>
 
           <nav className="hidden sm:flex items-center gap-5 text-sm font-semibold text-tinta-suave">
-            <Link href="/dele" className="hover:text-hp-500 transition-colors">
+            <Link
+              href="/#clases-particulares"
+              className="hover:text-hp-500 transition-colors"
+            >
+              Clases particulares
+            </Link>
+            <Link
+              href="/#dele"
+              className="hover:text-hp-500 transition-colors"
+            >
               DELE
             </Link>
             <Link
-              href="/entre-profes"
+              href="/#entre-profes"
               className="hover:text-hp-500 transition-colors"
             >
               Entre profes
             </Link>
             <Link
-              href="/cultura"
+              href="/#cultura"
               className="hover:text-hp-500 transition-colors"
             >
               Cultura
