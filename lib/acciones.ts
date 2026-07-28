@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getUsuarioActual } from "@/lib/usuario";
 import { listarEstudiantes } from "@/lib/google";
+import { desmarcarSiNoRevisado } from "@/lib/progreso";
 import type {
   Destreza,
   Nivel,
@@ -889,7 +890,7 @@ export async function marcarPasoHecho(formData: FormData) {
   revalidatePath("/dashboard");
 }
 
-/** Desmarca un paso. Borra la fila; el progreso vuelve a bajar. */
+/** Desmarca un paso, salvo que el profesor ya lo haya revisado. */
 export async function desmarcarPasoHecho(formData: FormData) {
   const usuario = await getUsuarioActual();
   if (!usuario) return;
@@ -914,9 +915,7 @@ export async function desmarcarPasoHecho(formData: FormData) {
   });
   if (!asignacion) return;
 
-  await prisma.pasoCompletado.deleteMany({
-    where: { asignacionId: asignacion.id, pasoId },
-  });
+  await desmarcarSiNoRevisado(asignacion.id, pasoId);
 
   revalidatePath(`/pasos/${pasoId}`);
   revalidatePath(`/recorridos/${paso.recorridoId}`);
