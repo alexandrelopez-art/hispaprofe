@@ -125,10 +125,13 @@ export default async function RecorridoDetallePage({
         })
       : null;
 
-  const estados =
-    asignacionPropia && !asignacionPropia.archivada
-      ? await estadoDePasos(asignacionPropia.id)
-      : new Map<string, { estado: EstadoPaso; puntos: number | null }>();
+  // Archivar es cosa del profesor para quitar la secuencia de en medio,
+  // no una forma de borrar lo que el estudiante ya hizo: la marca se
+  // mantiene aunque la asignación esté archivada. La página del paso
+  // sigue sin ofrecer botón, así que nada se vuelve editable.
+  const estados = asignacionPropia
+    ? await estadoDePasos(asignacionPropia.id)
+    : new Map<string, { estado: EstadoPaso; puntos: number | null }>();
 
   return (
     <div className="mx-auto max-w-3xl px-6 py-12">

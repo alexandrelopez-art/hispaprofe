@@ -51,6 +51,10 @@ export default async function PanelEstudiante({
   // Sin secuencias y sin puntos no hay nada que contar: se salta la hucha
   // para no recibir a alguien nuevo con un cero.
   const mostrarHucha = asignaciones.length > 0 || resumen.pasosRevisados > 0;
+  // Las bandejas solo hablan de trabajo vivo. Si todas las asignaciones
+  // están archivadas, la hucha puede tener puntos y aun así no hay nada
+  // que enseñar aquí sin contradecirla con un "no hay nada" a su lado.
+  const mostrarBandejas = asignaciones.length > 0;
 
   return (
     <div className="mx-auto max-w-3xl px-6 py-12">
@@ -59,7 +63,6 @@ export default async function PanelEstudiante({
       </h1>
 
       {mostrarHucha && (
-        <>
         <section className="mt-8 rounded-tarjeta border border-hp-100 bg-white p-6 shadow-suave">
           {resumen.pasosRevisados === 0 ? (
             <>
@@ -86,7 +89,9 @@ export default async function PanelEstudiante({
             </>
           )}
         </section>
+      )}
 
+      {mostrarBandejas && (
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
           <section className="rounded-tarjeta border border-hp-100 bg-white p-5 shadow-suave">
             <h2 className="text-xs font-bold uppercase tracking-wider text-tinta-suave">
@@ -152,7 +157,6 @@ export default async function PanelEstudiante({
             )}
           </section>
         </div>
-        </>
       )}
 
       <h2 className="mt-10 text-lg font-bold text-tinta">Tus secuencias</h2>

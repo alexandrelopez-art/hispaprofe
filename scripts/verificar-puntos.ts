@@ -5,7 +5,11 @@
  */
 import "dotenv/config";
 import { prisma } from "@/lib/prisma";
-import { desmarcarSiNoRevisado, resumenEstudiante } from "@/lib/progreso";
+import {
+  desmarcarSiNoRevisado,
+  estadoDePasos,
+  resumenEstudiante,
+} from "@/lib/progreso";
 
 function afirmar(condicion: boolean, mensaje: string) {
   if (!condicion) {
@@ -38,12 +42,18 @@ async function main() {
         create: [
           { orden: 1, ciclo: 1, tipo: "ACTIVACION", titulo: "Paso revisado" },
           { orden: 2, ciclo: 1, tipo: "ACTIVIDAD", titulo: "Paso solo entregado" },
+          {
+            orden: 3,
+            ciclo: 1,
+            tipo: "ACTIVIDAD",
+            titulo: "Paso revisado con 0 puntos",
+          },
         ],
       },
     },
     include: { pasos: { orderBy: { orden: "asc" } } },
   });
-  const [pasoRevisado, pasoEntregado] = recorrido.pasos;
+  const [pasoRevisado, pasoEntregado, pasoRevisadoCero] = recorrido.pasos;
 
   const asignacion = await prisma.asignacion.create({
     data: {
@@ -63,6 +73,17 @@ async function main() {
   });
   await prisma.pasoCompletado.create({
     data: { asignacionId: asignacion.id, pasoId: pasoEntregado.id },
+  });
+  // Corrección legítima con 0 puntos: debe seguir contando como REVISADO.
+  // Una regresión realista aquí es comprobar `puntos` con verdad en vez de
+  // `verificadoEl`, que colaría con los demás casos pero fallaría con este.
+  await prisma.pasoCompletado.create({
+    data: {
+      asignacionId: asignacion.id,
+      pasoId: pasoRevisadoCero.id,
+      puntos: 0,
+      verificadoEl: new Date(),
+    },
   });
 
   try {
@@ -84,24 +105,67 @@ async function main() {
     });
     afirmar(sigue?.puntos === 40, "los puntos del paso revisado siguen ahí");
 
-    // 2. La hucha suma lo mismo que las filas verificadas.
+    // 2. estadoDePasos decide por verificadoEl, no por la verdad del número:
+    // un 0 puntos también es REVISADO.
+    const estados = await estadoDePasos(asignacion.id);
+    afirmar(
+      estados.get(pasoRevisadoCero.id)?.estado === "REVISADO",
+      "un paso revisado con 0 puntos también queda REVISADO",
+    );
+    afirmar(
+      estados.get(pasoRevisadoCero.id)?.puntos === 0,
+      "estadoDePasos trae los 0 puntos, no null",
+    );
+
+    // 3. La hucha suma lo mismo que las filas verificadas, 0 puntos incluido.
     const resumen = await resumenEstudiante(estudiante.id);
-    afirmar(resumen.puntosTotales === 40, "la hucha suma 40 puntos");
-    afirmar(resumen.pasosRevisados === 1, "cuenta un paso revisado");
+    afirmar(resumen.puntosTotales === 40, "la hucha suma 40 puntos (el 0 no resta)");
+    afirmar(resumen.pasosRevisados === 2, "cuenta los dos pasos revisados");
     afirmar(
       resumen.esperandoRevision.length === 1,
       "una entrega esperando revisión",
     );
     afirmar(
-      resumen.revisadosRecientes.length === 1,
-      "un paso en la bandeja de revisados",
+      resumen.revisadosRecientes.length === 2,
+      "dos pasos en la bandeja de revisados",
+    );
+    const enBandejaCero = resumen.revisadosRecientes.find(
+      (p) => p.pasoId === pasoRevisadoCero.id,
+    );
+    afirmar(
+      enBandejaCero?.puntos === 0,
+      "el paso de 0 puntos aparece en la bandeja con 0, no oculto",
     );
     afirmar(
       resumen.revisadosRecientes[0].recorridoTitulo === recorrido.titulo,
       "la bandeja trae el título de la secuencia",
     );
 
-    // 3. Un paso solo entregado sí se desmarca.
+    // 4. Asignación archivada: la hucha sigue contando el historial, las
+    // bandejas (trabajo vivo) dejan de mostrarlo.
+    await prisma.asignacion.update({
+      where: { id: asignacion.id },
+      data: { archivada: true },
+    });
+    const resumenArchivado = await resumenEstudiante(estudiante.id);
+    afirmar(
+      resumenArchivado.puntosTotales === 40,
+      "la hucha sigue contando el trabajo archivado",
+    );
+    afirmar(
+      resumenArchivado.revisadosRecientes.length === 0,
+      "lo revisado archivado no aparece en la bandeja",
+    );
+    afirmar(
+      resumenArchivado.esperandoRevision.length === 0,
+      "lo entregado archivado no aparece en la bandeja",
+    );
+    await prisma.asignacion.update({
+      where: { id: asignacion.id },
+      data: { archivada: false },
+    });
+
+    // 5. Un paso solo entregado sí se desmarca.
     const borroEntregado = await desmarcarSiNoRevisado(
       asignacion.id,
       pasoEntregado.id,

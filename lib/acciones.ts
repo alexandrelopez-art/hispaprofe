@@ -424,6 +424,12 @@ export async function crearSecuencia(formData: FormData) {
  * Otorga puntos verificados sobre un paso de una asignacion. Si el
  * estudiante no habia marcado el paso, la fila se crea igualmente:
  * verificar implica que el trabajo existe.
+ *
+ * Vaciar el campo de puntos es distinto: el formulario del profesor
+ * renderiza ese input para todos los pasos, así que guardarlo en blanco
+ * en un paso que el estudiante nunca tocó no debe inventarle una entrega.
+ * Por eso el camino `puntos === null` solo actualiza una fila que ya
+ * existe; nunca crea una.
  */
 export async function otorgarPuntos(formData: FormData) {
   await exigirProfesor();
@@ -440,16 +446,18 @@ export async function otorgarPuntos(formData: FormData) {
   });
   if (!asignacion) return;
 
-  await prisma.pasoCompletado.upsert({
-    where: { asignacionId_pasoId: { asignacionId, pasoId } },
-    update: { puntos, verificadoEl: puntos === null ? null : new Date() },
-    create: {
-      asignacionId,
-      pasoId,
-      puntos,
-      verificadoEl: puntos === null ? null : new Date(),
-    },
-  });
+  if (puntos === null) {
+    await prisma.pasoCompletado.updateMany({
+      where: { asignacionId, pasoId },
+      data: { puntos: null, verificadoEl: null },
+    });
+  } else {
+    await prisma.pasoCompletado.upsert({
+      where: { asignacionId_pasoId: { asignacionId, pasoId } },
+      update: { puntos, verificadoEl: new Date() },
+      create: { asignacionId, pasoId, puntos, verificadoEl: new Date() },
+    });
+  }
 
   revalidatePath(`/profe/alumnos/${asignacion.estudianteId}`);
   revalidatePath("/dashboard");

@@ -116,6 +116,9 @@ export async function resumenEstudiante(
 /**
  * Estado de cada paso de una asignación, indexado por pasoId. Los pasos
  * que no aparecen en el mapa están PENDIENTE.
+ *
+ * No comprueba a quién pertenece la asignación: quien llama debe haber
+ * verificado ya que es del usuario actual.
  */
 export async function estadoDePasos(
   asignacionId: string,

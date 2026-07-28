@@ -42,6 +42,7 @@ const tipoDescripcion: Record<string, string> = {
 const formatoFecha = new Intl.DateTimeFormat("es-ES", {
   day: "numeric",
   month: "long",
+  timeZone: "Europe/Madrid",
 });
 
 type BloqueData = {
@@ -200,11 +201,14 @@ export default async function PasoPage({
   const esProfe =
     usuario?.role === "PROFESOR" || usuario?.role === "ADMIN";
 
-  const registro = puedeMarcar
+  // Se carga con o sin asignación viva: una secuencia archivada sigue
+  // mostrando su marca en la escalera de pasos, así que aquí también debe
+  // verse, aunque no ofrezca acción sobre ella.
+  const registro = asignacion
     ? await prisma.pasoCompletado.findUnique({
         where: {
           asignacionId_pasoId: {
-            asignacionId: asignacion!.id,
+            asignacionId: asignacion.id,
             pasoId: paso.id,
           },
         },
@@ -309,8 +313,14 @@ export default async function PasoPage({
 
       {esProfe && <EditorBloques pasoId={paso.id} />}
 
-      {/* Marcar como hecho: solo con asignación viva de este recorrido. */}
-      {puedeMarcar && (
+      {/*
+        La línea de estado se muestra si hay registro, viva o archivada la
+        asignación: el estado es un hecho pasado, no una acción. Los dos
+        botones ("Marcar como hecho" y "Hecho ✓") siguen bloqueados detrás
+        de puedeMarcar, que sigue significando lo mismo que antes: solo una
+        asignación viva permite tocar el paso.
+      */}
+      {(registro || puedeMarcar) && (
         <div className="mt-10 flex flex-col items-center gap-3">
           {registro && (
             <p className="text-sm text-tinta-suave">
@@ -324,28 +334,30 @@ export default async function PasoPage({
             <span className="rounded-full bg-sol-300 px-6 py-3 text-sm font-extrabold text-tinta">
               Revisado ✓
             </span>
-          ) : hecho ? (
-            <form action={desmarcarPasoHecho}>
-              <input type="hidden" name="pasoId" value={paso.id} />
-              <button
-                type="submit"
-                className="rounded-full bg-bloque2 px-6 py-3 text-sm font-extrabold text-tinta transition hover:opacity-80"
-                title="Pulsa para desmarcar"
-              >
-                Hecho ✓
-              </button>
-            </form>
-          ) : (
-            <form action={marcarPasoHecho}>
-              <input type="hidden" name="pasoId" value={paso.id} />
-              <button
-                type="submit"
-                className="rounded-full bg-hp-400 px-6 py-3 text-sm font-extrabold text-white transition-colors hover:bg-hp-500"
-              >
-                Marcar como hecho
-              </button>
-            </form>
-          )}
+          ) : puedeMarcar ? (
+            hecho ? (
+              <form action={desmarcarPasoHecho}>
+                <input type="hidden" name="pasoId" value={paso.id} />
+                <button
+                  type="submit"
+                  className="rounded-full bg-bloque2 px-6 py-3 text-sm font-extrabold text-tinta transition hover:opacity-80"
+                  title="Pulsa para desmarcar"
+                >
+                  Hecho ✓
+                </button>
+              </form>
+            ) : (
+              <form action={marcarPasoHecho}>
+                <input type="hidden" name="pasoId" value={paso.id} />
+                <button
+                  type="submit"
+                  className="rounded-full bg-hp-400 px-6 py-3 text-sm font-extrabold text-white transition-colors hover:bg-hp-500"
+                >
+                  Marcar como hecho
+                </button>
+              </form>
+            )
+          ) : null}
         </div>
       )}
 

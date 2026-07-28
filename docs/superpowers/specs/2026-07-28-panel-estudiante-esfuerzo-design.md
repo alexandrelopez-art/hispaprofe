@@ -125,7 +125,7 @@ Archivos tocados fuera del dashboard:
 | Con asignaciones pero sin puntos | Hucha con el mensaje de "aún no tienes puntos", bandejas vacías con su propio texto. |
 | Paso `REVISADO` con 0 puntos | Se muestra "Revisado · 0 pts". |
 | Intento de desmarcar un paso revisado | La acción del servidor retorna sin borrar. Sin mensaje de error: la interfaz ya no ofrece el botón. |
-| Asignación archivada | Sus puntos siguen sumando en la hucha; no aparece en las bandejas ni en la lista. |
+| Asignación archivada | Sus puntos siguen sumando en la hucha. Las dos bandejas y la lista de "Tus secuencias" del panel la excluyen: son trabajo vivo, no historial. La escalera de pasos de `/recorridos/[id]` y la página de `/pasos/[pasoId]`, en cambio, siguen mostrando su marca (✓ y puntos), de solo lectura: archivar es la forma del profesor de quitar una secuencia de en medio, no de borrar lo que el estudiante ya hizo. |
 | Profesor entrando a `/dashboard` | Sin cambios respecto a hoy. |
 
 ## Comprobación
