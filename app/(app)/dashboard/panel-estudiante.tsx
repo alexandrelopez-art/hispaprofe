@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
+import { resumenEstudiante } from "@/lib/progreso";
 
 type Usuario = { id: string; firstName: string | null; email: string };
 
@@ -8,6 +9,19 @@ const servicioLabel: Record<string, string> = {
   PREPARACION: "Preparación DELE",
 };
 
+/** Distancia en palabras, sin librerías. Solo días completos. */
+function haceCuanto(fecha: Date): string {
+  const dias = Math.floor((Date.now() - fecha.getTime()) / 86_400_000);
+  if (dias <= 0) return "hoy";
+  if (dias === 1) return "ayer";
+  if (dias < 7) return `hace ${dias} días`;
+  const semanas = Math.floor(dias / 7);
+  if (semanas === 1) return "hace una semana";
+  if (semanas < 5) return `hace ${semanas} semanas`;
+  const meses = Math.max(1, Math.floor(dias / 30));
+  return meses === 1 ? "hace un mes" : `hace ${meses} meses`;
+}
+
 export default async function PanelEstudiante({
   usuario,
 }: {
@@ -15,27 +29,131 @@ export default async function PanelEstudiante({
 }) {
   const saludo = `Hola, ${usuario.firstName ?? usuario.email}`;
 
-  const asignaciones = await prisma.asignacion.findMany({
-    where: { estudianteId: usuario.id, archivada: false },
-    orderBy: { createdAt: "desc" },
-    include: {
-      recorrido: {
-        select: {
-          id: true,
-          titulo: true,
-          tipo: true,
-          _count: { select: { pasos: true } },
+  const [resumen, asignaciones] = await Promise.all([
+    resumenEstudiante(usuario.id),
+    prisma.asignacion.findMany({
+      where: { estudianteId: usuario.id, archivada: false },
+      orderBy: { createdAt: "desc" },
+      include: {
+        recorrido: {
+          select: {
+            id: true,
+            titulo: true,
+            tipo: true,
+            _count: { select: { pasos: true } },
+          },
         },
+        _count: { select: { completados: true } },
       },
-      _count: { select: { completados: true } },
-    },
-  });
+    }),
+  ]);
+
+  // Sin secuencias y sin puntos no hay nada que contar: se salta la hucha
+  // para no recibir a alguien nuevo con un cero.
+  const mostrarHucha = asignaciones.length > 0 || resumen.pasosRevisados > 0;
 
   return (
     <div className="mx-auto max-w-3xl px-6 py-12">
       <h1 className="text-3xl font-extrabold tracking-tight text-tinta">
         {saludo}
       </h1>
+
+      {mostrarHucha && (
+        <>
+        <section className="mt-8 rounded-tarjeta border border-hp-100 bg-white p-6 shadow-suave">
+          {resumen.pasosRevisados === 0 ? (
+            <>
+              <p className="text-lg font-bold text-tinta">
+                Aún no tienes puntos.
+              </p>
+              <p className="mt-1 text-sm text-tinta-suave">
+                Se ganan cuando tu profe revisa un paso.
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="text-5xl font-extrabold leading-none text-tinta">
+                {resumen.puntosTotales}
+                <span className="ml-2 text-lg font-bold text-tinta-suave">
+                  puntos
+                </span>
+              </p>
+              <p className="mt-2 text-sm text-tinta-suave">
+                {resumen.pasosRevisados} paso
+                {resumen.pasosRevisados !== 1 ? "s" : ""} revisado
+                {resumen.pasosRevisados !== 1 ? "s" : ""} por tu profe
+              </p>
+            </>
+          )}
+        </section>
+
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          <section className="rounded-tarjeta border border-hp-100 bg-white p-5 shadow-suave">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-tinta-suave">
+              Esperando revisión
+            </h2>
+            {resumen.esperandoRevision.length === 0 ? (
+              <p className="mt-3 text-sm text-tinta-suave">
+                No tienes nada pendiente de revisión.
+              </p>
+            ) : (
+              <ul className="mt-3 space-y-2">
+                {resumen.esperandoRevision.map((paso) => (
+                  <li key={paso.pasoId}>
+                    <Link
+                      href={`/pasos/${paso.pasoId}`}
+                      className="block rounded-xl bg-fondo px-3 py-2 transition hover:bg-hp-50"
+                    >
+                      <p className="truncate text-sm font-semibold text-tinta">
+                        {paso.pasoTitulo}
+                      </p>
+                      <p className="truncate text-xs text-tinta-suave">
+                        {paso.recorridoTitulo} · entregado{" "}
+                        {haceCuanto(paso.fecha)}
+                      </p>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+
+          <section className="rounded-tarjeta border border-hp-100 bg-white p-5 shadow-suave">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-tinta-suave">
+              Tu profe ha revisado
+            </h2>
+            {resumen.revisadosRecientes.length === 0 ? (
+              <p className="mt-3 text-sm text-tinta-suave">
+                Todavía no hay nada revisado.
+              </p>
+            ) : (
+              <ul className="mt-3 space-y-2">
+                {resumen.revisadosRecientes.map((paso) => (
+                  <li key={paso.pasoId}>
+                    <Link
+                      href={`/pasos/${paso.pasoId}`}
+                      className="flex items-center gap-3 rounded-xl bg-fondo px-3 py-2 transition hover:bg-hp-50"
+                    >
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-semibold text-tinta">
+                          {paso.pasoTitulo}
+                        </span>
+                        <span className="block truncate text-xs text-tinta-suave">
+                          {paso.recorridoTitulo} · {haceCuanto(paso.fecha)}
+                        </span>
+                      </span>
+                      <span className="shrink-0 rounded-full bg-sol-300 px-2.5 py-0.5 text-xs font-extrabold text-tinta">
+                        {paso.puntos ?? 0} pts
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        </div>
+        </>
+      )}
 
       <h2 className="mt-10 text-lg font-bold text-tinta">Tus secuencias</h2>
 
