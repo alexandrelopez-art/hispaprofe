@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { getUsuarioActual } from "@/lib/usuario";
 import { listarEstudiantes } from "@/lib/google";
 import { desmarcarSiNoRevisado } from "@/lib/progreso";
+import { corregir, opcionMultipleSchema } from "@/lib/ejercicios/opcion-multiple";
 import type {
   Destreza,
   Nivel,
@@ -891,6 +892,86 @@ export async function marcarPasoHecho(formData: FormData) {
     },
     update: {},
     create: { asignacionId: asignacion.id, pasoId },
+  });
+
+  revalidatePath(`/pasos/${pasoId}`);
+  revalidatePath(`/recorridos/${paso.recorridoId}`);
+  revalidatePath("/dashboard");
+}
+
+/**
+ * Corrige un ejercicio de opción múltiple y convierte los aciertos en puntos.
+ *
+ * La corrección vive aquí y no en el navegador: las respuestas correctas
+ * nunca salen del servidor. Un punto por acierto.
+ *
+ * Se responde una sola vez. Si el paso ya tiene fecha de verificación —
+ * porque el estudiante ya lo envió, o porque el profesor lo puntuó a mano —
+ * la acción no hace nada: repetir hasta acertar vaciaría de sentido la hucha.
+ */
+export async function responderOpcionMultiple(formData: FormData) {
+  const usuario = await getUsuarioActual();
+  if (!usuario) return;
+
+  const pasoId = String(formData.get("pasoId") ?? "");
+  const ejercicioId = String(formData.get("ejercicioId") ?? "");
+  if (!pasoId || !ejercicioId) return;
+
+  const paso = await prisma.paso.findUnique({
+    where: { id: pasoId },
+    select: { recorridoId: true },
+  });
+  if (!paso) return;
+
+  const asignacion = await prisma.asignacion.findUnique({
+    where: {
+      estudianteId_recorridoId: {
+        estudianteId: usuario.id,
+        recorridoId: paso.recorridoId,
+      },
+    },
+    select: { id: true, archivada: true },
+  });
+  if (!asignacion || asignacion.archivada) return;
+
+  // El ejercicio tiene que estar colgado de este paso: si no, cualquiera
+  // podría puntuarse con las preguntas de otro.
+  const vinculo = await prisma.pasoEjercicio.findUnique({
+    where: { pasoId_ejercicioId: { pasoId, ejercicioId } },
+    select: { ejercicio: { select: { datos: true } } },
+  });
+  if (!vinculo) return;
+
+  const datos = opcionMultipleSchema.safeParse(vinculo.ejercicio.datos);
+  if (!datos.success) return;
+
+  const respuestas = new Map<string, number>();
+  for (const pregunta of datos.data.preguntas) {
+    const bruto = formData.get(`respuesta-${pregunta.id}`);
+    if (bruto === null) continue;
+    const indice = Number(bruto);
+    if (Number.isInteger(indice)) respuestas.set(pregunta.id, indice);
+  }
+
+  const { aciertos } = corregir(datos.data, respuestas);
+
+  const yaRespondido = await prisma.pasoCompletado.findUnique({
+    where: { asignacionId_pasoId: { asignacionId: asignacion.id, pasoId } },
+    select: { verificadoEl: true },
+  });
+  if (yaRespondido?.verificadoEl) return;
+
+  // Una opción múltiple es objetiva, así que sus puntos entran ya
+  // verificados: no necesitan el visto bueno del profesor.
+  await prisma.pasoCompletado.upsert({
+    where: { asignacionId_pasoId: { asignacionId: asignacion.id, pasoId } },
+    update: { puntos: aciertos, verificadoEl: new Date() },
+    create: {
+      asignacionId: asignacion.id,
+      pasoId,
+      puntos: aciertos,
+      verificadoEl: new Date(),
+    },
   });
 
   revalidatePath(`/pasos/${pasoId}`);

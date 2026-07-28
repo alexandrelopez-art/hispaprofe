@@ -6,6 +6,11 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import EditorBloques from "./editor-bloques";
 import TextoRico from "@/components/texto-rico";
+import OpcionMultiple from "@/components/opcion-multiple";
+import {
+  opcionMultipleSchema,
+  versionPublica,
+} from "@/lib/ejercicios/opcion-multiple";
 
 // Fuerza render dinámico: lee de la base en cada visita.
 export const dynamic = "force-dynamic";
@@ -221,6 +226,19 @@ export default async function PasoPage({
   // guarda sus puntos.
   const revisado = Boolean(registro?.verificadoEl);
 
+  // Ejercicio autocorregible colgado de este paso, si lo hay. Se toma el
+  // primero: la corrección escribe los puntos del paso entero, así que dos
+  // ejercicios en el mismo paso se pisarían.
+  const vinculo = await prisma.pasoEjercicio.findFirst({
+    where: { pasoId: paso.id, ejercicio: { tipo: "OPCION_MULTIPLE" } },
+    orderBy: { orden: "asc" },
+    select: { ejercicio: { select: { id: true, datos: true } } },
+  });
+  const ejercicio = vinculo
+    ? opcionMultipleSchema.safeParse(vinculo.ejercicio.datos)
+    : null;
+  const hayEjercicio = Boolean(ejercicio?.success);
+
   return (
     <div className="mx-auto max-w-4xl px-6 py-12">
       <Link
@@ -314,6 +332,53 @@ export default async function PasoPage({
       {esProfe && <EditorBloques pasoId={paso.id} />}
 
       {/*
+        El ejercicio autocorregible. Al estudiante se le da interactivo y sin
+        soluciones; al profesor, la hoja con la respuesta correcta marcada,
+        para que pueda revisar lo que va a contestar su alumno.
+      */}
+      {ejercicio?.success && asignacion && (
+        <OpcionMultiple
+          pasoId={paso.id}
+          ejercicioId={vinculo!.ejercicio.id}
+          respondido={revisado}
+          puntos={registro?.puntos ?? null}
+          {...versionPublica(ejercicio.data)}
+        />
+      )}
+
+      {ejercicio?.success && esProfe && !asignacion && (
+        <section className="mt-8 rounded-tarjeta border border-hp-100 bg-white p-6 shadow-suave">
+          <p className="text-xs font-bold uppercase tracking-wider text-tinta-suave">
+            Ejercicio autocorregible · {ejercicio.data.preguntas.length} puntos
+          </p>
+          <p className="mt-2 font-bold text-tinta">{ejercicio.data.consigna}</p>
+          <ol className="mt-4 space-y-4">
+            {ejercicio.data.preguntas.map((pregunta, i) => (
+              <li key={pregunta.id}>
+                <p className="text-sm font-semibold text-tinta">
+                  {i + 1}. {pregunta.enunciado}
+                </p>
+                <ul className="mt-1 flex flex-wrap gap-2">
+                  {pregunta.opciones.map((opcion, indice) => (
+                    <li
+                      key={indice}
+                      className={`rounded-md px-2 py-0.5 text-xs ${
+                        indice === pregunta.correcta
+                          ? "bg-bloque2/30 font-bold text-tinta ring-1 ring-inset ring-bloque2"
+                          : "bg-fondo text-tinta-suave"
+                      }`}
+                    >
+                      {opcion}
+                    </li>
+                  ))}
+                </ul>
+              </li>
+            ))}
+          </ol>
+        </section>
+      )}
+
+      {/*
         La línea de estado se muestra si hay registro, viva o archivada la
         asignación: el estado es un hecho pasado, no una acción. Los dos
         botones ("Marcar como hecho" y "Hecho ✓") siguen bloqueados detrás
@@ -322,7 +387,7 @@ export default async function PasoPage({
       */}
       {(registro || puedeMarcar) && (
         <div className="mt-10 flex flex-col items-center gap-3">
-          {registro && (
+          {registro && !(hayEjercicio && revisado) && (
             <p className="text-sm text-tinta-suave">
               {revisado
                 ? `Tu profe lo revisó: ${registro.puntos ?? 0} puntos.`
