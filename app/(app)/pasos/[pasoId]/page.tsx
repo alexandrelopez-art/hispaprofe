@@ -39,6 +39,11 @@ const tipoDescripcion: Record<string, string> = {
     "Macro tarea: producción final que integra todo el recorrido.",
 };
 
+const formatoFecha = new Intl.DateTimeFormat("es-ES", {
+  day: "numeric",
+  month: "long",
+});
+
 type BloqueData = {
   id: string;
   tipo: string;
@@ -195,19 +200,22 @@ export default async function PasoPage({
   const esProfe =
     usuario?.role === "PROFESOR" || usuario?.role === "ADMIN";
 
-  const hecho = puedeMarcar
-    ? Boolean(
-        await prisma.pasoCompletado.findUnique({
-          where: {
-            asignacionId_pasoId: {
-              asignacionId: asignacion!.id,
-              pasoId: paso.id,
-            },
+  const registro = puedeMarcar
+    ? await prisma.pasoCompletado.findUnique({
+        where: {
+          asignacionId_pasoId: {
+            asignacionId: asignacion!.id,
+            pasoId: paso.id,
           },
-          select: { id: true },
-        }),
-      )
-    : false;
+        },
+        select: { completadoEl: true, verificadoEl: true, puntos: true },
+      })
+    : null;
+
+  const hecho = Boolean(registro);
+  // Revisado por el profesor: ya no se puede desmarcar, porque la fila
+  // guarda sus puntos.
+  const revisado = Boolean(registro?.verificadoEl);
 
   return (
     <div className="mx-auto max-w-4xl px-6 py-12">
@@ -303,8 +311,20 @@ export default async function PasoPage({
 
       {/* Marcar como hecho: solo con asignación viva de este recorrido. */}
       {puedeMarcar && (
-        <div className="mt-10 flex justify-center">
-          {hecho ? (
+        <div className="mt-10 flex flex-col items-center gap-3">
+          {registro && (
+            <p className="text-sm text-tinta-suave">
+              {revisado
+                ? `Tu profe lo revisó: ${registro.puntos ?? 0} puntos.`
+                : `Entregado el ${formatoFecha.format(registro.completadoEl)}. Esperando a tu profe.`}
+            </p>
+          )}
+
+          {revisado ? (
+            <span className="rounded-full bg-sol-300 px-6 py-3 text-sm font-extrabold text-tinta">
+              Revisado ✓
+            </span>
+          ) : hecho ? (
             <form action={desmarcarPasoHecho}>
               <input type="hidden" name="pasoId" value={paso.id} />
               <button
