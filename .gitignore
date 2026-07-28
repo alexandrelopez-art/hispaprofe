@@ -44,3 +44,6 @@ next-env.d.ts
 
 # Prisma / environment variables
 .env
+
+# Cuaderno de trabajo de los agentes: notas de ejecución, no código.
+/.superpowers
