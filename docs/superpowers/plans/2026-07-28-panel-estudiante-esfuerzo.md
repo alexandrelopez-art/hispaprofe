@@ -799,6 +799,7 @@ Entre el `<h1>` del saludo y el `<h2>Tus secuencias</h2>`, insertar:
 
 ```tsx
       {mostrarHucha && (
+        <>
         <section className="mt-8 rounded-tarjeta border border-hp-100 bg-white p-6 shadow-suave">
           {resumen.pasosRevisados === 0 ? (
             <>
@@ -825,9 +826,7 @@ Entre el `<h1>` del saludo y el `<h2>Tus secuencias</h2>`, insertar:
             </>
           )}
         </section>
-      )}
 
-      {mostrarHucha && (
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
           <section className="rounded-tarjeta border border-hp-100 bg-white p-5 shadow-suave">
             <h2 className="text-xs font-bold uppercase tracking-wider text-tinta-suave">
@@ -893,6 +892,7 @@ Entre el `<h1>` del saludo y el `<h2>Tus secuencias</h2>`, insertar:
             )}
           </section>
         </div>
+        </>
       )}
 ```
 
