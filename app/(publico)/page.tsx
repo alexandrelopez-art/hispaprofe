@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 
 const actividades = [
   {
@@ -142,8 +143,25 @@ export default function LandingPublica() {
 
         {/* Composición visual del hero */}
         <div className="hidden lg:flex items-center justify-center">
-          <div className="relative aspect-square w-full max-w-md rounded-full bg-gradient-to-br from-hp-100 to-[#ece5ff] grid place-items-center">
-            <div className="text-[10rem] leading-none">👨‍🏫</div>
+          <div className="relative aspect-square w-full max-w-md">
+            {/*
+              El logo tiene fondo blanco opaco, no transparente. Por eso el
+              círculo es blanco: el fondo del PNG se funde con él y la figura
+              parece recortada, sin tener que tocar la imagen.
+              La versión con rayos azules está en /logo-rayos.png.
+            */}
+            <div className="absolute inset-0 grid place-items-center overflow-hidden rounded-full bg-white shadow-tarjeta ring-1 ring-hp-100">
+              <div className="relative h-[86%] w-[86%]">
+                <Image
+                  src="/logo.png"
+                  alt="HispaProfe"
+                  fill
+                  priority
+                  sizes="(min-width: 1024px) 28rem, 0px"
+                  className="object-contain"
+                />
+              </div>
+            </div>
             <div className="absolute top-6 left-2 bg-white rounded-2xl shadow-suave px-4 py-3 flex items-center gap-3">
               <span className="w-8 h-8 rounded-full bg-hp-100 grid place-items-center text-hp-500">
                 💬
