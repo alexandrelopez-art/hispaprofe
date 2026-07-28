@@ -9,8 +9,10 @@ import { desmarcarSiNoRevisado, resumenEstudiante } from "@/lib/progreso";
 
 function afirmar(condicion: boolean, mensaje: string) {
   if (!condicion) {
-    console.error(`FALLO: ${mensaje}`);
-    process.exit(1);
+    // Lanza en vez de process.exit(): así el `finally` de main() limpia los
+    // datos de prueba antes de que el .catch() de más abajo fije el código
+    // de salida. process.exit() aquí cortaría el stack antes de la limpieza.
+    throw new Error(`FALLO: ${mensaje}`);
   }
   console.log(`OK: ${mensaje}`);
 }
