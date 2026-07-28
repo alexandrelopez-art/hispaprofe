@@ -6,6 +6,7 @@ import {
   crearPaso,
   moverPaso,
 } from "@/lib/acciones";
+import { estadoDePasos, type EstadoPaso } from "@/lib/progreso";
 import BotonConfirmar from "@/components/boton-confirmar";
 import { notFound } from "next/navigation";
 import Link from "next/link";
@@ -107,6 +108,27 @@ export default async function RecorridoDetallePage({
   const ciclos = [...new Set(recorrido.pasos.map((p) => p.ciclo))].sort(
     (a, b) => a - b,
   );
+
+  // La página ya carga datos cuando quien mira es profesor. Aquí se
+  // atiende el otro caso: un estudiante con asignación viva ve marcado
+  // su propio recorrido por la secuencia.
+  const asignacionPropia =
+    usuario && !esProfe
+      ? await prisma.asignacion.findUnique({
+          where: {
+            estudianteId_recorridoId: {
+              estudianteId: usuario.id,
+              recorridoId: recorrido.id,
+            },
+          },
+          select: { id: true, archivada: true },
+        })
+      : null;
+
+  const estados =
+    asignacionPropia && !asignacionPropia.archivada
+      ? await estadoDePasos(asignacionPropia.id)
+      : new Map<string, { estado: EstadoPaso; puntos: number | null }>();
 
   return (
     <div className="mx-auto max-w-3xl px-6 py-12">
@@ -225,10 +247,23 @@ export default async function RecorridoDetallePage({
                 Ciclo {ciclo}
               </h2>
               <ol className="relative border-l-2 border-hp-100 pl-8">
-                {pasos.map((paso) => (
+                {pasos.map((paso) => {
+                  const marca = estados.get(paso.id);
+                  return (
                   <li key={paso.id} className="relative mb-5 last:mb-0">
-                    <span className="absolute -left-[41px] flex h-6 w-6 items-center justify-center rounded-full bg-tinta text-xs font-bold text-white ring-4 ring-fondo">
-                      {paso.orden}
+                    <span
+                      className={`absolute -left-[41px] flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold ring-4 ring-fondo ${
+                        marca ? "bg-bloque2 text-tinta" : "bg-tinta text-white"
+                      }`}
+                      title={
+                        marca?.estado === "REVISADO"
+                          ? "Revisado por tu profe"
+                          : marca
+                            ? "Entregado, esperando revisión"
+                            : undefined
+                      }
+                    >
+                      {marca ? "✓" : paso.orden}
                     </span>
                     <Link
                       href={`/pasos/${paso.id}`}
@@ -249,9 +284,16 @@ export default async function RecorridoDetallePage({
                           </span>
                         )}
                       </div>
-                      <p className="mt-2 text-sm font-semibold text-tinta">
-                        {paso.titulo}
-                      </p>
+                      <div className="mt-2 flex items-center gap-2">
+                        <p className="min-w-0 flex-1 text-sm font-semibold text-tinta">
+                          {paso.titulo}
+                        </p>
+                        {marca?.estado === "REVISADO" && (
+                          <span className="shrink-0 rounded-full bg-sol-300 px-2 py-0.5 text-[11px] font-extrabold text-tinta">
+                            {marca.puntos ?? 0} pts
+                          </span>
+                        )}
+                      </div>
                     </Link>
 
                     {esProfe && (
@@ -303,7 +345,8 @@ export default async function RecorridoDetallePage({
                       </div>
                     )}
                   </li>
-                ))}
+                  );
+                })}
               </ol>
             </section>
           );
