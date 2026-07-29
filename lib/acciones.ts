@@ -11,6 +11,7 @@ import { corregir, opcionMultipleSchema } from "@/lib/ejercicios/opcion-multiple
 // vivo hasta que la Tarea 6 lo retire junto con su componente.
 import { corregir as corregirEjercicio, analizar } from "@/lib/ejercicios/registro";
 import type { Respuestas } from "@/lib/ejercicios/tipos";
+import { Prisma } from "@/lib/generated/prisma/client";
 import type {
   Destreza,
   Nivel,
@@ -1046,6 +1047,10 @@ export async function responderEjercicio(formData: FormData) {
     return;
   }
 
+  // Atajo barato: si ya está verificado no merece la pena ni corregir.
+  // Pero no es esto lo que garantiza "se responde una sola vez" — entre
+  // esta lectura y la escritura de abajo cabe otra petición idéntica, así
+  // que la regla la impone la base de datos, no este `if`.
   const yaRespondido = await prisma.pasoCompletado.findUnique({
     where: { asignacionId_pasoId: { asignacionId: asignacion.id, pasoId } },
     select: { verificadoEl: true },
@@ -1058,17 +1063,38 @@ export async function responderEjercicio(formData: FormData) {
 
   // Un ejercicio autocorregible es objetivo, así que sus puntos entran ya
   // verificados: no necesitan el visto bueno del profesor.
-  await prisma.pasoCompletado.upsert({
-    where: { asignacionId_pasoId: { asignacionId: asignacion.id, pasoId } },
-    update: { puntos: aciertos, verificadoEl: new Date(), respuestas },
-    create: {
-      asignacionId: asignacion.id,
-      pasoId,
-      puntos: aciertos,
-      verificadoEl: new Date(),
-      respuestas,
-    },
+  //
+  // Dos envíos concurrentes no pueden ganar los dos: el update solo toca
+  // la fila si sigue sin verificar (nada de "leer y luego escribir": la
+  // condición va en el propio UPDATE), y si no tocó nada porque la fila
+  // no existía todavía, el create que sigue está protegido por la clave
+  // única asignacionId+pasoId — si otra petición ya la creó entre medias,
+  // el create revienta con P2002 y esa petición pierde en silencio. No lo
+  // simplifiques de vuelta a un `upsert` plano: eso reintroduce la carrera.
+  const actualizado = await prisma.pasoCompletado.updateMany({
+    where: { asignacionId: asignacion.id, pasoId, verificadoEl: null },
+    data: { puntos: aciertos, verificadoEl: new Date(), respuestas },
   });
+
+  if (actualizado.count === 0) {
+    try {
+      await prisma.pasoCompletado.create({
+        data: {
+          asignacionId: asignacion.id,
+          pasoId,
+          puntos: aciertos,
+          verificadoEl: new Date(),
+          respuestas,
+        },
+      });
+    } catch (error) {
+      // P2002 = otra petición creó la fila primero: esta pierde la
+      // carrera y no hace nada, tal como manda "se responde una sola vez".
+      const esChoqueDeClaveUnica =
+        error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
+      if (!esChoqueDeClaveUnica) throw error;
+    }
+  }
 
   revalidatePath(`/pasos/${pasoId}`);
   revalidatePath(`/recorridos/${paso.recorridoId}`);
