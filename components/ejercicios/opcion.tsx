@@ -1,8 +1,8 @@
 "use client";
 
 import type { OpcionPublica } from "@/lib/ejercicios/opcion";
-import { comoLista } from "@/lib/ejercicios/tipos";
-import type { PropsCara } from "./ejercicio";
+import { comoLista, type Respuestas } from "@/lib/ejercicios/tipos";
+import type { Progreso, PropsCara } from "./ejercicio";
 
 export default function CaraOpcion({ publica, valor, alCambiar, correccion }: PropsCara) {
   const datos = publica as OpcionPublica;
@@ -89,6 +89,16 @@ export default function CaraOpcion({ publica, valor, alCambiar, correccion }: Pr
       })}
     </ol>
   );
+}
+
+/** Contestada = al menos una opción marcada, sea única o múltiple. */
+export function progresoOpcion(publica: unknown, valor: Respuestas): Progreso {
+  const datos = publica as OpcionPublica;
+  const total = datos.preguntas.length;
+  const contestadas = datos.preguntas.filter(
+    (p) => comoLista(valor[p.id]).length > 0,
+  ).length;
+  return { total, contestadas };
 }
 
 /** La marca de acierto o fallo, con la respuesta buena cuando toca. */

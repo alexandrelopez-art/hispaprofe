@@ -3,10 +3,10 @@
 import { useState } from "react";
 import { responderEjercicio } from "@/lib/acciones";
 import type { Correccion, Respuestas } from "@/lib/ejercicios/tipos";
-import CaraOpcion from "./opcion";
-import CaraHuecos from "./huecos";
-import CaraRelacionar from "./relacionar";
-import CaraOrdenar from "./ordenar";
+import CaraOpcion, { progresoOpcion } from "./opcion";
+import CaraHuecos, { progresoHuecos } from "./huecos";
+import CaraRelacionar, { progresoRelacionar } from "./relacionar";
+import CaraOrdenar, { progresoOrdenar } from "./ordenar";
 
 export type PropsEjercicio = {
   pasoId: string;
@@ -26,6 +26,15 @@ export type PropsCara = {
   alCambiar: (nuevo: Respuestas) => void;
   correccion: Correccion | null;
 };
+
+/**
+ * Cuántos elementos tiene el ejercicio y cuántos ya tienen respuesta. Cada
+ * cara sabe lo que cuenta como "respondido" para su propia forma (una
+ * opción marcada, un hueco no vacío, una pareja unida...); el repartidor
+ * solo compara `contestadas` con `total` para decidir si puede enviar, sin
+ * aprender ninguna de esas reglas.
+ */
+export type Progreso = { total: number; contestadas: number };
 
 export default function Ejercicio({
   pasoId,
@@ -54,6 +63,22 @@ export default function Ejercicio({
         return <CaraOrdenar {...props} />;
     }
   })();
+
+  // Cada tipo decide qué cuenta como "contestada"; aquí solo se compara
+  // con el total para bloquear el envío mientras falte algo.
+  const { total, contestadas } = (() => {
+    switch (tipo) {
+      case "opcion":
+        return progresoOpcion(publica, valor);
+      case "huecos":
+        return progresoHuecos(publica, valor);
+      case "relacionar":
+        return progresoRelacionar(publica, valor);
+      case "ordenar":
+        return progresoOrdenar(publica);
+    }
+  })();
+  const completo = contestadas >= total;
 
   if (respondido) {
     return (
@@ -94,13 +119,18 @@ export default function Ejercicio({
 
       <div className="mt-6">{cara}</div>
 
-      <button
-        type="submit"
-        disabled={enviando}
-        className="mt-6 h-11 rounded-full bg-hp-400 px-6 text-sm font-extrabold text-white transition-colors hover:bg-hp-500 disabled:cursor-not-allowed disabled:opacity-40"
-      >
-        {enviando ? "Corrigiendo…" : "Enviar respuestas"}
-      </button>
+      <div className="mt-6 flex flex-wrap items-center gap-3">
+        <button
+          type="submit"
+          disabled={enviando || !completo}
+          className="h-11 rounded-full bg-hp-400 px-6 text-sm font-extrabold text-white transition-colors hover:bg-hp-500 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          {enviando ? "Corrigiendo…" : "Enviar respuestas"}
+        </button>
+        <span className="text-sm text-tinta-suave">
+          {contestadas} de {total} contestadas
+        </span>
+      </div>
     </form>
   );
 }

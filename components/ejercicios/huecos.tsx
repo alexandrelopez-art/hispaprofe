@@ -1,8 +1,8 @@
 "use client";
 
 import { trozos, type HuecosPublica } from "@/lib/ejercicios/huecos";
-import { comoLista } from "@/lib/ejercicios/tipos";
-import type { PropsCara } from "./ejercicio";
+import { comoLista, type Respuestas } from "@/lib/ejercicios/tipos";
+import type { Progreso, PropsCara } from "./ejercicio";
 import { Veredicto } from "./opcion";
 
 export default function CaraHuecos({ publica, valor, alCambiar, correccion }: PropsCara) {
@@ -40,4 +40,14 @@ export default function CaraHuecos({ publica, valor, alCambiar, correccion }: Pr
       )}
     </div>
   );
+}
+
+/** Contestado = texto no vacío una vez quitados los espacios de sobra. */
+export function progresoHuecos(publica: unknown, valor: Respuestas): Progreso {
+  const datos = publica as HuecosPublica;
+  const total = datos.huecos.length;
+  const contestadas = datos.huecos.filter(
+    (h) => (comoLista(valor[h.id])[0] ?? "").trim() !== "",
+  ).length;
+  return { total, contestadas };
 }
