@@ -6,6 +6,7 @@
 import "dotenv/config";
 import { corregirOpcion, opcionSchema, versionPublicaOpcion, type Opcion } from "@/lib/ejercicios/opcion";
 import { corregirHuecos, huecosSchema, trozos, versionPublicaHuecos, type Huecos } from "@/lib/ejercicios/huecos";
+import { corregirRelacionar, relacionarSchema, versionPublicaRelacionar, type Relacionar } from "@/lib/ejercicios/relacionar";
 import { prisma } from "@/lib/prisma";
 
 function afirmar(condicion: boolean, mensaje: string) {
@@ -61,6 +62,16 @@ const HUECOS: Huecos = {
     { id: "h1", acepta: ["hay"] },
     { id: "h2", acepta: ["hay"] },
     { id: "h3", acepta: ["balcón"] },
+  ],
+};
+
+const RELACIONAR: Relacionar = {
+  ejercicio: "relacionar",
+  consigna: "Une cada habitación con lo que hay dentro",
+  parejas: [
+    { id: "p1", izquierda: "la cocina", derecha: "la nevera" },
+    { id: "p2", izquierda: "el salón", derecha: "el sofá" },
+    { id: "p3", izquierda: "la habitación", derecha: "la cama" },
   ],
 };
 
@@ -138,6 +149,43 @@ async function main() {
   afirmar(partes.filter((p) => p.tipo === "hueco").length === 3, "huecos: el texto se parte en tres huecos");
   afirmar(partes[0].valor.startsWith("En mi piso"), "huecos: conserva el texto de alrededor");
   afirmar(huecosSchema.safeParse(HUECOS).success, "huecos: el ejemplo tiene forma válida");
+
+  // Relacionar
+  const SEMILLA = "semilla-fija";
+  const pubRel = versionPublicaRelacionar(RELACIONAR, SEMILLA);
+
+  // Lo más importante: los ids de pareja NO pueden llegar al navegador.
+  const jsonRel = JSON.stringify(pubRel);
+  for (const id of ["p1", "p2", "p3"]) {
+    afirmar(!jsonRel.includes(`"${id}"` ) || !jsonRel.includes(`{"clave":"${id}"`), `relacionar: la clave opaca no delata la pareja ${id}`);
+  }
+  afirmar(pubRel.derechas.every((d) => /^d\d+$/.test(d.clave)), "relacionar: las derechas usan claves opacas d0, d1, d2");
+  afirmar(pubRel.izquierdas.length === 3 && pubRel.derechas.length === 3, "relacionar: manda las dos columnas completas");
+  afirmar(
+    versionPublicaRelacionar(RELACIONAR, SEMILLA).derechas.map((d) => d.texto).join() ===
+      pubRel.derechas.map((d) => d.texto).join(),
+    "relacionar: la misma semilla baraja siempre igual",
+  );
+
+  // La clave que le toca a cada pareja, para poder simular respuestas.
+  const claveDe = (izquierda: string) => {
+    const pareja = RELACIONAR.parejas.find((p) => p.izquierda === izquierda)!;
+    return pubRel.derechas.find((d) => d.texto === pareja.derecha)!.clave;
+  };
+  afirmar(
+    corregirRelacionar(RELACIONAR, { p1: claveDe("la cocina"), p2: claveDe("el salón"), p3: claveDe("la habitación") }, SEMILLA).aciertos === 3,
+    "relacionar: las tres bien dan 3",
+  );
+  afirmar(
+    corregirRelacionar(RELACIONAR, { p1: claveDe("la cocina"), p2: claveDe("la habitación"), p3: claveDe("el salón") }, SEMILLA).aciertos === 1,
+    "relacionar: una bien da 1",
+  );
+  afirmar(corregirRelacionar(RELACIONAR, {}, SEMILLA).aciertos === 0, "relacionar: sin unir nada da 0");
+  afirmar(
+    corregirRelacionar(RELACIONAR, { p1: claveDe("el salón") }, SEMILLA).items[0].correcta === "la nevera",
+    "relacionar: dice cuál era la pareja buena",
+  );
+  afirmar(relacionarSchema.safeParse(RELACIONAR).success, "relacionar: el ejemplo tiene forma válida");
 
   // 5. Lo guardado en la base tiene forma válida.
   const enBase = await prisma.ejercicio.findMany({ select: { titulo: true, datos: true } });
