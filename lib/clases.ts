@@ -258,3 +258,88 @@ export async function listarClases(
     select: seleccionLista,
   });
 }
+
+export type ProximaClase = {
+  id: string;
+  empiezaEl: Date;
+  minutos: number;
+  enlace: string | null;
+  donde: string | null;
+  profesor: string;
+};
+
+/**
+ * La siguiente clase agendada de este estudiante: la suya o la de un grupo
+ * donde esté. `ahora` se puede pasar para verificarla sin depender del
+ * reloj de la máquina.
+ */
+export async function proximaClase(
+  estudianteId: string,
+  ahora: Date = new Date(),
+): Promise<ProximaClase | null> {
+  const clase = await prisma.clase.findFirst({
+    where: {
+      estado: "AGENDADA",
+      empiezaEl: { gte: ahora },
+      OR: [
+        { estudianteId },
+        { grupo: { miembros: { some: { estudianteId } } } },
+      ],
+    },
+    orderBy: { empiezaEl: "asc" },
+    select: {
+      id: true,
+      empiezaEl: true,
+      minutos: true,
+      enlace: true,
+      donde: true,
+      profesor: { select: { firstName: true, lastName: true, email: true } },
+    },
+  });
+  if (!clase) return null;
+
+  const p = clase.profesor;
+  return {
+    id: clase.id,
+    empiezaEl: clase.empiezaEl,
+    minutos: clase.minutos,
+    enlace: clase.enlace,
+    donde: clase.donde,
+    profesor:
+      [p.firstName, p.lastName].filter(Boolean).join(" ") || p.email,
+  };
+}
+
+export type DeberPendiente = {
+  id: string;
+  texto: string;
+  claseEl: Date;
+};
+
+/**
+ * Los deberes que este estudiante tiene sin cerrar. Los de una clase
+ * anulada no salen: pedirle los deberes de una clase que se canceló no
+ * tiene sentido, aunque la fila se conserve para el historial del profesor.
+ */
+export async function deberesPendientes(
+  estudianteId: string,
+): Promise<DeberPendiente[]> {
+  const filas = await prisma.deber.findMany({
+    where: {
+      estudianteId,
+      cerradoEl: null,
+      clase: { estado: { not: "ANULADA" } },
+    },
+    orderBy: { clase: { empiezaEl: "desc" } },
+    select: {
+      id: true,
+      clase: { select: { deberes: true, empiezaEl: true } },
+    },
+  });
+
+  return filas.map((f) => ({
+    id: f.id,
+    texto: f.clase.deberes ?? "",
+    claseEl: f.clase.empiezaEl,
+  }));
+}

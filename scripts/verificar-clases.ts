@@ -16,6 +16,8 @@ import {
   cerrarDeberesDeClase,
   totalesDeClases,
   listarClases,
+  proximaClase,
+  deberesPendientes,
 } from "@/lib/clases";
 import { fechaHora, paraInput } from "@/lib/fechas";
 import { prisma } from "@/lib/prisma";
@@ -304,6 +306,75 @@ async function main() {
   afirmar(
     lista.some((c) => c.estudiante?.firstName === "Ana"),
     "y el nombre del estudiante",
+  );
+
+  // 6. El tablero del estudiante: su próxima clase y sus deberes.
+  const referencia = new Date("2026-08-01T00:00:00+02:00");
+
+  const proximaDeAna = await proximaClase(ana.id, referencia);
+  afirmar(proximaDeAna !== null, "Ana tiene una próxima clase");
+  afirmar(
+    proximaDeAna!.id === agendada.id,
+    "la próxima es la agendada, no la dada ni la anulada",
+  );
+
+  // Una clase de grupo agendada también es la próxima de sus miembros.
+  const grupalFutura = await prisma.clase.create({
+    data: {
+      profesorId: profe.id,
+      grupoId: grupo.id,
+      empiezaEl: new Date("2026-08-02T18:00:00+02:00"),
+      minutos: 60,
+      notas: marca,
+      enlace: "https://meet.example/abc",
+    },
+  });
+  const otraVez = await proximaClase(ana.id, referencia);
+  afirmar(
+    otraVez!.id === grupalFutura.id,
+    "una clase de su grupo cuenta como suya, y la más cercana gana",
+  );
+  afirmar(
+    otraVez!.enlace === "https://meet.example/abc",
+    "la próxima clase trae su enlace",
+  );
+
+  // Luis ya no está en el grupo: esa clase no es suya.
+  const deLuis = await proximaClase(luis.id, referencia);
+  afirmar(
+    deLuis === null,
+    "quien no está en el grupo no ve esa clase como suya",
+  );
+
+  // Después de la última clase agendada no hay próxima.
+  afirmar(
+    (await proximaClase(ana.id, new Date("2100-01-01T00:00:00Z"))) === null,
+    "sin clases futuras no hay próxima clase",
+  );
+
+  // Los deberes pendientes: los de la clase particular, que siguen abiertos.
+  const pendientesDeAna = await deberesPendientes(ana.id);
+  afirmar(
+    pendientesDeAna.length === 1,
+    "Ana tiene un deber pendiente, el de la clase particular",
+  );
+  afirmar(
+    pendientesDeAna[0].texto === "Ejercicios 3 y 4.",
+    "el deber trae el texto de su clase",
+  );
+
+  // Una clase anulada esconde sus deberes del tablero.
+  await prisma.clase.update({
+    where: { id: particular.id },
+    data: { estado: "ANULADA" },
+  });
+  afirmar(
+    (await deberesPendientes(ana.id)).length === 0,
+    "los deberes de una clase anulada desaparecen del tablero",
+  );
+  afirmar(
+    (await prisma.deber.count({ where: { claseId: particular.id } })) === 1,
+    "pero la fila sigue ahí para el historial del profesor",
   );
 
   console.log("\nTodas las verificaciones pasan.");
