@@ -56,10 +56,11 @@ const COMPARTIDA: Opcion = opcionSchema.parse({
 const HUECOS: Huecos = {
   ejercicio: "huecos",
   consigna: "Completa",
-  texto: "En mi piso {{h1}} tres habitaciones y no {{h2}} balcón.",
+  texto: "En mi piso {{h1}} tres habitaciones y no {{h2}} {{h3}}.",
   huecos: [
     { id: "h1", acepta: ["hay"] },
     { id: "h2", acepta: ["hay"] },
+    { id: "h3", acepta: ["balcón"] },
   ],
 };
 
@@ -127,13 +128,14 @@ async function main() {
 
   // Huecos
   afirmar(!JSON.stringify(versionPublicaHuecos(HUECOS)).includes("acepta"), "huecos: la versión pública no lleva las soluciones");
-  afirmar(corregirHuecos(HUECOS, { h1: "hay", h2: "hay" }).aciertos === 2, "huecos: los dos bien dan 2");
-  afirmar(corregirHuecos(HUECOS, { h1: "Hay", h2: "  hay  " }).aciertos === 2, "huecos: se perdonan mayúsculas y espacios");
+  afirmar(corregirHuecos(HUECOS, { h1: "hay", h2: "hay", h3: "balcón" }).aciertos === 3, "huecos: los tres bien dan 3");
+  afirmar(corregirHuecos(HUECOS, { h1: "Hay", h2: "  hay  ", h3: "Balcón" }).aciertos === 3, "huecos: se perdonan mayúsculas y espacios");
   afirmar(corregirHuecos(HUECOS, { h1: "hay" }).aciertos === 1, "huecos: uno solo da 1");
-  afirmar(corregirHuecos(HUECOS, { h1: "es", h2: "es" }).aciertos === 0, "huecos: mal da 0");
-  afirmar(corregirHuecos(HUECOS, { h1: "balcon", h2: "hay" }).aciertos === 1, "huecos: la tilde y la palabra cuentan");
+  afirmar(corregirHuecos(HUECOS, { h1: "es", h2: "es", h3: "es" }).aciertos === 0, "huecos: mal da 0");
+  afirmar(corregirHuecos(HUECOS, { h1: "hay", h2: "hay", h3: "balcón" }).aciertos === 3, "huecos: con acento se acepta");
+  afirmar(corregirHuecos(HUECOS, { h1: "hay", h2: "hay", h3: "balcon" }).aciertos === 2, "huecos: sin acento es fallo, los acentos cuentan");
   const partes = trozos(HUECOS.texto);
-  afirmar(partes.filter((p) => p.tipo === "hueco").length === 2, "huecos: el texto se parte en dos huecos");
+  afirmar(partes.filter((p) => p.tipo === "hueco").length === 3, "huecos: el texto se parte en tres huecos");
   afirmar(partes[0].valor.startsWith("En mi piso"), "huecos: conserva el texto de alrededor");
   afirmar(huecosSchema.safeParse(HUECOS).success, "huecos: el ejemplo tiene forma válida");
 
