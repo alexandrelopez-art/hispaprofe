@@ -63,15 +63,18 @@ model User {
   // clerkId es opcional a proposito: el profesor puede crear la ficha del
   // estudiante desde una lista de correos antes de que exista la cuenta.
   // Se rellena la primera vez que esa persona entra, emparejando por email.
-  id        String   @id @default(cuid())
-  clerkId   String?  @unique
-  email     String   @unique
-  firstName String?
-  lastName  String?
-  role      Role     @default(STUDENT)
-  nivel     Nivel?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id             String   @id @default(cuid())
+  clerkId        String?  @unique
+  email          String   @unique
+  firstName      String?
+  lastName       String?
+  role           Role     @default(STUDENT)
+  nivel          Nivel?
+  // Tarifa por hora de este estudiante, en céntimos enteros. Los decimales
+  // en coma flotante arrastran errores que al sumar un año se notan.
+  tarifaCentimos Int?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   asignacionesRecibidas Asignacion[]   @relation("AsignacionEstudiante")
   asignacionesCreadas   Asignacion[]   @relation("AsignacionProfesor")
@@ -81,6 +84,9 @@ model User {
   membresias            MiembroGrupo[] @relation("EstudianteGrupo")
   ejerciciosCreados     Ejercicio[]    @relation("AutorEjercicio")
   cuentaGoogle          CuentaGoogle?
+  clasesImpartidas      Clase[]        @relation("ProfesorClase")
+  clasesRecibidas       Clase[]        @relation("EstudianteClase")
+  deberes               Deber[]        @relation("EstudianteDeber")
 }
 
 model Recorrido {
@@ -138,10 +144,12 @@ model Grupo {
   nombre           String
   descripcion      String?
   nivel            Nivel?
+  tarifaCentimos   Int?
   profesor         User           @relation("ProfesorGrupo", fields: [profesorId], references: [id])
   profesorId       String
   archivado        Boolean        @default(false)
   miembros         MiembroGrupo[]
+  clases           Clase[]
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
   // Vinculo opcional con un curso de Google Classroom. Los grupos de
@@ -282,4 +290,68 @@ model CuentaGoogle {
   expiraEl     DateTime
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+}
+
+// AGENDADA = todavía no ocurrió. DADA = ocurrió y cuenta.
+// ANULADA  = se cayó: conserva notas y deberes, pero no cuenta.
+enum EstadoClase {
+  AGENDADA
+  DADA
+  ANULADA
+}
+
+// La clase en sí. Puede crearse antes de darla (agenda) o después
+// (bitácora); la diferencia la marca `estado`, no la forma de nacer.
+model Clase {
+  id         String @id @default(cuid())
+  profesor   User   @relation("ProfesorClase", fields: [profesorId], references: [id])
+  profesorId String
+
+  // Destinatario: uno de los dos, nunca los dos ni ninguno. Prisma no sabe
+  // expresar esa exclusión, así que la hace cumplir `validarClase`.
+  estudiante   User?   @relation("EstudianteClase", fields: [estudianteId], references: [id])
+  estudianteId String?
+  grupo        Grupo?  @relation(fields: [grupoId], references: [id])
+  grupoId      String?
+
+  empiezaEl DateTime
+  // Duración y no hora de fin: es lo que hace falta para sumar horas, y
+  // evita el caso de la clase que cruza la medianoche.
+  minutos   Int
+  estado    EstadoClase @default(AGENDADA)
+
+  donde   String? // "en su casa", "aula 2"
+  enlace  String? // URL de conexión: Meet automático o pegado a mano
+  notas   String? // registro académico. Privado del profesor.
+  deberes String? // el texto, uno para toda la clase
+
+  // Foto del precio al marcarla dada, no espejo de la tarifa actual.
+  importeCentimos Int?
+  cobradaEl       DateTime?
+
+  googleEventoId String? // id del evento espejo en Google Calendar (tanda 2)
+
+  asignados Deber[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([profesorId, empiezaEl])
+  @@index([estudianteId, empiezaEl])
+  @@index([grupoId, empiezaEl])
+}
+
+// Los deberes de una clase, uno por estudiante. No guarda el texto: vive en
+// `Clase.deberes`. Así corregir una falta no obliga a reescribir seis filas,
+// y aun así se puede cerrar el de Ana sin tocar el de Luis.
+model Deber {
+  id           String    @id @default(cuid())
+  clase        Clase     @relation(fields: [claseId], references: [id], onDelete: Cascade)
+  claseId      String
+  estudiante   User      @relation("EstudianteDeber", fields: [estudianteId], references: [id], onDelete: Cascade)
+  estudianteId String
+  cerradoEl    DateTime?
+  createdAt    DateTime  @default(now())
+
+  @@unique([claseId, estudianteId])
+  @@index([estudianteId, cerradoEl])
 }
