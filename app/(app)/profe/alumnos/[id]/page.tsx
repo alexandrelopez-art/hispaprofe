@@ -7,6 +7,7 @@ import {
 } from "@/lib/acciones";
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
+import { horas, totalesDeClases } from "@/lib/clases";
 
 export const dynamic = "force-dynamic";
 
@@ -39,7 +40,7 @@ export default async function AlumnoPage({
   const estudiante = await prisma.user.findUnique({ where: { id } });
   if (!estudiante) notFound();
 
-  const [asignaciones, secuencias] = await Promise.all([
+  const [asignaciones, secuencias, totalesClases] = await Promise.all([
     prisma.asignacion.findMany({
       where: { estudianteId: id, archivada: false },
       orderBy: { createdAt: "desc" },
@@ -70,6 +71,7 @@ export default async function AlumnoPage({
       orderBy: [{ tipo: "asc" }, { orden: "asc" }],
       select: { id: true, titulo: true, nivel: true, tipo: true },
     }),
+    totalesDeClases({ profesorId: usuario.id, estudianteId: id }),
   ]);
 
   const nombre =
@@ -96,6 +98,19 @@ export default async function AlumnoPage({
         )}
       </div>
       <p className="mt-1 text-tinta-suave">{estudiante.email}</p>
+
+      {totalesClases.cuantas > 0 && (
+        <p className="mt-3 text-sm text-tinta-suave">
+          {horas(totalesClases.minutos)} contigo en {totalesClases.cuantas}{" "}
+          clase{totalesClases.cuantas !== 1 ? "s" : ""} ·{" "}
+          <Link
+            href={`/profe/clases?quien=alumno:${estudiante.id}`}
+            className="font-semibold text-hp-600 hover:text-hp-500"
+          >
+            ver sus clases
+          </Link>
+        </p>
+      )}
 
       <h2 className="mt-10 text-lg font-bold text-tinta">
         Secuencias asignadas

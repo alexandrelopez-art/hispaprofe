@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { resumenEstudiante } from "@/lib/progreso";
+import { deberesPendientes, proximaClase } from "@/lib/clases";
+import { fechaCorta, fechaHora } from "@/lib/fechas";
 
 type Usuario = { id: string; firstName: string | null; email: string };
 
@@ -29,7 +31,7 @@ export default async function PanelEstudiante({
 }) {
   const saludo = `Hola, ${usuario.firstName ?? usuario.email}`;
 
-  const [resumen, asignaciones] = await Promise.all([
+  const [resumen, asignaciones, proxima, deberes] = await Promise.all([
     resumenEstudiante(usuario.id),
     prisma.asignacion.findMany({
       where: { estudianteId: usuario.id, archivada: false },
@@ -46,6 +48,8 @@ export default async function PanelEstudiante({
         _count: { select: { completados: true } },
       },
     }),
+    proximaClase(usuario.id),
+    deberesPendientes(usuario.id),
   ]);
 
   // Sin secuencias y sin puntos no hay nada que contar: se salta la hucha
@@ -61,6 +65,53 @@ export default async function PanelEstudiante({
       <h1 className="text-3xl font-extrabold tracking-tight text-tinta">
         {saludo}
       </h1>
+
+      {proxima && (
+        <section className="mt-8 rounded-tarjeta border border-hp-200 bg-hp-50 p-6 shadow-suave">
+          <h2 className="text-xs font-bold uppercase tracking-wider text-hp-700">
+            Tu próxima clase
+          </h2>
+          <p className="mt-2 text-lg font-bold text-tinta">
+            {fechaHora(proxima.empiezaEl)}, con {proxima.profesor}
+          </p>
+          {proxima.donde && (
+            <p className="mt-1 text-sm text-tinta-suave">{proxima.donde}</p>
+          )}
+          {proxima.enlace && (
+            <a
+              href={proxima.enlace}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-4 inline-block h-10 rounded-full bg-hp-400 px-5 text-sm font-bold leading-10 text-white transition-colors hover:bg-hp-500"
+            >
+              Entrar a la clase
+            </a>
+          )}
+        </section>
+      )}
+
+      {deberes.length > 0 && (
+        <section className="mt-4 rounded-tarjeta border border-sol-300 bg-sol-100 p-5 shadow-suave">
+          <h2 className="text-xs font-bold uppercase tracking-wider text-tinta">
+            Deberes de tu profe
+          </h2>
+          <ul className="mt-3 space-y-3">
+            {deberes.map((d) => (
+              <li key={d.id}>
+                <p className="whitespace-pre-line text-sm text-tinta">
+                  {d.texto}
+                </p>
+                <p className="mt-1 text-xs text-tinta-suave">
+                  de la clase del {fechaCorta(d.claseEl)}
+                </p>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-4 text-xs text-tinta-suave">
+            Los quita tu profe cuando los da por hechos.
+          </p>
+        </section>
+      )}
 
       {mostrarHucha && (
         <section className="mt-8 rounded-tarjeta border border-hp-100 bg-white p-6 shadow-suave">
