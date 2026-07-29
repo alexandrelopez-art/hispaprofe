@@ -16,12 +16,36 @@ export const huecoSchema = z.object({
   acepta: z.array(z.string()).min(1),
 });
 
-export const huecosSchema = z.object({
-  ejercicio: z.literal("huecos"),
-  consigna: z.string(),
-  texto: z.string(),
-  huecos: z.array(huecoSchema).min(1),
-});
+export const huecosSchema = z
+  .object({
+    ejercicio: z.literal("huecos"),
+    consigna: z.string(),
+    texto: z.string(),
+    huecos: z.array(huecoSchema).min(1),
+  })
+  .refine(
+    (d) => {
+      const marcas = new Set(
+        [...d.texto.matchAll(/\{\{([^}]+)\}\}/g)].map((m) => m[1]),
+      );
+      const ids = new Set(d.huecos.map((h) => h.id));
+      return (
+        marcas.size === ids.size && [...marcas].every((m) => ids.has(m))
+      );
+    },
+    {
+      // Nada obliga a que las marcas {{id}} del texto y los ids de `huecos`
+      // coincidan: se escriben a mano en dos sitios distintos del script de
+      // siembra, sin editor que los enlace. Con un id que no cuadra, la cara
+      // dibuja un recuadro por marca y `progresoHuecos` cuenta sobre
+      // `huecos`, así que el estudiante puede rellenar todo lo que ve y el
+      // contador nunca llega al total: el botón de enviar no se activa
+      // nunca. Mejor rechazarlo al sembrar que descubrirlo con un estudiante
+      // atascado.
+      message:
+        "Las marcas {{...}} del texto no coinciden con los ids de `huecos`.",
+    },
+  );
 
 export type Huecos = z.infer<typeof huecosSchema>;
 

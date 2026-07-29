@@ -974,8 +974,10 @@ export async function responderEjercicio(formData: FormData) {
   });
   if (yaRespondido?.verificadoEl) return;
 
-  // La semilla es el id del ejercicio: la misma que usó `versionPublica`
-  // al repartir las claves opacas de relacionar.
+  // Se pasa el id del ejercicio, no la semilla: `corregir` la deriva por
+  // dentro (mezclada con ENCRYPTION_KEY) exactamente igual que hizo
+  // `versionPublica` al repartir las claves opacas de relacionar, así que
+  // las dos coinciden sin que este archivo conozca el secreto.
   const { aciertos } = corregir(analizado, respuestas, ejercicioId);
 
   // Un ejercicio autocorregible es objetivo, así que sus puntos entran ya

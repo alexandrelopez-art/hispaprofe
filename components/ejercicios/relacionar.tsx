@@ -6,10 +6,9 @@ import { comoLista, type Respuestas } from "@/lib/ejercicios/tipos";
 import type { Progreso, PropsCara } from "./ejercicio";
 import { Veredicto } from "./opcion";
 
-export default function CaraRelacionar({ publica, valor, alCambiar, correccion }: PropsCara) {
+export default function CaraRelacionar({ publica, valor, alCambiar, correccion, cerrado }: PropsCara) {
   const datos = publica as RelacionarPublica;
   const [cogida, setCogida] = useState<string | null>(null);
-  const cerrado = Boolean(correccion);
 
   function unir(izquierdaId: string, clave: string) {
     if (cerrado) return;

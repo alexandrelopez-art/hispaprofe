@@ -15,6 +15,17 @@ const TITULO = "PRUEBA — los cuatro tipos de ejercicio";
 const CORREO_PROFE = "a.lopez.ele@hotmail.com";
 const CORREO_ALUMNO = "gaspard@hotmail.com";
 
+// El campo `Ejercicio.tipo` de la base y el campo `datos.ejercicio` que lee
+// `lib/ejercicios/registro.ts` son cosas distintas: hoy nada lee `tipo`,
+// pero el día que una pantalla de listado lo haga, sembrar todo como
+// OPCION_MULTIPLE etiquetaría mal cuatro de los seis ejercicios.
+const TIPO_DE_EJERCICIO: Record<string, "OPCION_MULTIPLE" | "HUECOS" | "RELACIONAR" | "ORDENAR"> = {
+  opcion: "OPCION_MULTIPLE",
+  huecos: "HUECOS",
+  relacionar: "RELACIONAR",
+  ordenar: "ORDENAR",
+};
+
 const EJERCICIOS = [
   {
     titulo: "Prueba · opción única",
@@ -72,7 +83,9 @@ const EJERCICIOS = [
       texto: "En mi piso {{h1}} dos habitaciones. {{h2}} balcón, pero {{h3}} una terraza.",
       huecos: [
         { id: "h1", acepta: ["hay"] },
-        { id: "h2", acepta: ["No hay", "no hay"] },
+        // `normalizar` ya pasa a minúsculas antes de comparar: escribir las
+        // dos capitalizaciones aquí sería redundante.
+        { id: "h2", acepta: ["No hay"] },
         { id: "h3", acepta: ["hay"] },
       ],
     },
@@ -160,7 +173,7 @@ async function main() {
     });
     const ejercicio = await prisma.ejercicio.create({
       data: {
-        tipo: "OPCION_MULTIPLE",
+        tipo: TIPO_DE_EJERCICIO[e.datos.ejercicio],
         titulo: e.titulo,
         nivel: "A1",
         etiquetas: ["prueba"],

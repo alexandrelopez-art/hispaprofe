@@ -6,9 +6,8 @@ import { comoLista } from "@/lib/ejercicios/tipos";
 import type { Progreso, PropsCara } from "./ejercicio";
 import { Veredicto } from "./opcion";
 
-export default function CaraOrdenar({ publica, valor, alCambiar, correccion }: PropsCara) {
+export default function CaraOrdenar({ publica, valor, alCambiar, correccion, cerrado }: PropsCara) {
   const datos = publica as OrdenarPublica;
-  const cerrado = Boolean(correccion);
 
   const guardado = comoLista(valor.orden);
   const [orden, setOrden] = useState<string[]>(
@@ -55,7 +54,10 @@ export default function CaraOrdenar({ publica, valor, alCambiar, correccion }: P
                 }}
                 onDragEnd={() => setCogida(null)}
                 onDragOver={(e) => !cerrado && e.preventDefault()}
-                onDrop={() => !cerrado && cogida && mover(cogida, id)}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  if (!cerrado && cogida) mover(cogida, id);
+                }}
                 onClick={() => {
                   if (cerrado) return;
                   // Tocar la misma fila que ya está cogida la suelta, igual

@@ -4,7 +4,7 @@ import type { OpcionPublica } from "@/lib/ejercicios/opcion";
 import { comoLista, type Respuestas } from "@/lib/ejercicios/tipos";
 import type { Progreso, PropsCara } from "./ejercicio";
 
-export default function CaraOpcion({ publica, valor, alCambiar, correccion }: PropsCara) {
+export default function CaraOpcion({ publica, valor, alCambiar, correccion, cerrado }: PropsCara) {
   const datos = publica as OpcionPublica;
 
   function alternar(preguntaId: string, indice: number) {
@@ -42,7 +42,7 @@ export default function CaraOpcion({ publica, valor, alCambiar, correccion }: Pr
             {datos.presentacion === "desplegable" ? (
               <select
                 value={comoLista(valor[pregunta.id])[0] ?? ""}
-                disabled={Boolean(correccion)}
+                disabled={cerrado}
                 onChange={(e) => alCambiar({ ...valor, [pregunta.id]: e.target.value })}
                 aria-label={pregunta.enunciado}
                 className="mt-2 h-10 rounded-full border border-hp-200 bg-white px-4 text-sm text-tinta outline-none focus:border-hp-400 disabled:opacity-70"
@@ -62,7 +62,7 @@ export default function CaraOpcion({ publica, valor, alCambiar, correccion }: Pr
                   <label
                     key={indice}
                     className={`flex items-center gap-3 rounded-xl border-2 px-4 py-3 text-sm transition ${
-                      correccion ? "cursor-default" : "cursor-pointer"
+                      cerrado ? "cursor-default" : "cursor-pointer"
                     } ${
                       elegida
                         ? "border-hp-400 bg-hp-50 font-bold text-tinta"
@@ -73,7 +73,7 @@ export default function CaraOpcion({ publica, valor, alCambiar, correccion }: Pr
                       type={datos.multiple ? "checkbox" : "radio"}
                       name={`p-${pregunta.id}`}
                       checked={elegida}
-                      disabled={Boolean(correccion)}
+                      disabled={cerrado}
                       onChange={() => alternar(pregunta.id, indice)}
                       className="h-4 w-4 shrink-0 accent-hp-400"
                     />

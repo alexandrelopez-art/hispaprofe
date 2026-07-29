@@ -348,6 +348,11 @@ export default async function PasoPage({
           respondido={revisado}
           puntos={registro?.puntos ?? null}
           correccion={correccion}
+          // Lo que el estudiante ya envió. Sin esto, recargar la página
+          // reinicia el estado del componente a `{}` y "las respuestas
+          // están guardadas" deja de ser cierto en pantalla: ver el
+          // comentario de `PropsEjercicio.respuestas`.
+          respuestas={(registro?.respuestas as Respuestas | null) ?? null}
         />
       )}
 

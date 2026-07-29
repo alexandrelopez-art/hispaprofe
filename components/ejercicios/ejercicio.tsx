@@ -18,6 +18,16 @@ export type PropsEjercicio = {
   puntos: number | null;
   /** Solo llega cuando el ejercicio ya está cerrado. */
   correccion: Correccion | null;
+  /**
+   * Lo que el estudiante ya envió, si lo envió. Al recargar la página el
+   * componente vuelve a montarse desde cero: sin esto, `useState` siempre
+   * arrancaría en `{}` y el estudiante vería su opción sin marcar, sus
+   * huecos vacíos y —el caso grave— `ordenar` repintado en el orden barajado
+   * de siempre con cada Veredicto colgado de una fila que ya no es la que
+   * juzgó. Puede llegar `null` (ejercicio sin responder, o puntuado a mano
+   * por el profesor sin pasar por aquí).
+   */
+  respuestas: Respuestas | null;
 };
 
 export type PropsCara = {
@@ -25,6 +35,14 @@ export type PropsCara = {
   valor: Respuestas;
   alCambiar: (nuevo: Respuestas) => void;
   correccion: Correccion | null;
+  /**
+   * Si el ejercicio está cerrado: ya no se puede tocar nada. No se deduce
+   * de `correccion`, porque un paso puntuado a mano por el profesor
+   * (`otorgarPuntos`) deja `correccion` en `null` y aun así el ejercicio
+   * debe quedar bloqueado, no seguir editable sobre una nota que ya no va
+   * a cambiar.
+   */
+  cerrado: boolean;
 };
 
 /**
@@ -44,14 +62,23 @@ export default function Ejercicio({
   respondido,
   puntos,
   correccion,
+  respuestas,
 }: PropsEjercicio) {
-  const [valor, setValor] = useState<Respuestas>({});
+  const [valor, setValor] = useState<Respuestas>(respuestas ?? {});
   const [enviando, setEnviando] = useState(false);
 
   const consigna = (publica as { consigna?: string }).consigna ?? "";
 
   const cara = (() => {
-    const props: PropsCara = { publica, valor, alCambiar: setValor, correccion };
+    const props: PropsCara = {
+      publica,
+      valor,
+      alCambiar: setValor,
+      correccion,
+      // Cerrado en cuanto está respondido, tenga o no corrección calculada:
+      // ver el comentario de `PropsCara.cerrado`.
+      cerrado: respondido,
+    };
     switch (tipo) {
       case "opcion":
         return <CaraOpcion {...props} />;
@@ -89,7 +116,12 @@ export default function Ejercicio({
         <p className="mt-2 text-3xl font-extrabold text-tinta">
           {puntos ?? 0}
           <span className="ml-2 text-base font-bold text-tinta-suave">
-            de {correccion?.total ?? puntos ?? 0} puntos
+            {/*
+              "de N puntos" solo tiene sentido cuando hay una corrección que
+              fije ese N. Un paso puntuado a mano por el profesor no tiene
+              total con el que comparar, así que no se inventa uno.
+            */}
+            {correccion ? `de ${correccion.total} puntos` : "puntos"}
           </span>
         </p>
         <p className="mt-1 text-sm text-tinta-suave">

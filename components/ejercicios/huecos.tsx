@@ -5,7 +5,7 @@ import { comoLista, type Respuestas } from "@/lib/ejercicios/tipos";
 import type { Progreso, PropsCara } from "./ejercicio";
 import { Veredicto } from "./opcion";
 
-export default function CaraHuecos({ publica, valor, alCambiar, correccion }: PropsCara) {
+export default function CaraHuecos({ publica, valor, alCambiar, correccion, cerrado }: PropsCara) {
   const datos = publica as HuecosPublica;
   const partes = trozos(datos.texto);
 
@@ -20,8 +20,16 @@ export default function CaraHuecos({ publica, valor, alCambiar, correccion }: Pr
               key={i}
               type="text"
               value={comoLista(valor[parte.valor])[0] ?? ""}
-              disabled={Boolean(correccion)}
+              disabled={cerrado}
               onChange={(e) => alCambiar({ ...valor, [parte.valor]: e.target.value })}
+              // Sin esto, Enter en el último hueco envía el formulario: el
+              // botón deja de estar disabled en el mismo tecleo que lo
+              // completa, y Enter es el gesto habitual al terminar de
+              // escribir una palabra. El envío es de un solo tiro, así que
+              // ese Enter accidental se queda sin segunda oportunidad.
+              onKeyDown={(e) => {
+                if (e.key === "Enter") e.preventDefault();
+              }}
               aria-label="Palabra que falta"
               className="mx-1 inline-block w-32 rounded-lg border-2 border-hp-200 bg-fondo px-2 py-1 text-base text-tinta outline-none focus:border-hp-400 disabled:opacity-70"
             />

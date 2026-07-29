@@ -13,11 +13,19 @@ export const parejaSchema = z.object({
   derecha: z.string(),
 });
 
-export const relacionarSchema = z.object({
-  ejercicio: z.literal("relacionar"),
-  consigna: z.string(),
-  parejas: z.array(parejaSchema).min(2),
-});
+export const relacionarSchema = z
+  .object({
+    ejercicio: z.literal("relacionar"),
+    consigna: z.string(),
+    parejas: z.array(parejaSchema).min(2),
+  })
+  .refine(
+    (d) => new Set(d.parejas.map((p) => p.derecha)).size === d.parejas.length,
+    {
+      message:
+        "Dos parejas no pueden compartir el mismo texto en `derecha`: el estudiante vería dos celdas idénticas y una de las dos filas quedaría mal contada pase lo que pase. Repetir `izquierda` sí está permitido.",
+    },
+  );
 
 export type Relacionar = z.infer<typeof relacionarSchema>;
 
@@ -30,9 +38,15 @@ export type RelacionarPublica = {
 
 /**
  * Reparte una clave opaca a cada elemento de la derecha segun su posicion
- * en la lista barajada. Es el nucleo de la seguridad de este tipo: si la
- * derecha viajara con el id de su pareja, bastaria con mirar el codigo de
- * la pagina para resolver el ejercicio entero.
+ * en la lista barajada. Es una pieza de la seguridad de este tipo, no toda:
+ * si la derecha viajara con el id de su pareja, bastaria con mirar el
+ * codigo de la pagina para resolver el ejercicio entero. La otra pieza es
+ * la propia `semilla`: quien la llama (`lib/ejercicios/registro.ts`) la
+ * deriva del id del ejercicio mezclado con `ENCRYPTION_KEY`, un secreto que
+ * el navegador nunca recibe. Si aqui llegara el id del ejercicio a secas
+ * —como llegaba antes—, cualquiera podria rehacer este mismo barajado
+ * desde el propio payload publico, porque ese id viaja a la pagina y se
+ * pinta en un input oculto.
  *
  * El barajado es estable —misma semilla, mismo orden— por dos razones: el
  * servidor tiene que poder rehacerlo para corregir, y un orden distinto en

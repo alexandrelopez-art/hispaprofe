@@ -82,6 +82,13 @@ export function versionPublicaOpcion(datos: Opcion): OpcionPublica {
  * Un punto por opcion buena marcada. En multiple, cada mala marcada resta
  * uno, sin bajar de cero en esa pregunta: si no, marcarlo todo daria el
  * maximo sin saber nada.
+ *
+ * Fuera de multiple no existe el exceso (ver diseño): con boton redondo el
+ * navegador nunca deja marcar mas de una opcion, pero `responderEjercicio`
+ * acepta cualquier `string[]` para cualquier clave, asi que un envio
+ * fabricado a mano si puede. Sin este freno, marcar todas las opciones de
+ * una pregunta de opcion unica garantiza que la buena este entre las
+ * marcadas y puntua el maximo sin haber acertado nada.
  */
 export function corregirOpcion(datos: Opcion, respuestas: Respuestas): Correccion {
   const items: ItemCorregido[] = [];
@@ -103,9 +110,13 @@ export function corregirOpcion(datos: Opcion, respuestas: Respuestas): Correccio
 
     const bien = marcadas.filter((i) => buenas.has(i)).length;
     const mal = marcadas.filter((i) => !buenas.has(i)).length;
+    // Fuera de multiple, marcar mas de una opcion puntua 0 en esa pregunta:
+    // no hay "la correcta entre las marcadas", porque el control real es un
+    // boton redondo que solo deja elegir una.
+    const puntosUnica = marcadas.length > 1 ? 0 : bien;
     // Clamp en las dos ramas, no solo en multiple: una pregunta nunca vale
     // mas que su numero de respuestas correctas, sea cual sea el control.
-    const puntos = Math.min(buenas.size, datos.multiple ? Math.max(0, bien - mal) : bien);
+    const puntos = Math.min(buenas.size, datos.multiple ? Math.max(0, bien - mal) : puntosUnica);
 
     aciertos += puntos;
     total += buenas.size;
