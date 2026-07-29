@@ -44,6 +44,12 @@ export default function CaraOpcion({ publica, valor, alCambiar, correccion, cerr
                 value={comoLista(valor[pregunta.id])[0] ?? ""}
                 disabled={cerrado}
                 onChange={(e) => alCambiar({ ...valor, [pregunta.id]: e.target.value })}
+                // El ejercicio se responde una sola vez, así que Enter no
+                // puede enviarlo: al elegir el último desplegable el botón se
+                // habilita, y un Enter por reflejo quemaría el único intento.
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") e.preventDefault();
+                }}
                 aria-label={pregunta.enunciado}
                 className="mt-2 h-10 rounded-full border border-hp-200 bg-white px-4 text-sm text-tinta outline-none focus:border-hp-400 disabled:opacity-70"
               >
