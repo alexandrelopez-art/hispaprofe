@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getUsuarioActual } from "@/lib/usuario";
 import { exigirAdmin, puedeQuitarseElRol } from "@/lib/admin";
+import { exigirProfesor } from "@/lib/profesor";
 import { listarEstudiantes } from "@/lib/google";
 import { desmarcarSiNoRevisado } from "@/lib/progreso";
 import { corregir, analizar } from "@/lib/ejercicios/registro";
@@ -17,14 +18,6 @@ import type {
   TipoPaso,
   TipoRecorrido,
 } from "@/lib/generated/prisma/enums";
-
-async function exigirProfesor() {
-  const usuario = await getUsuarioActual();
-  if (!usuario || (usuario.role !== "PROFESOR" && usuario.role !== "ADMIN")) {
-    throw new Error("Solo un profesor puede hacer esto.");
-  }
-  return usuario;
-}
 
 /** Acepta correos separados por comas, puntos y coma, espacios o saltos de línea. */
 function parsearCorreos(texto: string): string[] {
