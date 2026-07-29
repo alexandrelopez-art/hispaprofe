@@ -6,11 +6,9 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import EditorBloques from "./editor-bloques";
 import TextoRico from "@/components/texto-rico";
-import OpcionMultiple from "@/components/opcion-multiple";
-import {
-  opcionMultipleSchema,
-  versionPublica,
-} from "@/lib/ejercicios/opcion-multiple";
+import Ejercicio from "@/components/ejercicios/ejercicio";
+import { analizar, corregir, versionPublica } from "@/lib/ejercicios/registro";
+import type { Respuestas } from "@/lib/ejercicios/tipos";
 
 // Fuerza render dinámico: lee de la base en cada visita.
 export const dynamic = "force-dynamic";
@@ -217,7 +215,7 @@ export default async function PasoPage({
             pasoId: paso.id,
           },
         },
-        select: { completadoEl: true, verificadoEl: true, puntos: true },
+        select: { completadoEl: true, verificadoEl: true, puntos: true, respuestas: true },
       })
     : null;
 
@@ -230,14 +228,19 @@ export default async function PasoPage({
   // primero: la corrección escribe los puntos del paso entero, así que dos
   // ejercicios en el mismo paso se pisarían.
   const vinculo = await prisma.pasoEjercicio.findFirst({
-    where: { pasoId: paso.id, ejercicio: { tipo: "OPCION_MULTIPLE" } },
+    where: { pasoId: paso.id },
     orderBy: { orden: "asc" },
     select: { ejercicio: { select: { id: true, datos: true } } },
   });
-  const ejercicio = vinculo
-    ? opcionMultipleSchema.safeParse(vinculo.ejercicio.datos)
-    : null;
-  const hayEjercicio = Boolean(ejercicio?.success);
+  const analizado = vinculo ? analizar(vinculo.ejercicio.datos) : null;
+  const hayEjercicio = analizado !== null;
+
+  // La corrección solo se calcula —y por tanto solo viaja al navegador—
+  // cuando el ejercicio ya está cerrado y no se puede reenviar.
+  const correccion =
+    analizado && revisado && registro?.respuestas && vinculo
+      ? corregir(analizado, registro.respuestas as Respuestas, vinculo.ejercicio.id)
+      : null;
 
   return (
     <div className="mx-auto max-w-4xl px-6 py-12">
@@ -336,45 +339,26 @@ export default async function PasoPage({
         soluciones; al profesor, la hoja con la respuesta correcta marcada,
         para que pueda revisar lo que va a contestar su alumno.
       */}
-      {ejercicio?.success && asignacion && (
-        <OpcionMultiple
+      {analizado && asignacion && (
+        <Ejercicio
           pasoId={paso.id}
           ejercicioId={vinculo!.ejercicio.id}
+          tipo={analizado.tipo}
+          publica={versionPublica(analizado, vinculo!.ejercicio.id)}
           respondido={revisado}
           puntos={registro?.puntos ?? null}
-          {...versionPublica(ejercicio.data)}
+          correccion={correccion}
         />
       )}
 
-      {ejercicio?.success && esProfe && !asignacion && (
+      {analizado && esProfe && !asignacion && (
         <section className="mt-8 rounded-tarjeta border border-hp-100 bg-white p-6 shadow-suave">
           <p className="text-xs font-bold uppercase tracking-wider text-tinta-suave">
-            Ejercicio autocorregible · {ejercicio.data.preguntas.length} puntos
+            Ejercicio autocorregible · tipo {analizado.tipo}
           </p>
-          <p className="mt-2 font-bold text-tinta">{ejercicio.data.consigna}</p>
-          <ol className="mt-4 space-y-4">
-            {ejercicio.data.preguntas.map((pregunta, i) => (
-              <li key={pregunta.id}>
-                <p className="text-sm font-semibold text-tinta">
-                  {i + 1}. {pregunta.enunciado}
-                </p>
-                <ul className="mt-1 flex flex-wrap gap-2">
-                  {pregunta.opciones.map((opcion, indice) => (
-                    <li
-                      key={indice}
-                      className={`rounded-md px-2 py-0.5 text-xs ${
-                        indice === pregunta.correcta
-                          ? "bg-bloque2/30 font-bold text-tinta ring-1 ring-inset ring-bloque2"
-                          : "bg-fondo text-tinta-suave"
-                      }`}
-                    >
-                      {opcion}
-                    </li>
-                  ))}
-                </ul>
-              </li>
-            ))}
-          </ol>
+          <pre className="mt-3 overflow-x-auto rounded-xl bg-fondo p-4 text-xs text-tinta">
+            {JSON.stringify(analizado.datos, null, 2)}
+          </pre>
         </section>
       )}
 
