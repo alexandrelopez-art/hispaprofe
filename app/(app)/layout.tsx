@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { UserButton } from "@clerk/nextjs";
 import { getUsuarioActual } from "@/lib/usuario";
+import { esAdmin } from "@/lib/roles";
 
 export default async function AppLayout({
   children,
@@ -11,6 +12,7 @@ export default async function AppLayout({
   // que ocurra en cualquier página de la zona con sesión, no solo en el panel.
   const usuario = await getUsuarioActual();
   const esProfe = usuario?.role === "PROFESOR" || usuario?.role === "ADMIN";
+  const esAdministrador = esAdmin(usuario);
 
   return (
     <>
@@ -44,6 +46,14 @@ export default async function AppLayout({
                 className="hover:text-hp-500 transition-colors"
               >
                 Estudiantes
+              </Link>
+            )}
+            {esAdministrador && (
+              <Link
+                href="/admin"
+                className="hover:text-hp-500 transition-colors"
+              >
+                Administración
               </Link>
             )}
           </nav>
