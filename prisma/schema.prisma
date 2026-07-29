@@ -203,6 +203,11 @@ model PasoCompletado {
   puntos       Int?
   verificadoEl DateTime?
 
+  // Lo que respondió el estudiante, con la forma que define cada tipo de
+  // ejercicio. Sostiene la corrección al recargar y deja ver al profesor
+  // qué contestó, no solo cuánto sacó.
+  respuestas   Json?
+
   @@unique([asignacionId, pasoId])
   @@index([asignacionId])
 }
