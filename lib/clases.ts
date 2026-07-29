@@ -1,4 +1,6 @@
 import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@/lib/generated/prisma/client";
+import type { EstadoClase } from "@/lib/generated/prisma/enums";
 
 /**
  * Lo que cuesta una clase: la tarifa por hora repartida entre los minutos
@@ -126,4 +128,133 @@ export async function cerrarDeberesDeClase(claseId: string): Promise<number> {
     data: { cerradoEl: new Date() },
   });
   return count;
+}
+
+export type FiltroClases = {
+  profesorId?: string;
+  estudianteId?: string;
+  grupoId?: string;
+  desde?: Date;
+  hasta?: Date;
+  estado?: EstadoClase;
+  cobrada?: boolean;
+};
+
+function whereDeFiltro(filtro: FiltroClases): Prisma.ClaseWhereInput {
+  const where: Prisma.ClaseWhereInput = {};
+
+  if (filtro.profesorId) where.profesorId = filtro.profesorId;
+  if (filtro.estudianteId) where.estudianteId = filtro.estudianteId;
+  if (filtro.grupoId) where.grupoId = filtro.grupoId;
+  if (filtro.estado) where.estado = filtro.estado;
+  if (filtro.cobrada !== undefined) {
+    where.cobradaEl = filtro.cobrada ? { not: null } : null;
+  }
+  if (filtro.desde || filtro.hasta) {
+    where.empiezaEl = {
+      ...(filtro.desde ? { gte: filtro.desde } : {}),
+      ...(filtro.hasta ? { lte: filtro.hasta } : {}),
+    };
+  }
+
+  return where;
+}
+
+export type TotalesClases = {
+  cuantas: number;
+  minutos: number;
+  totalCentimos: number;
+  cobradoCentimos: number;
+  pendienteCentimos: number;
+  /** Clases dadas sin importe: un olvido de tarifa, no un cero. */
+  sinTarifa: number;
+};
+
+/**
+ * Los cuatro números del cuadro, sobre lo que diga el filtro.
+ *
+ * Encima del filtro se impone `estado: DADA`: una clase agendada o anulada
+ * no es trabajo hecho. Eso hace que pedir los totales filtrando por
+ * AGENDADA devuelva ceros, y es lo correcto — no hay horas trabajadas en
+ * una clase que todavía no ha ocurrido.
+ */
+export async function totalesDeClases(
+  filtro: FiltroClases,
+): Promise<TotalesClases> {
+  // El filtro pide un estado que no es DADA: la intersección con «lo
+  // trabajado» es vacía, y se responde sin ir a la base.
+  if (filtro.estado && filtro.estado !== "DADA") {
+    return {
+      cuantas: 0,
+      minutos: 0,
+      totalCentimos: 0,
+      cobradoCentimos: 0,
+      pendienteCentimos: 0,
+      sinTarifa: 0,
+    };
+  }
+
+  const where: Prisma.ClaseWhereInput = {
+    ...whereDeFiltro(filtro),
+    estado: "DADA",
+  };
+
+  const [todas, cobradas, sinImporte] = await Promise.all([
+    prisma.clase.aggregate({
+      where,
+      _sum: { minutos: true, importeCentimos: true },
+      _count: { _all: true },
+    }),
+    prisma.clase.aggregate({
+      where: { ...where, cobradaEl: { not: null } },
+      _sum: { importeCentimos: true },
+    }),
+    prisma.clase.count({ where: { ...where, importeCentimos: null } }),
+  ]);
+
+  const totalCentimos = todas._sum.importeCentimos ?? 0;
+  const cobradoCentimos = cobradas._sum.importeCentimos ?? 0;
+
+  return {
+    cuantas: todas._count._all,
+    minutos: todas._sum.minutos ?? 0,
+    totalCentimos,
+    cobradoCentimos,
+    pendienteCentimos: totalCentimos - cobradoCentimos,
+    sinTarifa: sinImporte,
+  };
+}
+
+const seleccionLista = {
+  id: true,
+  empiezaEl: true,
+  minutos: true,
+  estado: true,
+  donde: true,
+  enlace: true,
+  deberes: true,
+  importeCentimos: true,
+  cobradaEl: true,
+  estudiante: { select: { id: true, firstName: true, lastName: true, email: true } },
+  grupo: { select: { id: true, nombre: true } },
+  _count: { select: { asignados: true } },
+} satisfies Prisma.ClaseSelect;
+
+export type ClaseDeLista = Prisma.ClaseGetPayload<{
+  select: typeof seleccionLista;
+}>;
+
+/**
+ * Las clases del filtro, de la más reciente a la más antigua. A diferencia
+ * de los totales, aquí salen todas: agendadas, dadas y anuladas. La lista
+ * es para ver, no para sumar.
+ */
+export async function listarClases(
+  filtro: FiltroClases,
+): Promise<ClaseDeLista[]> {
+  return prisma.clase.findMany({
+    where: whereDeFiltro(filtro),
+    orderBy: { empiezaEl: "desc" },
+    select: seleccionLista,
+  });
 }

@@ -14,6 +14,8 @@ import {
   cerrarDeber,
   abrirDeber,
   cerrarDeberesDeClase,
+  totalesDeClases,
+  listarClases,
 } from "@/lib/clases";
 import { fechaHora, paraInput } from "@/lib/fechas";
 import { prisma } from "@/lib/prisma";
@@ -204,6 +206,104 @@ async function main() {
   afirmar(
     (await prisma.deber.count({ where: { claseId: deGrupo.id } })) === 0,
     "vaciar el texto de los deberes borra sus filas",
+  );
+
+  // 5. El cuadro: solo cuentan las dadas, y los filtros mandan.
+  await prisma.clase.update({
+    where: { id: particular.id },
+    data: { estado: "DADA", importeCentimos: 2000 },
+  });
+  await prisma.clase.update({
+    where: { id: deGrupo.id },
+    data: { estado: "DADA", importeCentimos: 3000, cobradaEl: new Date() },
+  });
+  // Sin `const`: estas dos no vuelven a nombrarse, y una variable sin usar
+  // es un aviso del lint.
+  await prisma.clase.create({
+    data: {
+      profesorId: profe.id,
+      estudianteId: ana.id,
+      empiezaEl: new Date("2026-08-06T18:00:00+02:00"),
+      minutos: 120,
+      estado: "ANULADA",
+      importeCentimos: 4000,
+      notas: marca,
+    },
+  });
+  await prisma.clase.create({
+    data: {
+      profesorId: profe.id,
+      estudianteId: luis.id,
+      empiezaEl: new Date("2026-08-07T18:00:00+02:00"),
+      minutos: 30,
+      estado: "DADA",
+      notas: marca,
+    },
+  });
+  // Esta sí: la Tarea 5 la usa para comprobar la próxima clase.
+  const agendada = await prisma.clase.create({
+    data: {
+      profesorId: profe.id,
+      estudianteId: ana.id,
+      empiezaEl: new Date("2099-01-01T18:00:00+01:00"),
+      minutos: 60,
+      notas: marca,
+    },
+  });
+
+  const todo = await totalesDeClases({ profesorId: profe.id });
+  afirmar(todo.cuantas === 3, "cuenta las tres dadas y ninguna más");
+  afirmar(
+    todo.minutos === 60 + 90 + 30,
+    "la anulada y la agendada no suman minutos",
+  );
+  afirmar(todo.totalCentimos === 5000, "suma solo el importe de las dadas");
+  afirmar(todo.cobradoCentimos === 3000, "el cobrado sale de las que tienen fecha");
+  afirmar(todo.pendienteCentimos === 2000, "lo pendiente es el total menos lo cobrado");
+  afirmar(todo.sinTarifa === 1, "avisa de la clase dada sin importe");
+
+  const soloAna = await totalesDeClases({
+    profesorId: profe.id,
+    estudianteId: ana.id,
+  });
+  afirmar(soloAna.cuantas === 1, "filtrar por estudiante deja solo lo suyo");
+  afirmar(soloAna.minutos === 60, "y sus minutos");
+
+  const enAgosto = await totalesDeClases({
+    profesorId: profe.id,
+    desde: new Date("2026-08-05T00:00:00+02:00"),
+    hasta: new Date("2026-08-06T00:00:00+02:00"),
+  });
+  afirmar(enAgosto.cuantas === 1, "el rango de fechas recorta por los dos lados");
+
+  const pendientes = await totalesDeClases({
+    profesorId: profe.id,
+    cobrada: false,
+  });
+  afirmar(pendientes.cuantas === 2, "filtrar por sin cobrar deja las dos que faltan");
+
+  const agendadas = await totalesDeClases({
+    profesorId: profe.id,
+    estado: "AGENDADA",
+  });
+  afirmar(
+    agendadas.cuantas === 0 && agendadas.minutos === 0,
+    "pedir los totales de las agendadas da cero: solo las dadas cuentan",
+  );
+
+  const lista = await listarClases({ profesorId: profe.id });
+  afirmar(lista.length === 5, "la lista sí enseña las cinco, no solo las dadas");
+  afirmar(
+    lista[0].id === agendada.id,
+    "la lista va de la más futura a la más antigua",
+  );
+  afirmar(
+    lista.some((c) => c.grupo?.nombre.includes(marca)),
+    "la lista trae el nombre del grupo",
+  );
+  afirmar(
+    lista.some((c) => c.estudiante?.firstName === "Ana"),
+    "y el nombre del estudiante",
   );
 
   console.log("\nTodas las verificaciones pasan.");
