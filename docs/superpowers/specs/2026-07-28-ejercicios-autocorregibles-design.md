@@ -54,6 +54,25 @@ migración. `TipoEjercicio` ya contempla `OPCION_MULTIPLE`, `HUECOS`,
 interruptor `multiple: boolean`. Es el mismo ejercicio con distinto control:
 botón redondo o casilla. Ambos viven bajo `OPCION_MULTIPLE`.
 
+### La lista compartida
+
+El mismo tipo cubre un tercer formato que el profesor usa en clase: una lista de
+frases y, en cada una, un desplegable con **los mismos nombres para todas**
+(*Tiene el pelo rizado* → ¿Fede, Luisa, Carmen…?).
+
+Dos añadidos lo resuelven:
+
+- `opcionesComunes`: cuando está, las preguntas no llevan sus propias opciones y
+  todas comparten esa lista.
+- `presentacion`: `"botones"` o `"desplegable"`. Con once frases y seis nombres,
+  once filas de botones serían una pared; el desplegable cabe.
+
+**Y una consecuencia deliberada: la misma opción puede valer para varias
+preguntas.** Carmen puede tener el pelo rizado y llevar gafas. Por eso este
+formato es opción única y no `relacionar`: relacionar empareja uno a uno y
+suelta la pieza si la reutilizas, que es justo lo contrario de lo que hace falta
+aquí.
+
 ### Cómo se cuentan los puntos
 
 | Tipo | Regla | Máximo |
