@@ -23,10 +23,15 @@ export default function CaraOrdenar({ publica, valor, alCambiar, correccion }: P
   }, [orden]);
 
   function mover(desde: string, hasta: string) {
-    if (cerrado || desde === hasta) return;
-    const copia = orden.filter((id) => id !== desde);
-    copia.splice(copia.indexOf(hasta), 0, desde);
-    setOrden(copia);
+    if (cerrado) return;
+    // Soltar sobre la propia fila de origen no reordena nada, pero debe
+    // soltar igualmente la pieza cogida: si no, un clic cualquiera después
+    // la movería sin que el estudiante lo pidiera.
+    if (desde !== hasta) {
+      const copia = orden.filter((id) => id !== desde);
+      copia.splice(copia.indexOf(hasta), 0, desde);
+      setOrden(copia);
+    }
     setCogida(null);
   }
 
@@ -41,10 +46,25 @@ export default function CaraOrdenar({ publica, valor, alCambiar, correccion }: P
             <li key={id}>
               <div
                 draggable={!cerrado}
-                onDragStart={() => setCogida(id)}
+                onDragStart={(e) => {
+                  if (cerrado) return;
+                  setCogida(id);
+                  // Firefox exige al menos un setData en dragstart para
+                  // arrancar el arrastre nativo; sin esto no se movería nada.
+                  e.dataTransfer.setData("text/plain", id);
+                }}
+                onDragEnd={() => setCogida(null)}
                 onDragOver={(e) => !cerrado && e.preventDefault()}
-                onDrop={() => cogida && mover(cogida, id)}
-                onClick={() => (cogida ? mover(cogida, id) : setCogida(id))}
+                onDrop={() => !cerrado && cogida && mover(cogida, id)}
+                onClick={() => {
+                  if (cerrado) return;
+                  // Tocar la misma fila que ya está cogida la suelta, igual
+                  // que el botón de relacionar; sin esto no había forma de
+                  // cancelar una selección hecha por error.
+                  if (cogida === id) setCogida(null);
+                  else if (cogida) mover(cogida, id);
+                  else setCogida(id);
+                }}
                 className={`flex items-center gap-3 rounded-xl border-2 px-4 py-3 ${
                   cogida === id
                     ? "border-hp-400 bg-hp-50"
