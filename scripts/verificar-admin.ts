@@ -6,6 +6,7 @@
 import "dotenv/config";
 import { correosDeAdmin, esAdmin, esCorreoDeAdmin } from "@/lib/roles";
 import { ascenderSiEsAdmin } from "@/lib/usuario";
+import { puedeQuitarseElRol } from "@/lib/admin";
 import { prisma } from "@/lib/prisma";
 
 function afirmar(condicion: boolean, mensaje: string) {
@@ -115,6 +116,37 @@ async function main() {
         },
       },
     });
+  }
+
+  // 5. Salvaguarda: no se puede dejar la plataforma sin administradores.
+  // Reutiliza la `marca` del módulo: declararla otra vez aquí ensombrecería
+  // (TDZ) su uso más arriba en esta misma función.
+  const unico = await prisma.user.create({
+    data: { email: `admin1-${marca}@ejemplo.test`, role: "ADMIN" },
+  });
+  try {
+    afirmar(
+      (await puedeQuitarseElRol(unico.id)) === false,
+      "al último administrador no se le puede quitar el rol",
+    );
+
+    const segundo = await prisma.user.create({
+      data: { email: `admin2-${marca}@ejemplo.test`, role: "ADMIN" },
+    });
+    afirmar(
+      (await puedeQuitarseElRol(unico.id)) === true,
+      "con dos administradores, a uno sí se le puede quitar",
+    );
+
+    await prisma.user.update({ where: { id: segundo.id }, data: { role: "PROFESOR" } });
+    afirmar(
+      (await puedeQuitarseElRol(unico.id)) === false,
+      "un profesor no cuenta como administrador de repuesto",
+    );
+
+    await prisma.user.delete({ where: { id: segundo.id } });
+  } finally {
+    await prisma.user.deleteMany({ where: { email: { contains: marca } } });
   }
 
   console.log("\nTodas las verificaciones pasan.");
