@@ -5,6 +5,7 @@
  */
 import "dotenv/config";
 import { corregirOpcion, opcionSchema, versionPublicaOpcion, type Opcion } from "@/lib/ejercicios/opcion";
+import { corregirHuecos, huecosSchema, trozos, versionPublicaHuecos, type Huecos } from "@/lib/ejercicios/huecos";
 import { prisma } from "@/lib/prisma";
 
 function afirmar(condicion: boolean, mensaje: string) {
@@ -51,6 +52,16 @@ const COMPARTIDA: Opcion = opcionSchema.parse({
     { id: "c3", enunciado: "Lleva barba.", correctas: [0] },
   ],
 });
+
+const HUECOS: Huecos = {
+  ejercicio: "huecos",
+  consigna: "Completa",
+  texto: "En mi piso {{h1}} tres habitaciones y no {{h2}} balcón.",
+  huecos: [
+    { id: "h1", acepta: ["hay"] },
+    { id: "h2", acepta: ["hay"] },
+  ],
+};
 
 async function main() {
   // 1. La versión pública no lleva soluciones.
@@ -113,6 +124,18 @@ async function main() {
     }).success === false,
     "compartida: una respuesta correcta fuera de rango se rechaza",
   );
+
+  // Huecos
+  afirmar(!JSON.stringify(versionPublicaHuecos(HUECOS)).includes("acepta"), "huecos: la versión pública no lleva las soluciones");
+  afirmar(corregirHuecos(HUECOS, { h1: "hay", h2: "hay" }).aciertos === 2, "huecos: los dos bien dan 2");
+  afirmar(corregirHuecos(HUECOS, { h1: "Hay", h2: "  hay  " }).aciertos === 2, "huecos: se perdonan mayúsculas y espacios");
+  afirmar(corregirHuecos(HUECOS, { h1: "hay" }).aciertos === 1, "huecos: uno solo da 1");
+  afirmar(corregirHuecos(HUECOS, { h1: "es", h2: "es" }).aciertos === 0, "huecos: mal da 0");
+  afirmar(corregirHuecos(HUECOS, { h1: "balcon", h2: "hay" }).aciertos === 1, "huecos: la tilde y la palabra cuentan");
+  const partes = trozos(HUECOS.texto);
+  afirmar(partes.filter((p) => p.tipo === "hueco").length === 2, "huecos: el texto se parte en dos huecos");
+  afirmar(partes[0].valor.startsWith("En mi piso"), "huecos: conserva el texto de alrededor");
+  afirmar(huecosSchema.safeParse(HUECOS).success, "huecos: el ejemplo tiene forma válida");
 
   // 5. Lo guardado en la base tiene forma válida.
   const enBase = await prisma.ejercicio.findMany({ select: { titulo: true, datos: true } });
