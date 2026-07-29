@@ -1033,6 +1033,14 @@ export async function responderEjercicio(formData: FormData) {
   try {
     const bruto: unknown = JSON.parse(String(formData.get("respuestas") ?? "{}"));
     if (typeof bruto !== "object" || bruto === null || Array.isArray(bruto)) return;
+    // Cada valor tiene que ser string o string[]: los corregidores de cada
+    // tipo asumen esa forma y no la comprueban, así que un número o un
+    // objeto colado aquí los haría reventar más abajo en vez de fallar aquí.
+    const valores = Object.values(bruto as Record<string, unknown>);
+    const formaValida = valores.every(
+      (v) => typeof v === "string" || (Array.isArray(v) && v.every((x) => typeof x === "string")),
+    );
+    if (!formaValida) return;
     respuestas = bruto as Respuestas;
   } catch {
     return;
