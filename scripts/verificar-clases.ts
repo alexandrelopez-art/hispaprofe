@@ -4,7 +4,17 @@
  * Ejecutar con:  npx tsx scripts/verificar-clases.ts
  */
 import "dotenv/config";
-import { importeDeClase, validarClase, euros, horas } from "@/lib/clases";
+import {
+  importeDeClase,
+  validarClase,
+  euros,
+  horas,
+  destinatariosDe,
+  sincronizarDeberes,
+  cerrarDeber,
+  abrirDeber,
+  cerrarDeberesDeClase,
+} from "@/lib/clases";
 import { fechaHora, paraInput } from "@/lib/fechas";
 import { prisma } from "@/lib/prisma";
 
@@ -66,6 +76,135 @@ async function main() {
     "la hora se escribe en la zona de Madrid, no en UTC",
   );
   afirmar(paraInput(cuando) === "2026-08-04T18:00", "el formato del input cuadra");
+
+  // 4. Los deberes: una fila por estudiante, y se cierran de una en una.
+  const profe = await prisma.user.create({
+    data: { email: `profe-${marca}@ejemplo.test`, role: "PROFESOR" },
+  });
+  const ana = await prisma.user.create({
+    data: { email: `ana-${marca}@ejemplo.test`, firstName: "Ana" },
+  });
+  const luis = await prisma.user.create({
+    data: { email: `luis-${marca}@ejemplo.test`, firstName: "Luis" },
+  });
+  const grupo = await prisma.grupo.create({
+    data: {
+      nombre: `Grupo ${marca}`,
+      profesorId: profe.id,
+      miembros: {
+        create: [{ estudianteId: ana.id }, { estudianteId: luis.id }],
+      },
+    },
+  });
+
+  // Clase particular con Ana: un solo deber.
+  const particular = await prisma.clase.create({
+    data: {
+      profesorId: profe.id,
+      estudianteId: ana.id,
+      empiezaEl: new Date("2026-08-04T18:00:00+02:00"),
+      minutos: 60,
+      notas: marca,
+      deberes: "Ejercicios 3 y 4.",
+    },
+  });
+  afirmar(
+    (await destinatariosDe(particular.id)).length === 1,
+    "una clase particular tiene un destinatario",
+  );
+  await sincronizarDeberes(particular.id);
+  afirmar(
+    (await prisma.deber.count({ where: { claseId: particular.id } })) === 1,
+    "una clase particular genera un deber",
+  );
+
+  // Sincronizar dos veces no duplica.
+  await sincronizarDeberes(particular.id);
+  afirmar(
+    (await prisma.deber.count({ where: { claseId: particular.id } })) === 1,
+    "sincronizar dos veces no duplica el deber",
+  );
+
+  // Clase de grupo: un deber por miembro.
+  const deGrupo = await prisma.clase.create({
+    data: {
+      profesorId: profe.id,
+      grupoId: grupo.id,
+      empiezaEl: new Date("2026-08-05T18:00:00+02:00"),
+      minutos: 90,
+      notas: marca,
+      deberes: "Leer el texto de la página 12.",
+    },
+  });
+  afirmar(
+    (await destinatariosDe(deGrupo.id)).length === 2,
+    "una clase de grupo tiene tantos destinatarios como miembros",
+  );
+  await sincronizarDeberes(deGrupo.id);
+  afirmar(
+    (await prisma.deber.count({ where: { claseId: deGrupo.id } })) === 2,
+    "un grupo de dos genera dos deberes",
+  );
+
+  // Cerrar el de Ana no cierra el de Luis.
+  const deAna = await prisma.deber.findFirstOrThrow({
+    where: { claseId: deGrupo.id, estudianteId: ana.id },
+  });
+  await cerrarDeber(deAna.id);
+  afirmar(
+    (await prisma.deber.count({
+      where: { claseId: deGrupo.id, cerradoEl: { not: null } },
+    })) === 1,
+    "cerrar el deber de uno no cierra el de los demás",
+  );
+
+  // Y se puede volver a abrir, porque el profesor se equivoca.
+  await abrirDeber(deAna.id);
+  afirmar(
+    (await prisma.deber.count({
+      where: { claseId: deGrupo.id, cerradoEl: { not: null } },
+    })) === 0,
+    "un deber cerrado se puede volver a abrir",
+  );
+
+  // Cerrar todos de golpe.
+  afirmar(
+    (await cerrarDeberesDeClase(deGrupo.id)) === 2,
+    "cerrar todos cierra los dos que quedaban",
+  );
+  afirmar(
+    (await cerrarDeberesDeClase(deGrupo.id)) === 0,
+    "volver a cerrar todos no toca nada ni revienta",
+  );
+
+  // El caso feo: cambiar el destinatario conserva lo ya cerrado de quien sigue.
+  await prisma.miembroGrupo.deleteMany({
+    where: { grupoId: grupo.id, estudianteId: luis.id },
+  });
+  await sincronizarDeberes(deGrupo.id);
+  afirmar(
+    (await prisma.deber.count({ where: { claseId: deGrupo.id } })) === 1,
+    "quien sale del grupo pierde su deber",
+  );
+  const supervivienteAna = await prisma.deber.findFirstOrThrow({
+    where: { claseId: deGrupo.id },
+  });
+  afirmar(
+    supervivienteAna.estudianteId === ana.id &&
+      supervivienteAna.cerradoEl !== null,
+    "el deber ya cerrado de quien sigue se conserva cerrado",
+  );
+
+  // Vaciar el texto borra las filas: no hay deberes que enseñar.
+  await prisma.clase.update({
+    where: { id: deGrupo.id },
+    data: { deberes: "" },
+  });
+  await sincronizarDeberes(deGrupo.id);
+  afirmar(
+    (await prisma.deber.count({ where: { claseId: deGrupo.id } })) === 0,
+    "vaciar el texto de los deberes borra sus filas",
+  );
 
   console.log("\nTodas las verificaciones pasan.");
 }
