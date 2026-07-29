@@ -7,6 +7,8 @@ import "dotenv/config";
 import { corregirOpcion, opcionSchema, versionPublicaOpcion, type Opcion } from "@/lib/ejercicios/opcion";
 import { corregirHuecos, huecosSchema, trozos, versionPublicaHuecos, type Huecos } from "@/lib/ejercicios/huecos";
 import { corregirRelacionar, relacionarSchema, versionPublicaRelacionar, type Relacionar } from "@/lib/ejercicios/relacionar";
+import { corregirOrdenar, ordenarSchema, versionPublicaOrdenar, type Ordenar } from "@/lib/ejercicios/ordenar";
+import { analizar, corregir, versionPublica } from "@/lib/ejercicios/registro";
 import { prisma } from "@/lib/prisma";
 
 function afirmar(condicion: boolean, mensaje: string) {
@@ -72,6 +74,17 @@ const RELACIONAR: Relacionar = {
     { id: "p1", izquierda: "la cocina", derecha: "la nevera" },
     { id: "p2", izquierda: "el salón", derecha: "el sofá" },
     { id: "p3", izquierda: "la habitación", derecha: "la cama" },
+  ],
+};
+
+const ORDENAR: Ordenar = {
+  ejercicio: "ordenar",
+  consigna: "Ordena el diálogo",
+  piezas: [
+    { id: "o1", texto: "Hola, buenos días." },
+    { id: "o2", texto: "Busco un piso." },
+    { id: "o3", texto: "¿Cuántas habitaciones?" },
+    { id: "o4", texto: "Tres, por favor." },
   ],
 };
 
@@ -186,6 +199,30 @@ async function main() {
     "relacionar: dice cuál era la pareja buena",
   );
   afirmar(relacionarSchema.safeParse(RELACIONAR).success, "relacionar: el ejemplo tiene forma válida");
+
+  // Ordenar
+  afirmar(versionPublicaOrdenar(ORDENAR, "s").piezas.length === 4, "ordenar: manda las cuatro piezas");
+  afirmar(corregirOrdenar(ORDENAR, { orden: ["o1", "o2", "o3", "o4"] }).aciertos === 3, "ordenar: el orden bueno da 3 (cuatro piezas, tres parejas)");
+  afirmar(corregirOrdenar(ORDENAR, { orden: ["o1", "o2", "o3", "o4"] }).total === 3, "ordenar: el máximo es una pieza menos");
+  afirmar(corregirOrdenar(ORDENAR, { orden: ["o2", "o3", "o4", "o1"] }).aciertos === 2, "ordenar: el desplazamiento cuesta un punto, no todos");
+  afirmar(corregirOrdenar(ORDENAR, { orden: ["o4", "o3", "o2", "o1"] }).aciertos === 0, "ordenar: del revés da 0");
+  afirmar(corregirOrdenar(ORDENAR, {}).aciertos === 0, "ordenar: sin ordenar da 0");
+  afirmar(ordenarSchema.safeParse(ORDENAR).success, "ordenar: el ejemplo tiene forma válida");
+
+  // El índice reparte bien
+  for (const [nombre, datos] of [["opción", UNICA], ["huecos", HUECOS], ["relacionar", RELACIONAR], ["ordenar", ORDENAR]] as const) {
+    const analizado = analizar(datos);
+    afirmar(analizado !== null, `el índice reconoce ${nombre}`);
+    if (analizado) {
+      const publicaJson = JSON.stringify(versionPublica(analizado, "s"));
+      for (const palabraProhibida of ["correctas", "acepta", "derecha\":"]) {
+        afirmar(!publicaJson.includes(palabraProhibida), `${nombre}: la versión pública no filtra "${palabraProhibida}"`);
+      }
+      afirmar(corregir(analizado, {}, "s").aciertos === 0, `${nombre}: sin responder, el índice da 0`);
+    }
+  }
+  afirmar(analizar({ ejercicio: "inventado" }) === null, "el índice rechaza un tipo desconocido");
+  afirmar(analizar(null) === null, "el índice rechaza datos vacíos");
 
   // 5. Lo guardado en la base tiene forma válida.
   const enBase = await prisma.ejercicio.findMany({ select: { titulo: true, datos: true } });
