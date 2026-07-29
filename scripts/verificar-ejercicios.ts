@@ -9,11 +9,18 @@ import { corregirHuecos, huecosSchema, trozos, versionPublicaHuecos, type Huecos
 import { corregirRelacionar, relacionarSchema, versionPublicaRelacionar, type Relacionar } from "@/lib/ejercicios/relacionar";
 import { corregirOrdenar, ordenarSchema, versionPublicaOrdenar, type Ordenar } from "@/lib/ejercicios/ordenar";
 import { analizar, corregir, versionPublica } from "@/lib/ejercicios/registro";
+import { progresoOpcion } from "@/components/ejercicios/opcion";
+import { progresoRelacionar } from "@/components/ejercicios/relacionar";
 import { prisma } from "@/lib/prisma";
 
 function afirmar(condicion: boolean, mensaje: string) {
   if (!condicion) throw new Error(`FALLO: ${mensaje}`);
   console.log(`OK: ${mensaje}`);
+}
+
+/** Mismo criterio que usa el repartidor: completo cuando no falta nada. */
+function completo(p: { total: number; contestadas: number }): boolean {
+  return p.contestadas >= p.total;
 }
 
 const UNICA: Opcion = {
@@ -150,6 +157,32 @@ async function main() {
     "compartida: una respuesta correcta fuera de rango se rechaza",
   );
 
+  // Progreso del desplegable (fix round 2/5): el placeholder "?" del
+  // <select> manda "" cuando se reselecciona, un valor presente pero en
+  // blanco — distinto de no responder, que es no tener la clave siquiera.
+  {
+    const p0 = progresoOpcion(pubComp, {});
+    afirmar(p0.contestadas === 0, "desplegable: nada seleccionado da 0 contestadas");
+    afirmar(!completo(p0), "desplegable: sin seleccionar nada, el ejercicio no está completo");
+
+    const p1 = progresoOpcion(pubComp, { c1: "2" });
+    afirmar(p1.contestadas === 1, "desplegable: una de tres seleccionada da 1 contestada");
+    afirmar(!completo(p1), "desplegable: con una sola respuesta, el ejercicio sigue incompleto");
+
+    const p3 = progresoOpcion(pubComp, { c1: "2", c2: "2", c3: "0" });
+    afirmar(p3.contestadas === 3, "desplegable: las tres seleccionadas dan 3 contestadas");
+    afirmar(completo(p3), "desplegable: con las tres respondidas, el ejercicio está completo");
+
+    // La regresión que motivó este fix: reseleccionar el placeholder deja
+    // `c1: ""` en vez de borrar la clave. Debe contar como sin responder.
+    const pVacio = progresoOpcion(pubComp, { c1: "", c2: "2", c3: "0" });
+    afirmar(
+      pVacio.contestadas === 2,
+      "desplegable: volver al placeholder \"?\" tras elegir baja la cuenta de vuelta (regresión fix round 2)",
+    );
+    afirmar(!completo(pVacio), "desplegable: una respuesta vaciada deja el ejercicio incompleto otra vez");
+  }
+
   // Huecos
   afirmar(!JSON.stringify(versionPublicaHuecos(HUECOS)).includes("acepta"), "huecos: la versión pública no lleva las soluciones");
   afirmar(corregirHuecos(HUECOS, { h1: "hay", h2: "hay", h3: "balcón" }).aciertos === 3, "huecos: los tres bien dan 3");
@@ -199,6 +232,21 @@ async function main() {
     "relacionar: dice cuál era la pareja buena",
   );
   afirmar(relacionarSchema.safeParse(RELACIONAR).success, "relacionar: el ejemplo tiene forma válida");
+
+  // Progreso de relacionar (fix round 2/5): mismo blindaje que el
+  // desplegable de opción, por si la Tarea 7 dibuja esto con un <select>
+  // de placeholder vacío en vez de arrastrar y soltar.
+  {
+    const pr0 = progresoRelacionar(pubRel, {});
+    afirmar(pr0.contestadas === 0, "relacionar: sin unir nada da 0 contestadas");
+    const pr1 = progresoRelacionar(pubRel, { p1: claveDe("la cocina") });
+    afirmar(pr1.contestadas === 1, "relacionar: una pareja unida da 1 contestada");
+    const prVacio = progresoRelacionar(pubRel, { p1: "", p2: claveDe("el salón") });
+    afirmar(
+      prVacio.contestadas === 1,
+      "relacionar: una clave vacía no cuenta como contestada, aunque la propiedad esté presente",
+    );
+  }
 
   // Ordenar
   afirmar(versionPublicaOrdenar(ORDENAR, "s").piezas.length === 4, "ordenar: manda las cuatro piezas");

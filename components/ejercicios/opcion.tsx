@@ -91,12 +91,20 @@ export default function CaraOpcion({ publica, valor, alCambiar, correccion }: Pr
   );
 }
 
-/** Contestada = al menos una opción marcada, sea única o múltiple. */
+/**
+ * Contestada = al menos una opción marcada, sea única o múltiple.
+ *
+ * El desplegable manda `""` cuando se reselecciona el placeholder "?": ese
+ * valor está presente (no es `undefined`), así que `comoLista` lo envuelve
+ * en una lista de longitud 1. Contar longitud, sin más, la daría por
+ * contestada estando en blanco. Se filtran las cadenas vacías antes de
+ * contar, no solo su longitud.
+ */
 export function progresoOpcion(publica: unknown, valor: Respuestas): Progreso {
   const datos = publica as OpcionPublica;
   const total = datos.preguntas.length;
-  const contestadas = datos.preguntas.filter(
-    (p) => comoLista(valor[p.id]).length > 0,
+  const contestadas = datos.preguntas.filter((p) =>
+    comoLista(valor[p.id]).some((v) => v !== ""),
   ).length;
   return { total, contestadas };
 }
