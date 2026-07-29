@@ -91,13 +91,21 @@ export function corregirOpcion(datos: Opcion, respuestas: Respuestas): Correccio
   for (const pregunta of datos.preguntas) {
     const opciones = opcionesDe(datos, pregunta);
     const buenas = new Set(pregunta.correctas);
-    const marcadas = comoLista(respuestas[pregunta.id])
-      .map((v) => Number(v))
-      .filter((n) => Number.isInteger(n));
+    // Sin deduplicar, marcar la misma opcion varias veces sumaria de mas:
+    // "0, 0" no vale el doble que "0" ni tapa que "1" se quedo sin marcar.
+    const marcadas = [
+      ...new Set(
+        comoLista(respuestas[pregunta.id])
+          .map((v) => Number(v))
+          .filter((n) => Number.isInteger(n)),
+      ),
+    ];
 
     const bien = marcadas.filter((i) => buenas.has(i)).length;
     const mal = marcadas.filter((i) => !buenas.has(i)).length;
-    const puntos = datos.multiple ? Math.max(0, bien - mal) : bien;
+    // Clamp en las dos ramas, no solo en multiple: una pregunta nunca vale
+    // mas que su numero de respuestas correctas, sea cual sea el control.
+    const puntos = Math.min(buenas.size, datos.multiple ? Math.max(0, bien - mal) : bien);
 
     aciertos += puntos;
     total += buenas.size;

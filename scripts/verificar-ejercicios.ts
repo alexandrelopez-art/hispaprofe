@@ -61,12 +61,21 @@ async function main() {
   afirmar(corregirOpcion(UNICA, { a: "0", b: "1" }).aciertos === 2, "opción única: todo acertado da 2");
   afirmar(corregirOpcion(UNICA, { a: "1", b: "1" }).aciertos === 1, "opción única: un acierto da 1");
   afirmar(corregirOpcion(UNICA, {}).aciertos === 0, "opción única: sin responder da 0");
+  afirmar(
+    corregirOpcion(UNICA, { a: ["0", "0", "0"] }).aciertos === 1,
+    "opción única: repetir la misma marca tres veces no suma tres puntos",
+  );
 
   // 3. En múltiple, marcarlo todo no da el máximo.
   afirmar(corregirOpcion(MULTIPLE, { m: ["0", "1"] }).aciertos === 2, "múltiple: las dos buenas dan 2");
   afirmar(corregirOpcion(MULTIPLE, { m: ["0", "1", "2"] }).aciertos === 1, "múltiple: una mala resta un punto");
   afirmar(corregirOpcion(MULTIPLE, { m: ["2"] }).aciertos === 0, "múltiple: solo la mala da 0, no negativo");
   afirmar(corregirOpcion(MULTIPLE, { m: ["0"] }).aciertos === 1, "múltiple: media respuesta da 1");
+  {
+    const dup = corregirOpcion(MULTIPLE, { m: ["0", "0"] });
+    afirmar(dup.aciertos === 1, "múltiple: marcar la misma buena dos veces no tapa la que falta");
+    afirmar(dup.items[0].acertado === false, "múltiple: con una respuesta duplicada no está acertada");
+  }
 
   // 4. La corrección dice cuál era la buena.
   const c = corregirOpcion(UNICA, { a: "1", b: "1" });
