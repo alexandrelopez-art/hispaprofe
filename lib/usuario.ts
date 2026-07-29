@@ -3,6 +3,30 @@ import { prisma } from "@/lib/prisma";
 import { esCorreoDeAdmin } from "@/lib/roles";
 
 /**
+ * Sube a ADMIN a quien esté en ADMIN_EMAILS. Se comprueba en cada entrada,
+ * así que da igual el orden: registrarse antes y añadir la variable después
+ * funciona igual de bien.
+ *
+ * Solo sube, nunca baja: quitar el rol desde el panel no sirve de nada si el
+ * correo sigue en la variable. Es la red que impide quedarse fuera de la
+ * propia aplicación.
+ *
+ * Exportada solo para que scripts/verificar-admin.ts pueda probarla contra
+ * filas reales: una regla que toca la base de datos y que nada puede
+ * ejercitar es una regla de la que nadie puede fiarse. No se usa fuera de
+ * este archivo ni de ese script.
+ */
+export async function ascenderSiEsAdmin<
+  T extends { id: string; email: string; role: string },
+>(usuario: T): Promise<T> {
+  if (usuario.role === "ADMIN" || !esCorreoDeAdmin(usuario.email)) return usuario;
+  return (await prisma.user.update({
+    where: { id: usuario.id },
+    data: { role: "ADMIN" },
+  })) as unknown as T;
+}
+
+/**
  * Devuelve la fila de User de la sesión actual.
  *
  * Tres casos, en este orden:
@@ -14,26 +38,6 @@ import { esCorreoDeAdmin } from "@/lib/roles";
  * El paso 2 es seguro porque Clerk verifica la propiedad del correo antes
  * de emitir sesión, así que solo el dueño puede reclamar esa fila.
  */
-
-/**
- * Sube a ADMIN a quien esté en ADMIN_EMAILS. Se comprueba en cada entrada,
- * así que da igual el orden: registrarse antes y añadir la variable después
- * funciona igual de bien.
- *
- * Solo sube, nunca baja: quitar el rol desde el panel no sirve de nada si el
- * correo sigue en la variable. Es la red que impide quedarse fuera de la
- * propia aplicación.
- */
-async function ascenderSiEsAdmin<T extends { id: string; email: string; role: string }>(
-  usuario: T,
-): Promise<T> {
-  if (usuario.role === "ADMIN" || !esCorreoDeAdmin(usuario.email)) return usuario;
-  return (await prisma.user.update({
-    where: { id: usuario.id },
-    data: { role: "ADMIN" },
-  })) as unknown as T;
-}
-
 export async function getUsuarioActual() {
   const { userId } = await auth();
   if (!userId) return null;

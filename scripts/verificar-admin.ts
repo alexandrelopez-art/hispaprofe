@@ -5,12 +5,16 @@
  */
 import "dotenv/config";
 import { correosDeAdmin, esAdmin, esCorreoDeAdmin } from "@/lib/roles";
+import { ascenderSiEsAdmin } from "@/lib/usuario";
 import { prisma } from "@/lib/prisma";
 
 function afirmar(condicion: boolean, mensaje: string) {
   if (!condicion) throw new Error(`FALLO: ${mensaje}`);
   console.log(`OK: ${mensaje}`);
 }
+
+// Marca única para no chocar con datos reales ni con otra ejecución.
+const marca = `verificar-admin-${process.pid}`;
 
 async function main() {
   // 1. La lista se lee, se normaliza y tolera espacios y mayúsculas.
@@ -32,6 +36,86 @@ async function main() {
   afirmar(!esAdmin({ role: "PROFESOR" }), "un PROFESOR no es administrador");
   afirmar(!esAdmin({ role: "STUDENT" }), "un STUDENT no es administrador");
   afirmar(!esAdmin(null), "sin sesión, no es administrador");
+
+  // 4. ascenderSiEsAdmin contra filas reales: la parte que de verdad toca la
+  // base de datos, no solo la lógica pura de arriba.
+  const correoAscendido = `admin-${marca}@ejemplo.test`;
+  const correoYaAdmin = `yaadmin-${marca}@ejemplo.test`;
+  const correoEstudiante = `alumno-${marca}@ejemplo.test`;
+  const correoProfesor = `profe-${marca}@ejemplo.test`;
+  process.env.ADMIN_EMAILS = `${correoAscendido}, ${correoYaAdmin}`;
+
+  const estudianteAAscender = await prisma.user.create({
+    data: { email: correoAscendido, role: "STUDENT" },
+  });
+  const yaAdmin = await prisma.user.create({
+    data: { email: correoYaAdmin, role: "ADMIN" },
+  });
+  const estudianteFuera = await prisma.user.create({
+    data: { email: correoEstudiante, role: "STUDENT" },
+  });
+  const profesorFuera = await prisma.user.create({
+    data: { email: correoProfesor, role: "PROFESOR" },
+  });
+
+  try {
+    // 4a. Un STUDENT cuyo correo está en la lista pasa a ADMIN de verdad en
+    // la base de datos, no solo en el objeto devuelto.
+    await ascenderSiEsAdmin(estudianteAAscender);
+    const releido = await prisma.user.findUnique({
+      where: { id: estudianteAAscender.id },
+    });
+    afirmar(releido?.role === "ADMIN", "el correo de la lista asciende a ADMIN en la base de datos");
+
+    // 4b. Repetirlo sobre el ya ascendido no escribe una segunda vez: si
+    // hubiera update(), @updatedAt lo delataría.
+    const actualizadoTrasAscenso = releido!.updatedAt;
+    await ascenderSiEsAdmin(releido!);
+    const releidoOtraVez = await prisma.user.findUnique({
+      where: { id: estudianteAAscender.id },
+    });
+    afirmar(
+      releidoOtraVez?.updatedAt.getTime() === actualizadoTrasAscenso.getTime(),
+      "repetir el ascenso sobre un ADMIN no vuelve a escribir",
+    );
+
+    // 4c. Un correo fuera de la lista no asciende, sea STUDENT o PROFESOR.
+    await ascenderSiEsAdmin(estudianteFuera);
+    const estudianteReleido = await prisma.user.findUnique({
+      where: { id: estudianteFuera.id },
+    });
+    afirmar(estudianteReleido?.role === "STUDENT", "un STUDENT fuera de la lista sigue STUDENT");
+
+    await ascenderSiEsAdmin(profesorFuera);
+    const profesorReleido = await prisma.user.findUnique({
+      where: { id: profesorFuera.id },
+    });
+    afirmar(profesorReleido?.role === "PROFESOR", "un PROFESOR fuera de la lista sigue PROFESOR, no asciende por error");
+
+    // 4d. Un ADMIN ya existente cuyo correo también está en la lista se
+    // queda igual y tampoco se escribe.
+    const actualizadoYaAdmin = yaAdmin.updatedAt;
+    await ascenderSiEsAdmin(yaAdmin);
+    const yaAdminReleido = await prisma.user.findUnique({ where: { id: yaAdmin.id } });
+    afirmar(yaAdminReleido?.role === "ADMIN", "un ADMIN de la lista sigue ADMIN");
+    afirmar(
+      yaAdminReleido?.updatedAt.getTime() === actualizadoYaAdmin.getTime(),
+      "un ADMIN ya ascendido no genera una escritura de más",
+    );
+  } finally {
+    await prisma.user.deleteMany({
+      where: {
+        id: {
+          in: [
+            estudianteAAscender.id,
+            yaAdmin.id,
+            estudianteFuera.id,
+            profesorFuera.id,
+          ],
+        },
+      },
+    });
+  }
 
   console.log("\nTodas las verificaciones pasan.");
 }
