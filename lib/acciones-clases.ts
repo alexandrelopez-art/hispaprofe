@@ -49,6 +49,22 @@ async function exigirClaseSuya(claseId: string) {
 }
 
 /**
+ * El deber es de esta clase. Sin esto, acertar un `claseId` propio bastaría
+ * para cerrar o abrir el deber de la clase de otro profesor: el permiso
+ * estaría comprobado, pero sobre el recurso equivocado.
+ */
+async function exigirDeberDeClase(
+  claseId: string,
+  deberId: string,
+): Promise<boolean> {
+  const deber = await prisma.deber.findUnique({
+    where: { id: deberId },
+    select: { claseId: true },
+  });
+  return deber?.claseId === claseId;
+}
+
+/**
  * La tarifa que aplica a una clase: la del estudiante, o la del grupo. Null
  * si nadie la tiene puesta, que es un olvido y no una clase gratis.
  */
@@ -79,27 +95,47 @@ function refrescar(claseId?: string) {
   revalidatePath("/dashboard");
 }
 
-export async function crearClase(formData: FormData) {
-  const usuario = await exigirProfesor();
-
+/**
+ * Parte y valida los campos que crear y editar comparten. Null si algo no
+ * vale, para que quien llama vuelva sin escribir sin repetir la comprobación.
+ */
+function datosDeClase(formData: FormData): {
+  empiezaEl: Date;
+  minutos: number;
+  estudianteId: string | null;
+  grupoId: string | null;
+  donde: string | null;
+  enlace: string | null;
+} | null {
   const empiezaEl = new Date(String(formData.get("empiezaEl") ?? ""));
   const minutos = Number(String(formData.get("minutos") ?? "0"));
   const { estudianteId, grupoId } = partirDestinatario(
     String(formData.get("destinatario") ?? ""),
   );
 
-  if (Number.isNaN(empiezaEl.getTime())) return;
-  if (validarClase({ estudianteId, grupoId, minutos })) return;
+  if (Number.isNaN(empiezaEl.getTime())) return null;
+  if (validarClase({ estudianteId, grupoId, minutos })) return null;
+
+  return {
+    empiezaEl,
+    minutos,
+    estudianteId,
+    grupoId,
+    donde: String(formData.get("donde") ?? "").trim() || null,
+    enlace: String(formData.get("enlace") ?? "").trim() || null,
+  };
+}
+
+export async function crearClase(formData: FormData) {
+  const usuario = await exigirProfesor();
+
+  const datos = datosDeClase(formData);
+  if (!datos) return;
 
   await prisma.clase.create({
     data: {
       profesorId: usuario.id,
-      estudianteId,
-      grupoId,
-      empiezaEl,
-      minutos,
-      donde: String(formData.get("donde") ?? "").trim() || null,
-      enlace: String(formData.get("enlace") ?? "").trim() || null,
+      ...datos,
     },
   });
 
@@ -111,25 +147,12 @@ export async function editarClase(formData: FormData) {
   if (!claseId) return;
   await exigirClaseSuya(claseId);
 
-  const empiezaEl = new Date(String(formData.get("empiezaEl") ?? ""));
-  const minutos = Number(String(formData.get("minutos") ?? "0"));
-  const { estudianteId, grupoId } = partirDestinatario(
-    String(formData.get("destinatario") ?? ""),
-  );
-
-  if (Number.isNaN(empiezaEl.getTime())) return;
-  if (validarClase({ estudianteId, grupoId, minutos })) return;
+  const datos = datosDeClase(formData);
+  if (!datos) return;
 
   await prisma.clase.update({
     where: { id: claseId },
-    data: {
-      estudianteId,
-      grupoId,
-      empiezaEl,
-      minutos,
-      donde: String(formData.get("donde") ?? "").trim() || null,
-      enlace: String(formData.get("enlace") ?? "").trim() || null,
-    },
+    data: datos,
   });
 
   // Cambiar el destinatario cambia a quién le tocan los deberes.
@@ -195,6 +218,7 @@ export async function cerrarDeberDeClase(formData: FormData) {
   const deberId = String(formData.get("deberId") ?? "");
   if (!claseId || !deberId) return;
   await exigirClaseSuya(claseId);
+  if (!(await exigirDeberDeClase(claseId, deberId))) return;
 
   await cerrarDeber(deberId);
   refrescar(claseId);
@@ -205,6 +229,7 @@ export async function abrirDeberDeClase(formData: FormData) {
   const deberId = String(formData.get("deberId") ?? "");
   if (!claseId || !deberId) return;
   await exigirClaseSuya(claseId);
+  if (!(await exigirDeberDeClase(claseId, deberId))) return;
 
   await abrirDeber(deberId);
   refrescar(claseId);
