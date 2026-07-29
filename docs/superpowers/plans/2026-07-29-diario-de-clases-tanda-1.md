@@ -735,7 +735,9 @@ Ampliar el import de `@/lib/clases` en el script con `totalesDeClases` y `listar
     where: { id: deGrupo.id },
     data: { estado: "DADA", importeCentimos: 3000, cobradaEl: new Date() },
   });
-  const anulada = await prisma.clase.create({
+  // Sin `const`: estas dos no vuelven a nombrarse, y una variable sin usar
+  // es un aviso del lint.
+  await prisma.clase.create({
     data: {
       profesorId: profe.id,
       estudianteId: ana.id,
@@ -746,22 +748,23 @@ Ampliar el import de `@/lib/clases` en el script con `totalesDeClases` y `listar
       notas: marca,
     },
   });
-  const agendada = await prisma.clase.create({
-    data: {
-      profesorId: profe.id,
-      estudianteId: ana.id,
-      empiezaEl: new Date("2099-01-01T18:00:00+01:00"),
-      minutos: 60,
-      notas: marca,
-    },
-  });
-  const sinTarifa = await prisma.clase.create({
+  await prisma.clase.create({
     data: {
       profesorId: profe.id,
       estudianteId: luis.id,
       empiezaEl: new Date("2026-08-07T18:00:00+02:00"),
       minutos: 30,
       estado: "DADA",
+      notas: marca,
+    },
+  });
+  // Esta sí: la Tarea 5 la usa para comprobar la próxima clase.
+  const agendada = await prisma.clase.create({
+    data: {
+      profesorId: profe.id,
+      estudianteId: ana.id,
+      empiezaEl: new Date("2099-01-01T18:00:00+01:00"),
+      minutos: 60,
       notas: marca,
     },
   });
@@ -809,8 +812,8 @@ Ampliar el import de `@/lib/clases` en el script con `totalesDeClases` y `listar
   const lista = await listarClases({ profesorId: profe.id });
   afirmar(lista.length === 5, "la lista sí enseña las cinco, no solo las dadas");
   afirmar(
-    lista[0].empiezaEl.getTime() > lista[1].empiezaEl.getTime(),
-    "la lista va de la más reciente a la más antigua",
+    lista[0].id === agendada.id,
+    "la lista va de la más futura a la más antigua",
   );
   afirmar(
     lista.some((c) => c.grupo?.nombre.includes(marca)),
@@ -820,11 +823,6 @@ Ampliar el import de `@/lib/clases` en el script con `totalesDeClases` y `listar
     lista.some((c) => c.estudiante?.firstName === "Ana"),
     "y el nombre del estudiante",
   );
-
-  // Referencias para que el lint no se queje de variables sin usar.
-  void anulada;
-  void agendada;
-  void sinTarifa;
 ```
 
 - [ ] **Step 2: Ejecutar y comprobar que falla**
@@ -1078,8 +1076,6 @@ Ampliar el import con `proximaClase` y `deberesPendientes`, y añadir en `main()
     (await prisma.deber.count({ where: { claseId: particular.id } })) === 1,
     "pero la fila sigue ahí para el historial del profesor",
   );
-
-  void grupalFutura;
 ```
 
 - [ ] **Step 2: Ejecutar y comprobar que falla**
