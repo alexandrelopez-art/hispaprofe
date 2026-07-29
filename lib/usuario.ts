@@ -1,5 +1,6 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
+import { esCorreoDeAdmin } from "@/lib/roles";
 
 /**
  * Devuelve la fila de User de la sesión actual.
@@ -13,12 +14,32 @@ import { prisma } from "@/lib/prisma";
  * El paso 2 es seguro porque Clerk verifica la propiedad del correo antes
  * de emitir sesión, así que solo el dueño puede reclamar esa fila.
  */
+
+/**
+ * Sube a ADMIN a quien esté en ADMIN_EMAILS. Se comprueba en cada entrada,
+ * así que da igual el orden: registrarse antes y añadir la variable después
+ * funciona igual de bien.
+ *
+ * Solo sube, nunca baja: quitar el rol desde el panel no sirve de nada si el
+ * correo sigue en la variable. Es la red que impide quedarse fuera de la
+ * propia aplicación.
+ */
+async function ascenderSiEsAdmin<T extends { id: string; email: string; role: string }>(
+  usuario: T,
+): Promise<T> {
+  if (usuario.role === "ADMIN" || !esCorreoDeAdmin(usuario.email)) return usuario;
+  return (await prisma.user.update({
+    where: { id: usuario.id },
+    data: { role: "ADMIN" },
+  })) as unknown as T;
+}
+
 export async function getUsuarioActual() {
   const { userId } = await auth();
   if (!userId) return null;
 
   const porClerk = await prisma.user.findUnique({ where: { clerkId: userId } });
-  if (porClerk) return porClerk;
+  if (porClerk) return ascenderSiEsAdmin(porClerk);
 
   const clerkUser = await currentUser();
   if (!clerkUser) return null;
@@ -33,24 +54,28 @@ export async function getUsuarioActual() {
 
   const porCorreo = await prisma.user.findUnique({ where: { email } });
   if (porCorreo) {
-    return prisma.user.update({
-      where: { id: porCorreo.id },
-      data: {
-        clerkId: userId,
-        firstName: porCorreo.firstName ?? clerkUser.firstName,
-        lastName: porCorreo.lastName ?? clerkUser.lastName,
-      },
-    });
+    return ascenderSiEsAdmin(
+      await prisma.user.update({
+        where: { id: porCorreo.id },
+        data: {
+          clerkId: userId,
+          firstName: porCorreo.firstName ?? clerkUser.firstName,
+          lastName: porCorreo.lastName ?? clerkUser.lastName,
+        },
+      }),
+    );
   }
 
-  return prisma.user.create({
-    data: {
-      clerkId: userId,
-      email,
-      firstName: clerkUser.firstName,
-      lastName: clerkUser.lastName,
-    },
-  });
+  return ascenderSiEsAdmin(
+    await prisma.user.create({
+      data: {
+        clerkId: userId,
+        email,
+        firstName: clerkUser.firstName,
+        lastName: clerkUser.lastName,
+      },
+    }),
+  );
 }
 
 /** Alias del nombre antiguo. Quitar cuando no queden llamadas a syncUser. */

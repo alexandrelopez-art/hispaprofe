@@ -54,3 +54,10 @@ Si vas a migrar una instalación existente con tokens en claro, ejecuta una úni
 ```bash
 npx tsx scripts/migrar-cifrado-tokens.ts
 ```
+
+```
+# Correos que entran como administradores, separados por comas.
+# Se comprueba en cada inicio de sesión: no hay que tocar la base de datos.
+# Ojo: solo sube. Quitar el rol desde el panel no sirve si el correo sigue aquí.
+ADMIN_EMAILS=tu-correo@ejemplo.com
+```
