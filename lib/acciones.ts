@@ -4,7 +4,6 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getUsuarioActual } from "@/lib/usuario";
-import { exigirAdmin, puedeQuitarseElRol } from "@/lib/admin";
 import { exigirProfesor } from "@/lib/profesor";
 import { listarEstudiantes } from "@/lib/google";
 import { desmarcarSiNoRevisado } from "@/lib/progreso";
@@ -1044,69 +1043,4 @@ export async function desmarcarPasoHecho(formData: FormData) {
   revalidatePath(`/pasos/${pasoId}`);
   revalidatePath(`/recorridos/${paso.recorridoId}`);
   revalidatePath("/dashboard");
-}
-
-// ─── Administración ──────────────────────────────────────────────────────
-
-/** Sube a alguien a profesor. Un administrador no baja de rango por esto. */
-export async function hacerProfesor(formData: FormData) {
-  await exigirAdmin();
-  const usuarioId = String(formData.get("usuarioId") ?? "");
-  if (!usuarioId) return;
-
-  const usuario = await prisma.user.findUnique({
-    where: { id: usuarioId },
-    select: { role: true },
-  });
-  if (!usuario || usuario.role === "ADMIN") return;
-
-  await prisma.user.update({ where: { id: usuarioId }, data: { role: "PROFESOR" } });
-
-  revalidatePath("/admin/personas");
-  revalidatePath("/profe/alumnos");
-}
-
-/**
- * Devuelve a alguien a estudiante. Dos negativas: nadie puede quitarse el
- * rol a sí mismo, y no se puede dejar la plataforma sin administradores.
- */
-export async function quitarProfesor(formData: FormData) {
-  const yo = await exigirAdmin();
-  const usuarioId = String(formData.get("usuarioId") ?? "");
-  if (!usuarioId || usuarioId === yo.id) return;
-
-  if (!(await puedeQuitarseElRol(usuarioId))) return;
-
-  await prisma.user.update({ where: { id: usuarioId }, data: { role: "STUDENT" } });
-
-  revalidatePath("/admin/personas");
-  revalidatePath("/profe/alumnos");
-}
-
-/**
- * Invita a un profesor por correo. Si ya tiene ficha se le sube el rol en
- * vez de crear una segunda con el mismo correo; si no la tiene, nace ya
- * como profesor y se la encuentra hecha al entrar por primera vez.
- */
-export async function invitarProfesor(formData: FormData) {
-  await exigirAdmin();
-  const email = String(formData.get("email") ?? "").trim().toLowerCase();
-  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return;
-
-  const existente = await prisma.user.findUnique({
-    where: { email },
-    select: { id: true, role: true },
-  });
-
-  // A un administrador no se le baja a profesor por invitarlo otra vez.
-  if (existente?.role === "ADMIN") return;
-
-  await prisma.user.upsert({
-    where: { email },
-    update: { role: "PROFESOR" },
-    create: { email, role: "PROFESOR" },
-  });
-
-  revalidatePath("/admin/personas");
-  revalidatePath("/profe/alumnos");
 }

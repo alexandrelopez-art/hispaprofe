@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { getUsuarioActual } from "@/lib/usuario";
-import { hacerProfesor, invitarProfesor, quitarProfesor } from "@/lib/acciones";
+import { hacerProfesor, invitarProfesor, quitarProfesor } from "@/lib/acciones-admin";
 import type { Prisma } from "@/lib/generated/prisma/client";
 
 export const dynamic = "force-dynamic";
