@@ -6,6 +6,8 @@
  */
 import "dotenv/config";
 import { prisma } from "@/lib/prisma";
+import { TIPO_DE_EJERCICIO } from "@/lib/recursos";
+import type { MarcaEjercicio } from "@/lib/ejercicios/tipos";
 import { opcionSchema } from "@/lib/ejercicios/opcion";
 import { huecosSchema } from "@/lib/ejercicios/huecos";
 import { relacionarSchema } from "@/lib/ejercicios/relacionar";
@@ -14,17 +16,6 @@ import { ordenarSchema } from "@/lib/ejercicios/ordenar";
 const TITULO = "PRUEBA — los cuatro tipos de ejercicio";
 const CORREO_PROFE = "a.lopez.ele@hotmail.com";
 const CORREO_ALUMNO = "gaspard@hotmail.com";
-
-// El campo `Ejercicio.tipo` de la base y el campo `datos.ejercicio` que lee
-// `lib/ejercicios/registro.ts` son cosas distintas: hoy nada lee `tipo`,
-// pero el día que una pantalla de listado lo haga, sembrar todo como
-// OPCION_MULTIPLE etiquetaría mal cuatro de los seis ejercicios.
-const TIPO_DE_EJERCICIO: Record<string, "OPCION_MULTIPLE" | "HUECOS" | "RELACIONAR" | "ORDENAR"> = {
-  opcion: "OPCION_MULTIPLE",
-  huecos: "HUECOS",
-  relacionar: "RELACIONAR",
-  ordenar: "ORDENAR",
-};
 
 const EJERCICIOS = [
   {
@@ -173,7 +164,11 @@ async function main() {
     });
     const ejercicio = await prisma.ejercicio.create({
       data: {
-        tipo: TIPO_DE_EJERCICIO[e.datos.ejercicio],
+        // `e.datos.ejercicio` no sale tipado como `MarcaEjercicio` porque el
+        // objeto literal de arriba no lleva `as const`; el zod de cada fila
+        // ya lo valida en tiempo de ejecución, así que el `as` aquí no tapa
+        // ningún dato roto.
+        tipo: TIPO_DE_EJERCICIO[e.datos.ejercicio as MarcaEjercicio],
         titulo: e.titulo,
         nivel: "A1",
         etiquetas: ["prueba"],

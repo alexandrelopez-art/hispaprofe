@@ -64,3 +64,12 @@ export function comoLista(valor: string | string[] | undefined): string[] {
   if (valor === undefined) return [];
   return Array.isArray(valor) ? valor : [valor];
 }
+
+/**
+ * Las cuatro marcas que puede llevar `datos.ejercicio`.
+ *
+ * Vive aquí y no en `registro.ts` porque las caras del cliente la necesitan
+ * y `registro.ts` importa `node:crypto`: cualquier componente que lo tocara
+ * se llevaría medio Node al navegador.
+ */
+export type MarcaEjercicio = "opcion" | "huecos" | "relacionar" | "ordenar";

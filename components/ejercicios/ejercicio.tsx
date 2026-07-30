@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { responderEjercicio } from "@/lib/acciones";
-import type { Correccion, Respuestas } from "@/lib/ejercicios/tipos";
+import type { Correccion, MarcaEjercicio, Respuestas } from "@/lib/ejercicios/tipos";
 import CaraOpcion, { progresoOpcion } from "./opcion";
 import CaraHuecos, { progresoHuecos } from "./huecos";
 import CaraRelacionar, { progresoRelacionar } from "./relacionar";
@@ -11,7 +11,7 @@ import CaraOrdenar, { progresoOrdenar } from "./ordenar";
 export type PropsEjercicio = {
   pasoId: string;
   ejercicioId: string;
-  tipo: "opcion" | "huecos" | "relacionar" | "ordenar";
+  tipo: MarcaEjercicio;
   /** La versión sin soluciones. Su forma la fija cada tipo. */
   publica: unknown;
   respondido: boolean;
