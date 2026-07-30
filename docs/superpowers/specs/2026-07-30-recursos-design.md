@@ -337,5 +337,8 @@ se ve igual que en la previsualización.
 - **Compartir Recursos entre profesores.** Hoy hay un solo profesor. `autorId`
   ya está en la tabla para cuando deje de serlo.
 - **Importar ejercicios desde un Genially.** Otro asunto, con su propio diseño.
-- **Borrar un `Ejercicio` de verdad.** Se despublica. Si algún día estorba
-  tener borradores viejos, se añade entonces.
+- **Papelera y recuperación.** Un ejercicio suelto —sin ningún paso detrás— se
+  borra de verdad y no se puede recuperar. Es deliberado: sirve para tirar los
+  borradores que uno deja por el camino, y guardar una papelera para eso sería
+  construir un armario para la basura. Lo que nunca se borra es lo que cuelga de
+  un paso, y de eso se ocupa la regla 3.
