@@ -79,6 +79,11 @@ export async function invitarProfesor(formData: FormData) {
   refrescar();
 }
 
+/**
+ * Cierra el acceso. La guarda es `puedeBloquearse` y no una comprobación
+ * escrita aquí porque desde una acción de servidor no se puede verificar
+ * nada: lo que decide vive en `lib/admin.ts`, que sí ejercita el script.
+ */
 export async function bloquearPersona(formData: FormData) {
   const yo = await exigirAdmin();
   const usuarioId = String(formData.get("usuarioId") ?? "");
@@ -90,6 +95,12 @@ export async function bloquearPersona(formData: FormData) {
   refrescar();
 }
 
+/**
+ * Devuelve el acceso. La guarda va dentro de `desbloquear`, en la misma
+ * escritura, porque el caso real es tener la lista abierta en dos pestañas y
+ * pulsar aquí un botón que en la otra ya no existe. Se refresca haya escrito
+ * o no: si se negó, es justo esa pestaña vieja la que hay que poner al día.
+ */
 export async function desbloquearPersona(formData: FormData) {
   await exigirAdmin();
   const usuarioId = String(formData.get("usuarioId") ?? "");

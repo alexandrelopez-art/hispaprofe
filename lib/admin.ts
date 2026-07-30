@@ -65,13 +65,16 @@ export async function puedeBloquearse(
  * Se anulan las clases futuras donde es el estudiante o el profesor, porque
  * ninguna de las dos se va a dar. No se tocan las de un grupo donde solo es
  * un miembro más: esa clase sigue siendo de los demás.
+ *
+ * La fecha solo se escribe si no había: reescribirla perdería el «desde
+ * cuándo», que es toda la razón de que esto sea una fecha y no un booleano.
  */
 export async function bloquear(usuarioId: string): Promise<void> {
   const ahora = new Date();
 
   await prisma.$transaction([
-    prisma.user.update({
-      where: { id: usuarioId },
+    prisma.user.updateMany({
+      where: { id: usuarioId, bloqueadoEl: null },
       data: { bloqueadoEl: ahora },
     }),
     prisma.clase.updateMany({
@@ -88,20 +91,29 @@ export async function bloquear(usuarioId: string): Promise<void> {
 /**
  * Devuelve el acceso. No resucita las clases anuladas: anularlas fue una
  * decisión, y deshacerla a espaldas del profesor sería peor que dejársela.
+ *
+ * A una ficha suprimida se le niega: quien está suprimido está bloqueado por
+ * definición, y abrirle la puerta dejaría el estado que el diseño declara
+ * imposible. El filtro va dentro de la escritura, como en `borrarClase`, para
+ * que no haya carrera entre comprobar y escribir —el administrador puede
+ * tener la misma lista abierta en dos pestañas—. Devuelve si hizo algo.
  */
-export async function desbloquear(usuarioId: string): Promise<void> {
-  await prisma.user.update({
-    where: { id: usuarioId },
+export async function desbloquear(usuarioId: string): Promise<boolean> {
+  const { count } = await prisma.user.updateMany({
+    where: { id: usuarioId, suprimidoEl: null },
     data: { bloqueadoEl: null },
   });
+  return count > 0;
 }
 
 /**
  * Suprimir es irreversible, así que exige haber pasado antes por un gesto
- * que sí se puede deshacer: solo se suprime a quien ya está bloqueado. Por
- * eso no hace falta volver a contar administradores activos aquí: al último
- * administrador activo nunca se le pudo bloquear, así que quien llega hasta
- * aquí bloqueado es, por definición, uno que sobraba.
+ * que sí se puede deshacer: solo se suprime a quien ya está bloqueado.
+ *
+ * El recuento de administradores activos sigue estando, pero como red de
+ * último recurso: al último administrador activo nunca se le pudo bloquear,
+ * así que quien llega hasta aquí bloqueado es uno que sobraba, y el recuento
+ * solo salta si alguien ha tocado la base a mano.
  */
 export async function puedeSuprimirse(
   usuarioId: string,
