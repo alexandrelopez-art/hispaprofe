@@ -7,10 +7,11 @@ import {
   abrirDeber,
   cerrarDeber,
   cerrarDeberesDeClase,
-  importeDeClase,
+  congelarImporte,
   sincronizarDeberes,
   validarClase,
 } from "@/lib/clases";
+import { deInput } from "@/lib/fechas";
 import type { EstadoClase } from "@/lib/generated/prisma/enums";
 
 /** Parte «alumno:abc» o «grupo:xyz» en lo que entiende la base. */
@@ -26,7 +27,7 @@ function partirDestinatario(bruto: string): {
 
 /**
  * La clase existe y es de quien pide, o es un administrador. Devuelve la
- * clase para no volver a leerla.
+ * clase y a quien pide para no volver a leer ninguna de las dos.
  */
 async function exigirClaseSuya(claseId: string) {
   const usuario = await exigirProfesor();
@@ -36,8 +37,10 @@ async function exigirClaseSuya(claseId: string) {
       id: true,
       profesorId: true,
       minutos: true,
+      estado: true,
       estudianteId: true,
       grupoId: true,
+      deberes: true,
       importeCentimos: true,
     },
   });
@@ -45,7 +48,7 @@ async function exigirClaseSuya(claseId: string) {
   if (clase.profesorId !== usuario.id && usuario.role !== "ADMIN") {
     throw new Error("Esa clase no es tuya.");
   }
-  return clase;
+  return { clase, usuario };
 }
 
 /**
@@ -53,7 +56,7 @@ async function exigirClaseSuya(claseId: string) {
  * para cerrar o abrir el deber de la clase de otro profesor: el permiso
  * estaría comprobado, pero sobre el recurso equivocado.
  */
-async function exigirDeberDeClase(
+async function esDeberDeLaClase(
   claseId: string,
   deberId: string,
 ): Promise<boolean> {
@@ -65,28 +68,27 @@ async function exigirDeberDeClase(
 }
 
 /**
- * La tarifa que aplica a una clase: la del estudiante, o la del grupo. Null
- * si nadie la tiene puesta, que es un olvido y no una clase gratis.
+ * El grupo del que se cuelga la clase es de quien pide (o pide un admin).
+ *
+ * `partirDestinatario` se cree cualquier id que venga en el cuerpo del POST,
+ * así que sin esto una petición fabricada colgaría una clase del grupo de
+ * otro profesor y la ficha enseñaría los nombres y correos de sus miembros.
+ *
+ * Del `estudianteId` no se comprueba nada más que lo que ya impone la clave
+ * ajena: no existe en el modelo una pertenencia «este estudiante es de este
+ * profesor» que poder exigir, y filtrar por `role: STUDENT` echaría fuera a
+ * quien haya sido ascendido a profesor después de recibir clases.
  */
-async function tarifaDe(
-  estudianteId: string | null,
+async function grupoAsignable(
+  usuario: { id: string; role: string },
   grupoId: string | null,
-): Promise<number | null> {
-  if (estudianteId) {
-    const u = await prisma.user.findUnique({
-      where: { id: estudianteId },
-      select: { tarifaCentimos: true },
-    });
-    return u?.tarifaCentimos ?? null;
-  }
-  if (grupoId) {
-    const g = await prisma.grupo.findUnique({
-      where: { id: grupoId },
-      select: { tarifaCentimos: true },
-    });
-    return g?.tarifaCentimos ?? null;
-  }
-  return null;
+): Promise<boolean> {
+  if (!grupoId || usuario.role === "ADMIN") return true;
+  const grupo = await prisma.grupo.findUnique({
+    where: { id: grupoId },
+    select: { profesorId: true },
+  });
+  return grupo?.profesorId === usuario.id;
 }
 
 function refrescar(claseId?: string) {
@@ -107,13 +109,15 @@ function datosDeClase(formData: FormData): {
   donde: string | null;
   enlace: string | null;
 } | null {
-  const empiezaEl = new Date(String(formData.get("empiezaEl") ?? ""));
+  // `deInput` y no `new Date`: la cadena del navegador no lleva offset y hay
+  // que leerla como hora de Madrid, no como hora del servidor.
+  const empiezaEl = deInput(String(formData.get("empiezaEl") ?? ""));
   const minutos = Number(String(formData.get("minutos") ?? "0"));
   const { estudianteId, grupoId } = partirDestinatario(
     String(formData.get("destinatario") ?? ""),
   );
 
-  if (Number.isNaN(empiezaEl.getTime())) return null;
+  if (!empiezaEl) return null;
   if (validarClase({ estudianteId, grupoId, minutos })) return null;
 
   return {
@@ -131,6 +135,7 @@ export async function crearClase(formData: FormData) {
 
   const datos = datosDeClase(formData);
   if (!datos) return;
+  if (!(await grupoAsignable(usuario, datos.grupoId))) return;
 
   await prisma.clase.create({
     data: {
@@ -145,18 +150,31 @@ export async function crearClase(formData: FormData) {
 export async function editarClase(formData: FormData) {
   const claseId = String(formData.get("claseId") ?? "");
   if (!claseId) return;
-  await exigirClaseSuya(claseId);
+  const { clase, usuario } = await exigirClaseSuya(claseId);
 
   const datos = datosDeClase(formData);
   if (!datos) return;
+  if (!(await grupoAsignable(usuario, datos.grupoId))) return;
+
+  const cambioDestinatario =
+    datos.estudianteId !== clase.estudianteId ||
+    datos.grupoId !== clase.grupoId;
+
+  // Cambiar la duración de una clase ya dada deja su precio sin cuadrar: 90
+  // minutos cobrados a 60. Vuelve a null para que la ficha lo pida en vez de
+  // mentir, y descongelarlo exige volver a marcarla dada a mano.
+  const importeCaduco =
+    clase.estado === "DADA" && datos.minutos !== clase.minutos;
 
   await prisma.clase.update({
     where: { id: claseId },
-    data: datos,
+    data: { ...datos, ...(importeCaduco ? { importeCentimos: null } : {}) },
   });
 
-  // Cambiar el destinatario cambia a quién le tocan los deberes.
-  await sincronizarDeberes(claseId);
+  // Solo si cambió el destinatario: `destinatariosDe` lee los miembros de
+  // ahora, así que rehacer los deberes por cualquier otra edición borraría
+  // filas cerradas de quien salió del grupo hace meses.
+  if (cambioDestinatario) await sincronizarDeberes(claseId);
 
   refrescar(claseId);
 }
@@ -165,25 +183,28 @@ export async function editarClase(formData: FormData) {
 export async function guardarFicha(formData: FormData) {
   const claseId = String(formData.get("claseId") ?? "");
   if (!claseId) return;
-  await exigirClaseSuya(claseId);
+  const { clase } = await exigirClaseSuya(claseId);
+
+  const deberes = String(formData.get("deberes") ?? "").trim() || null;
 
   await prisma.clase.update({
     where: { id: claseId },
     data: {
       notas: String(formData.get("notas") ?? "").trim() || null,
-      deberes: String(formData.get("deberes") ?? "").trim() || null,
+      deberes,
     },
   });
 
-  await sincronizarDeberes(claseId);
+  // Solo si cambió el texto: guardar una nota no puede repartir los deberes
+  // de marzo entre los miembros que tiene el grupo hoy.
+  if (deberes !== clase.deberes) await sincronizarDeberes(claseId);
 
   refrescar(claseId);
 }
 
 /**
- * Agendada, dada o anulada. Al pasar a DADA se calcula el importe con la
- * tarifa de ahora y se queda congelado ahí; volver a marcarla dada no lo
- * recalcula, porque eso reescribiría el pasado.
+ * Agendada, dada o anulada. Del importe se encarga `congelarImporte`: aquí
+ * solo viven el permiso, el estado y la revalidación.
  */
 export async function cambiarEstadoClase(formData: FormData) {
   const claseId = String(formData.get("claseId") ?? "");
@@ -191,24 +212,15 @@ export async function cambiarEstadoClase(formData: FormData) {
   if (!claseId) return;
   if (!["AGENDADA", "DADA", "ANULADA"].includes(estado)) return;
 
-  const clase = await exigirClaseSuya(claseId);
-
-  // Solo se calcula si no había importe. Recalcularlo reescribiría el pasado.
-  const calcular = estado === "DADA" && clase.importeCentimos === null;
-  const importeCentimos = calcular
-    ? importeDeClase(
-        await tarifaDe(clase.estudianteId, clase.grupoId),
-        clase.minutos,
-      )
-    : undefined;
+  await exigirClaseSuya(claseId);
 
   await prisma.clase.update({
     where: { id: claseId },
-    data: {
-      estado,
-      ...(importeCentimos !== undefined ? { importeCentimos } : {}),
-    },
+    data: { estado },
   });
+
+  // Después de escribir el estado, porque la regla lo lee de la fila.
+  if (estado === "DADA") await congelarImporte(claseId);
 
   refrescar(claseId);
 }
@@ -218,7 +230,7 @@ export async function cerrarDeberDeClase(formData: FormData) {
   const deberId = String(formData.get("deberId") ?? "");
   if (!claseId || !deberId) return;
   await exigirClaseSuya(claseId);
-  if (!(await exigirDeberDeClase(claseId, deberId))) return;
+  if (!(await esDeberDeLaClase(claseId, deberId))) return;
 
   await cerrarDeber(deberId);
   refrescar(claseId);
@@ -229,7 +241,7 @@ export async function abrirDeberDeClase(formData: FormData) {
   const deberId = String(formData.get("deberId") ?? "");
   if (!claseId || !deberId) return;
   await exigirClaseSuya(claseId);
-  if (!(await exigirDeberDeClase(claseId, deberId))) return;
+  if (!(await esDeberDeLaClase(claseId, deberId))) return;
 
   await abrirDeber(deberId);
   refrescar(claseId);
