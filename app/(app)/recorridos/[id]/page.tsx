@@ -11,6 +11,7 @@ import { estadoDePasos, type EstadoPaso } from "@/lib/progreso";
 import BotonConfirmar from "@/components/boton-confirmar";
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import { servicioLabel } from "@/lib/servicios";
 
 export const dynamic = "force-dynamic";
 
@@ -21,11 +22,6 @@ const nivelLabel: Record<string, string> = {
   B2: "B2",
   C1: "C1",
   A2_B1_ESCOLAR: "A2/B1 escolar",
-};
-
-const servicioLabel: Record<string, string> = {
-  RECORRIDO: "Clases particulares",
-  PREPARACION: "Preparación DELE",
 };
 
 const tipoLabel: Record<string, string> = {

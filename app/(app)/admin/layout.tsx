@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 const pestanas = [
   { href: "/admin", texto: "Resumen" },
   { href: "/admin/personas", texto: "Personas" },
-  { href: "/admin/biblioteca", texto: "Biblioteca" },
+  { href: "/admin/secuencias", texto: "Secuencias" },
 ];
 
 export default async function AdminLayout({

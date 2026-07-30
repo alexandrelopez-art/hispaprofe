@@ -1,12 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
+import { servicioLabel } from "@/lib/servicios";
 
 export const dynamic = "force-dynamic";
-
-const servicioLabel: Record<string, string> = {
-  RECORRIDO: "Clases particulares",
-  PREPARACION: "Preparación DELE",
-};
 
 function nombreDe(u: {
   firstName: string | null;
@@ -16,7 +12,7 @@ function nombreDe(u: {
   return [u.firstName, u.lastName].filter(Boolean).join(" ") || u.email;
 }
 
-export default async function AdminBibliotecaPage() {
+export default async function AdminSecuenciasPage() {
   const secuencias = await prisma.recorrido.findMany({
     orderBy: [{ createdAt: "desc" }],
     select: {

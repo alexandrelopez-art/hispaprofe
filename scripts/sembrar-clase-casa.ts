@@ -129,7 +129,7 @@ async function main() {
       descripcion:
         "Lección 2 del nivel A1. Hablo de pisos, casas y las partes de la casa, y uso hay / no hay para describirlas.",
       nivel: "A1",
-      tipo: "RECORRIDO",
+      tipo: "CLASES_PARTICULARES",
       orden: 1,
       publicado: true,
       autorId: profe.id,

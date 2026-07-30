@@ -3,13 +3,9 @@ import Link from "next/link";
 import { resumenEstudiante } from "@/lib/progreso";
 import { deberesPendientes, proximaClase } from "@/lib/clases";
 import { fechaCorta, fechaHora } from "@/lib/fechas";
+import { servicioLabel } from "@/lib/servicios";
 
 type Usuario = { id: string; firstName: string | null; email: string };
-
-const servicioLabel: Record<string, string> = {
-  RECORRIDO: "Clases particulares",
-  PREPARACION: "Preparación DELE",
-};
 
 /** Distancia en palabras, sin librerías. Solo días completos. */
 function haceCuanto(fecha: Date): string {

@@ -1,17 +1,13 @@
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import type { Prisma } from "@/lib/generated/prisma/client";
+import { servicioLabel } from "@/lib/servicios";
 
 export const dynamic = "force-dynamic";
 
 const nivelLabel: Record<string, string> = {
   A2_B1_ESCOLAR: "A2/B1 escolar",
   B2: "B2",
-};
-
-const servicioLabel: Record<string, string> = {
-  RECORRIDO: "Clases particulares",
-  PREPARACION: "Preparación DELE",
 };
 
 // Orden fijo para que la composición se lea siempre igual.
@@ -86,8 +82,12 @@ export default async function RecorridosPage({
         />
         <select name="servicio" defaultValue={servicio} className={campoBase}>
           <option value="">Todos los servicios</option>
-          <option value="RECORRIDO">Clases particulares</option>
-          <option value="PREPARACION">Preparación DELE</option>
+          <option value="CLASES_PARTICULARES">
+            {servicioLabel.CLASES_PARTICULARES}
+          </option>
+          <option value="PREPARACION_DELE">
+            {servicioLabel.PREPARACION_DELE}
+          </option>
         </select>
         <select name="nivel" defaultValue={nivel} className={campoBase}>
           <option value="">Todos los niveles</option>

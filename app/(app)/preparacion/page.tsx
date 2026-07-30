@@ -9,7 +9,7 @@ const nivelLabel: Record<string, string> = {
 };
 
 // Los cuatro bloques de preparación. `orden` enlaza con el campo `orden`
-// de los Recorrido de tipo PREPARACION.
+// de los Recorrido de tipo PREPARACION_DELE.
 const BLOQUES = [
   {
     orden: 1,
@@ -47,7 +47,7 @@ const BLOQUES = [
 
 export default async function PreparacionPage() {
   const disponibles = await prisma.recorrido.findMany({
-    where: { tipo: "PREPARACION" },
+    where: { tipo: "PREPARACION_DELE" },
     orderBy: [{ orden: "asc" }, { nivel: "asc" }],
     select: { id: true, orden: true, nivel: true, titulo: true },
   });

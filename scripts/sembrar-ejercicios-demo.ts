@@ -150,7 +150,7 @@ async function main() {
       titulo: TITULO,
       descripcion: "Secuencia de prueba: un paso por tipo de ejercicio.",
       nivel: "A1",
-      tipo: "RECORRIDO",
+      tipo: "CLASES_PARTICULARES",
       orden: 99,
       publicado: false,
       autorId: profe.id,

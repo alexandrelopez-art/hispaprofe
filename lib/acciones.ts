@@ -375,7 +375,9 @@ export async function crearSecuencia(formData: FormData) {
   const descripcion =
     String(formData.get("descripcion") ?? "").trim() || null;
   const nivel = comoNivel(String(formData.get("nivel") ?? ""));
-  const tipo = String(formData.get("tipo") ?? "RECORRIDO") as TipoRecorrido;
+  const tipo = String(
+    formData.get("tipo") ?? "CLASES_PARTICULARES",
+  ) as TipoRecorrido;
   if (!titulo || !nivel) return;
 
   const ultimo = await prisma.recorrido.aggregate({

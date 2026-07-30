@@ -2,6 +2,7 @@ import { getUsuarioActual } from "@/lib/usuario";
 import { crearSecuencia } from "@/lib/acciones";
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import { servicioLabel } from "@/lib/servicios";
 
 const campo =
   "mt-1 h-10 w-full rounded-full border border-hp-200 bg-white px-4 text-sm font-normal text-tinta outline-none focus:border-hp-400";
@@ -57,9 +58,17 @@ export default async function NuevaSecuenciaPage() {
         <div className="mt-4 flex gap-3">
           <label className="flex-1 text-sm font-semibold text-tinta">
             Servicio
-            <select name="tipo" defaultValue="RECORRIDO" className={campo}>
-              <option value="RECORRIDO">Clases particulares</option>
-              <option value="PREPARACION">Preparación DELE</option>
+            <select
+              name="tipo"
+              defaultValue="CLASES_PARTICULARES"
+              className={campo}
+            >
+              <option value="CLASES_PARTICULARES">
+                {servicioLabel.CLASES_PARTICULARES}
+              </option>
+              <option value="PREPARACION_DELE">
+                {servicioLabel.PREPARACION_DELE}
+              </option>
             </select>
           </label>
 

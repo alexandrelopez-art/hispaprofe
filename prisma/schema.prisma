@@ -27,11 +27,11 @@ enum Nivel {
   A2_B1_ESCOLAR
 }
 
-// RECORRIDO   = clases particulares
-// PREPARACION = preparacion DELE
+// CLASES_PARTICULARES = clases sueltas o recurrentes con un profesor
+// PREPARACION_DELE    = preparación de un examen del Instituto Cervantes
 enum TipoRecorrido {
-  RECORRIDO
-  PREPARACION
+  CLASES_PARTICULARES
+  PREPARACION_DELE
 }
 
 enum TipoPaso {
@@ -105,7 +105,7 @@ model Recorrido {
   titulo       String
   descripcion  String?
   nivel        Nivel
-  tipo         TipoRecorrido @default(RECORRIDO)
+  tipo         TipoRecorrido @default(CLASES_PARTICULARES)
   orden        Int
   publicado    Boolean       @default(false)
   autor        User?         @relation("AutorRecorrido", fields: [autorId], references: [id])
