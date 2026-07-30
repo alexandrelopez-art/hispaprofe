@@ -151,11 +151,17 @@ async function main() {
     );
   } else {
     const otro = await nuevaPersona("admin2", { role: "ADMIN" });
+    // La guarda vive en puedeBloquearse, no en bloquear: hay que ejercitarla
+    // a ella, y no solo comprobar que bloquear() puso la fecha.
+    afirmar(
+      (await puedeBloquearse(otro.id, ana.id)) === null,
+      "con más de un administrador, a uno sí se le puede bloquear",
+    );
     await bloquear(otro.id);
     afirmar(
       (await prisma.user.findUniqueOrThrow({ where: { id: otro.id } }))
         .bloqueadoEl !== null,
-      "con más de un administrador, a uno sí se le puede bloquear",
+      "y bloquear lo bloquea de verdad",
     );
   }
 
