@@ -264,7 +264,8 @@ async function main() {
     "a una ficha ya suprimida no se le puede volver a suprimir",
   );
 
-  // Un bloqueado que no está suprimido: bloquear no es suprimir.
+  // Un bloqueado que no está suprimido: hace falta para las dos mitades del
+  // filtro, la que echa fuera y la que no.
   const dani = await nuevaPersona("dani");
   await bloquear(dani.id);
 
@@ -279,6 +280,13 @@ async function main() {
   afirmar(
     elegibles.some((e) => e.id === ana.id),
     "y un estudiante normal sí sale",
+  );
+  // La otra mitad, la que el diseño prohíbe estrechar: bloquear cierra la
+  // puerta, no borra de las listas. Sin esta aserción, añadir un
+  // `bloqueadoEl: null` al filtro pasaría sin que nada se quejase.
+  afirmar(
+    elegibles.some((e) => e.id === dani.id),
+    "un estudiante bloqueado sigue saliendo entre los elegibles",
   );
 
   // Quitarla de los desplegables y de las listas es solo interfaz: una

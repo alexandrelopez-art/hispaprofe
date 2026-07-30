@@ -32,9 +32,17 @@ const ordenDeLista: Prisma.UserOrderByWithRelationInput[] = [
  *
  * El `where` y el orden los pone la función; el `select` o el `include` los
  * pone cada pantalla, que es lo único que cambia de una a otra.
+ *
+ * `where` y `orderBy` son `never` porque aquí se sobrescriben: sin eso, quien
+ * pasara los suyos los vería desaparecer sin aviso y compilando en verde, que
+ * es la única forma que quedaba de perder el filtro que este ayudante existe
+ * para que no se pueda olvidar.
  */
 export async function listarEstudiantesElegibles<
-  T extends Pick<Prisma.UserFindManyArgs, "select" | "include">,
+  T extends Pick<Prisma.UserFindManyArgs, "select" | "include"> & {
+    where?: never;
+    orderBy?: never;
+  },
 >(args: T): Promise<Prisma.UserGetPayload<T>[]> {
   return prisma.user.findMany({
     ...args,
