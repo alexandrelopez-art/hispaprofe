@@ -1533,6 +1533,48 @@ git commit -m "Botón de borrar una clase, escondido tras un desplegable"
 
 ---
 
+## Deuda conocida al cerrar
+
+Escrito el 2026-07-30, después de la revisión de rama y sus dos tandas de
+arreglos.
+
+**La lección: dos veces se enumeraron pantallas de memoria y dos veces faltaron.**
+El diseño y el plan listaron «los sitios donde se enseña a una persona» de
+recuerdo, y la revisión encontró primero dos consultas sin filtrar y luego tres
+más. Ahora hay un ayudante único (`lib/estudiantes.ts`) que hace imposible
+olvidarlo, y el tipo se queja si alguien intenta pasarle su propio `where`.
+**Para la próxima: cuando un requisito diga «en todas partes», el plan lleva el
+`grep` que produjo la lista y su salida, no una lista escrita a mano.**
+
+Pendientes, por orden de lo que más pica:
+
+- **Dos puertas por correo siguen sin comprobar la supresión:** `invitarProfesor`
+  y `meterCorreosEnGrupo`. La segunda es la peor de las dos, porque recrear una
+  membresía de grupo permite luego llegar a `asignarSecuenciaAGrupo`, que crea
+  asignaciones sin pasar por `estudianteAsignable`. **Las dos exigen teclear
+  entero `suprimido-<cuid>@hispaprofe.invalid`**, que ninguna pantalla enseña,
+  así que no bloqueaban la integración — pero son la última esquina de la lápida
+  y se cierran con un `if` en cada una.
+- **`scripts/verificar-admin.ts` sigue fallando**, y no es de esta tanda: afirma
+  «al último administrador no se le puede quitar el rol» dando por hecho que el
+  único `ADMIN` es el que él crea. Se arregla con el mismo `if (soloUno)` que ya
+  usa `scripts/verificar-personas.ts`.
+- **Tres aserciones de `puedeHacerseProfesor` no discriminan:** usan una ficha
+  que está suprimida *y* bloqueada, así que una implementación que guardara por
+  `bloqueadoEl` en vez de por `suprimidoEl` pasaría igual. Con la fila `dani`,
+  que ya está en ese script y está solo bloqueada, se arregla gratis.
+- **El cartel de cuenta bloqueada no aparece en navegaciones de cliente.** Los
+  layouts no se re-renderizan al navegar (lo dice el propio guide de Next 16 en
+  `02-guides/authentication.md`), así que a quien bloqueen con una pestaña
+  abierta le saldrá el `redirect` de la página en vez del cartel. Falla cerrado.
+  Se arregla al recargar. **Añádelo a la comprobación a mano:** bloquear a
+  alguien con una pestaña abierta y pulsar un enlace.
+- **Los grupos de un profesor suprimido quedan sin administrar:** `Grupo.profesorId`
+  apunta a la lápida y la pantalla de grupos se acota al profesor de la sesión.
+  No se da hoy con un solo profesor.
+- **Que las acciones vuelvan en silencio** cuando rechazan algo sigue sin
+  decidirse para toda la aplicación. Es la misma pregunta aparcada en el diario.
+
 ## Fuera de alcance
 
 - **Registro de quién bloqueó o suprimió a quién, y por qué.** Con un solo administrador no aporta nada todavía.
