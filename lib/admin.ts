@@ -98,7 +98,10 @@ export async function desbloquear(usuarioId: string): Promise<void> {
 
 /**
  * Suprimir es irreversible, así que exige haber pasado antes por un gesto
- * que sí se puede deshacer: solo se suprime a quien ya está bloqueado.
+ * que sí se puede deshacer: solo se suprime a quien ya está bloqueado. Por
+ * eso no hace falta volver a contar administradores activos aquí: al último
+ * administrador activo nunca se le pudo bloquear, así que quien llega hasta
+ * aquí bloqueado es, por definición, uno que sobraba.
  */
 export async function puedeSuprimirse(
   usuarioId: string,
@@ -115,10 +118,13 @@ export async function puedeSuprimirse(
   if (!usuario.bloqueadoEl) return "Primero hay que bloquearla.";
 
   if (usuario.role === "ADMIN") {
-    const cuantos = await prisma.user.count({
+    // El bloqueo ya protegió al último administrador activo: quien llega
+    // hasta aquí está bloqueado y por tanto no contaba como activo. Esta
+    // red solo salta si alguien ha tocado la base a mano.
+    const activos = await prisma.user.count({
       where: { role: "ADMIN", bloqueadoEl: null },
     });
-    if (cuantos <= 1) return "No puedes suprimir al último administrador.";
+    if (activos === 0) return "No queda ningún administrador activo.";
   }
   return null;
 }

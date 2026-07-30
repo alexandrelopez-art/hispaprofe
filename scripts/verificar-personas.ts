@@ -244,6 +244,10 @@ async function main() {
       .autorId === null,
     "lo que escribió se queda sin autor, no se borra",
   );
+  afirmar(
+    (await puedeSuprimirse(bea.id, otroAdmin.id)) !== null,
+    "a una ficha ya suprimida no se le puede volver a suprimir",
+  );
 
   // Dos supresiones seguidas no chocan por el correo.
   const carla = await nuevaPersona("carla");
@@ -253,6 +257,22 @@ async function main() {
     (await prisma.user.findUniqueOrThrow({ where: { id: carla.id } })).email !==
       lapida.email,
     "dos fichas suprimidas no chocan por el correo",
+  );
+
+  // El freno del último administrador ya lo puso el bloqueo: a quien llega
+  // aquí bloqueado se le puede suprimir si queda otro administrador activo.
+  const adminActivo = await nuevaPersona("adminActivo", { role: "ADMIN" });
+  const adminSaliente = await nuevaPersona("adminSaliente", { role: "ADMIN" });
+  await bloquear(adminSaliente.id);
+  afirmar(
+    (await puedeSuprimirse(adminSaliente.id, adminActivo.id)) === null,
+    "a un administrador bloqueado se le puede suprimir si queda otro activo",
+  );
+  await suprimir(adminSaliente.id);
+  afirmar(
+    (await prisma.user.findUniqueOrThrow({ where: { id: adminSaliente.id } }))
+      .role === "STUDENT",
+    "y al suprimirlo su rol baja a STUDENT",
   );
 
   console.log("\nTodas las verificaciones pasan.");
