@@ -101,7 +101,10 @@ export default async function ClasesPage({
     listarClases(filtro),
     totalesDeClases(filtro),
     prisma.user.findMany({
-      where: { role: "STUDENT" },
+      // Una ficha suprimida no es una persona con quien agendar: solo queda
+      // su lápida para que sus clases pasadas cuadren. Los bloqueados sí
+      // siguen aquí a propósito, esos conservan su correo real.
+      where: { role: "STUDENT", suprimidoEl: null },
       orderBy: [{ firstName: "asc" }, { email: "asc" }],
       select: { id: true, firstName: true, lastName: true, email: true },
     }),

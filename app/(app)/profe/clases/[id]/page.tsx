@@ -90,9 +90,18 @@ export default async function ClasePage({
 
   const [estudiantes, grupos] = await Promise.all([
     prisma.user.findMany({
-      where: { role: "STUDENT" },
+      // Una ficha suprimida no es una persona con quien agendar: solo queda
+      // su lápida para que sus clases pasadas cuadren. Los bloqueados sí
+      // siguen aquí a propósito, esos conservan su correo real.
+      where: { role: "STUDENT", suprimidoEl: null },
       orderBy: [{ firstName: "asc" }, { email: "asc" }],
-      select: { id: true, firstName: true, lastName: true, email: true },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        suprimidoEl: true,
+      },
     }),
     prisma.grupo.findMany({
       where: { profesorId: usuario.id, archivado: false },
@@ -329,7 +338,7 @@ export default async function ClasePage({
               <optgroup label="Estudiantes">
                 {opcionesEstudiantes.map((e) => (
                   <option key={e.id} value={`alumno:${e.id}`}>
-                    {nombreDe(e)}
+                    {estaSuprimido(e) ? "Estudiante suprimido" : nombreDe(e)}
                   </option>
                 ))}
               </optgroup>
