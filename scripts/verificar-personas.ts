@@ -5,7 +5,13 @@
  */
 import "dotenv/config";
 import { estaBloqueado, estaSuprimido } from "@/lib/roles";
-import { bloquear, desbloquear, puedeBloquearse } from "@/lib/admin";
+import {
+  bloquear,
+  desbloquear,
+  puedeBloquearse,
+  puedeSuprimirse,
+  suprimir,
+} from "@/lib/admin";
 import { prisma } from "@/lib/prisma";
 
 function afirmar(condicion: boolean, mensaje: string) {
@@ -164,6 +170,90 @@ async function main() {
       "y bloquear lo bloquea de verdad",
     );
   }
+
+  // 3. Suprimir: exige bloqueo, vacía la ficha y deja las clases en pie.
+  const bea = await nuevaPersona("bea");
+  const recorrido = await prisma.recorrido.create({
+    data: { titulo: `Secuencia ${marca}`, nivel: "A1", orden: 999, autorId: bea.id },
+  });
+  const asignacion = await prisma.asignacion.create({
+    data: { estudianteId: bea.id, profesorId: profe.id, recorridoId: recorrido.id },
+  });
+  const suClase = await prisma.clase.create({
+    data: {
+      profesorId: profe.id,
+      estudianteId: bea.id,
+      empiezaEl: ayer,
+      minutos: 90,
+      estado: "DADA",
+      importeCentimos: 3000,
+      deberes: "Algo que hacer.",
+    },
+  });
+  await prisma.deber.create({ data: { claseId: suClase.id, estudianteId: bea.id } });
+  await prisma.miembroGrupo.create({
+    data: { grupoId: grupo.id, estudianteId: bea.id },
+  });
+
+  afirmar(
+    (await puedeSuprimirse(bea.id, otroAdmin.id)) !== null,
+    "a quien no está bloqueado no se le puede suprimir",
+  );
+
+  await bloquear(bea.id);
+  afirmar(
+    (await puedeSuprimirse(bea.id, otroAdmin.id)) === null,
+    "una vez bloqueado, sí",
+  );
+  afirmar(
+    (await puedeSuprimirse(otroAdmin.id, otroAdmin.id)) !== null,
+    "nadie se suprime a sí mismo",
+  );
+
+  await suprimir(bea.id);
+  const lapida = await prisma.user.findUniqueOrThrow({ where: { id: bea.id } });
+
+  afirmar(lapida.suprimidoEl !== null, "suprimir pone la fecha");
+  afirmar(lapida.firstName === null && lapida.lastName === null, "se va el nombre");
+  afirmar(lapida.clerkId === null, "se va la cuenta de acceso");
+  afirmar(lapida.role === "STUDENT", "la lápida se queda sin poderes");
+  afirmar(
+    lapida.email === `suprimido-${bea.id}@hispaprofe.invalid`,
+    "el correo se sustituye por uno que no es de nadie",
+  );
+  afirmar(
+    (await prisma.asignacion.count({ where: { id: asignacion.id } })) === 0,
+    "se van sus asignaciones y con ellas su progreso",
+  );
+  afirmar(
+    (await prisma.deber.count({ where: { estudianteId: bea.id } })) === 0,
+    "se van sus deberes",
+  );
+  afirmar(
+    (await prisma.miembroGrupo.count({ where: { estudianteId: bea.id } })) === 0,
+    "se va de los grupos",
+  );
+
+  const claseViva = await prisma.clase.findUniqueOrThrow({ where: { id: suClase.id } });
+  afirmar(claseViva.estado === "DADA", "su clase sigue en pie");
+  afirmar(claseViva.importeCentimos === 3000, "con su importe intacto");
+  afirmar(claseViva.estudianteId === bea.id, "y sigue apuntando a la lápida");
+
+  afirmar(
+    (await prisma.recorrido.findUniqueOrThrow({ where: { id: recorrido.id } }))
+      .autorId === null,
+    "lo que escribió se queda sin autor, no se borra",
+  );
+
+  // Dos supresiones seguidas no chocan por el correo.
+  const carla = await nuevaPersona("carla");
+  await bloquear(carla.id);
+  await suprimir(carla.id);
+  afirmar(
+    (await prisma.user.findUniqueOrThrow({ where: { id: carla.id } })).email !==
+      lapida.email,
+    "dos fichas suprimidas no chocan por el correo",
+  );
 
   console.log("\nTodas las verificaciones pasan.");
 }

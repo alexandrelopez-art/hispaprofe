@@ -95,3 +95,86 @@ export async function desbloquear(usuarioId: string): Promise<void> {
     data: { bloqueadoEl: null },
   });
 }
+
+/**
+ * Suprimir es irreversible, así que exige haber pasado antes por un gesto
+ * que sí se puede deshacer: solo se suprime a quien ya está bloqueado.
+ */
+export async function puedeSuprimirse(
+  usuarioId: string,
+  yoId: string,
+): Promise<string | null> {
+  if (usuarioId === yoId) return "No puedes suprimirte a ti mismo.";
+
+  const usuario = await prisma.user.findUnique({
+    where: { id: usuarioId },
+    select: { role: true, bloqueadoEl: true, suprimidoEl: true },
+  });
+  if (!usuario) return "Esa persona no existe.";
+  if (usuario.suprimidoEl) return "Esa ficha ya está suprimida.";
+  if (!usuario.bloqueadoEl) return "Primero hay que bloquearla.";
+
+  if (usuario.role === "ADMIN") {
+    const cuantos = await prisma.user.count({
+      where: { role: "ADMIN", bloqueadoEl: null },
+    });
+    if (cuantos <= 1) return "No puedes suprimir al último administrador.";
+  }
+  return null;
+}
+
+/**
+ * Vacía la ficha sin borrar la fila.
+ *
+ * La fila se queda como lápida porque sus clases apuntan a ella: borrarla
+ * las dejaría sin estudiante y sin grupo, que es el estado que `validarClase`
+ * prohíbe. Las horas trabajadas son del profesor, no de quien se va.
+ *
+ * Todo en una transacción: una supresión a medias dejaría a alguien con la
+ * ficha vaciada pero el progreso intacto, que es lo peor de los dos mundos.
+ */
+export async function suprimir(usuarioId: string): Promise<void> {
+  const ahora = new Date();
+
+  await prisma.$transaction([
+    prisma.cuentaGoogle.deleteMany({ where: { usuarioId } }),
+    prisma.miembroGrupo.deleteMany({ where: { estudianteId: usuarioId } }),
+    prisma.deber.deleteMany({ where: { estudianteId: usuarioId } }),
+    // Borrar la asignación se lleva en cascada sus PasoCompletado: los pasos
+    // que marcó, lo que respondió en cada ejercicio y los puntos que le dieron.
+    prisma.asignacion.deleteMany({ where: { estudianteId: usuarioId } }),
+
+    // Lo que escribió sobrevive; la firma no.
+    prisma.recorrido.updateMany({
+      where: { autorId: usuarioId },
+      data: { autorId: null },
+    }),
+    prisma.ejercicio.updateMany({
+      where: { autorId: usuarioId },
+      data: { autorId: null },
+    }),
+    prisma.archivo.updateMany({
+      where: { subidoPorId: usuarioId },
+      data: { subidoPorId: null },
+    }),
+
+    prisma.user.update({
+      where: { id: usuarioId },
+      data: {
+        // El correo se sustituye y no se vacía porque la columna es única y
+        // no acepta nulos. El id es un cuid, así que el nuevo es único por
+        // construcción, y `.invalid` está reservado para que no sea de nadie.
+        email: `suprimido-${usuarioId}@hispaprofe.invalid`,
+        // Sin clerkId, si esa persona vuelve a registrarse empieza de cero
+        // en vez de reengancharse a esta ficha.
+        clerkId: null,
+        firstName: null,
+        lastName: null,
+        nivel: null,
+        tarifaCentimos: null,
+        role: "STUDENT",
+        suprimidoEl: ahora,
+      },
+    }),
+  ]);
+}
