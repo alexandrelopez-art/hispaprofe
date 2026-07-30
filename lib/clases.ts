@@ -304,7 +304,15 @@ const seleccionLista = {
   deberes: true,
   importeCentimos: true,
   cobradaEl: true,
-  estudiante: { select: { id: true, firstName: true, lastName: true, email: true } },
+  estudiante: {
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      email: true,
+      suprimidoEl: true,
+    },
+  },
   grupo: { select: { id: true, nombre: true } },
   _count: { select: { asignados: true } },
 } satisfies Prisma.ClaseSelect;

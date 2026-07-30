@@ -10,6 +10,7 @@ import {
   editarClase,
   guardarFicha,
 } from "@/lib/acciones-clases";
+import { estaSuprimido } from "@/lib/roles";
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 
@@ -54,7 +55,15 @@ export default async function ClasePage({
       notas: true,
       deberes: true,
       importeCentimos: true,
-      estudiante: { select: { id: true, firstName: true, lastName: true, email: true } },
+      estudiante: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+          suprimidoEl: true,
+        },
+      },
       grupo: { select: { id: true, nombre: true } },
       asignados: {
         orderBy: { createdAt: "asc" },
@@ -62,7 +71,13 @@ export default async function ClasePage({
           id: true,
           cerradoEl: true,
           estudiante: {
-            select: { id: true, firstName: true, lastName: true, email: true },
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+              suprimidoEl: true,
+            },
           },
         },
       },
@@ -123,7 +138,9 @@ export default async function ClasePage({
 
       <h1 className="mt-4 text-3xl font-extrabold tracking-tight text-tinta">
         {clase.estudiante
-          ? nombreDe(clase.estudiante)
+          ? estaSuprimido(clase.estudiante)
+            ? "Estudiante suprimido"
+            : nombreDe(clase.estudiante)
           : `Grupo · ${clase.grupo?.nombre ?? "sin grupo"}`}
       </h1>
       <p className="mt-1 text-tinta-suave">
@@ -230,7 +247,9 @@ export default async function ClasePage({
                 className="flex flex-wrap items-center gap-3 rounded-xl border border-hp-100 bg-white px-4 py-3 shadow-suave"
               >
                 <span className="min-w-0 flex-1 truncate text-sm font-semibold text-tinta">
-                  {nombreDe(d.estudiante)}
+                  {estaSuprimido(d.estudiante)
+                    ? "Estudiante suprimido"
+                    : nombreDe(d.estudiante)}
                 </span>
 
                 {d.cerradoEl ? (

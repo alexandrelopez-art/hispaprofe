@@ -5,6 +5,7 @@ import {
   asignarSecuencia,
   otorgarPuntos,
 } from "@/lib/acciones";
+import { estaSuprimido } from "@/lib/roles";
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { horas, totalesDeClases } from "@/lib/clases";
@@ -74,9 +75,10 @@ export default async function AlumnoPage({
     totalesDeClases({ profesorId: usuario.id, estudianteId: id }),
   ]);
 
-  const nombre =
-    [estudiante.firstName, estudiante.lastName].filter(Boolean).join(" ") ||
-    estudiante.email;
+  const nombre = estaSuprimido(estudiante)
+    ? "Ficha suprimida"
+    : [estudiante.firstName, estudiante.lastName].filter(Boolean).join(" ") ||
+      estudiante.email;
 
   return (
     <div className="mx-auto max-w-3xl px-6 py-12">
@@ -97,7 +99,9 @@ export default async function AlumnoPage({
           </span>
         )}
       </div>
-      <p className="mt-1 text-tinta-suave">{estudiante.email}</p>
+      <p className="mt-1 text-tinta-suave">
+        {estaSuprimido(estudiante) ? "sin datos" : estudiante.email}
+      </p>
 
       {totalesClases.cuantas > 0 && (
         <p className="mt-3 text-sm text-tinta-suave">

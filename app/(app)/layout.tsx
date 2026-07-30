@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { UserButton } from "@clerk/nextjs";
-import { getUsuarioActual } from "@/lib/usuario";
+import { bloqueoDelActual, getUsuarioActual } from "@/lib/usuario";
 import { esAdmin } from "@/lib/roles";
 
 export default async function AppLayout({
@@ -11,6 +11,24 @@ export default async function AppLayout({
   // Crea la fila de User la primera vez que entra. Va en el layout para
   // que ocurra en cualquier página de la zona con sesión, no solo en el panel.
   const usuario = await getUsuarioActual();
+
+  // Si no hay usuario puede ser que no haya sesión o que esté bloqueado. Solo
+  // en ese caso se pregunta por el bloqueo, así que es una consulta de más
+  // únicamente en el caso raro.
+  if (!usuario && (await bloqueoDelActual())) {
+    return (
+      <main className="mx-auto flex max-w-lg flex-col items-center px-6 py-24 text-center">
+        <h1 className="text-2xl font-extrabold tracking-tight text-tinta">
+          Tu acceso está bloqueado
+        </h1>
+        <p className="mt-3 text-tinta-suave">
+          Tu cuenta sigue existiendo, pero ahora mismo no puedes entrar. Habla
+          con tu profesor si crees que es un error.
+        </p>
+      </main>
+    );
+  }
+
   const esProfe = usuario?.role === "PROFESOR" || usuario?.role === "ADMIN";
   const esAdministrador = esAdmin(usuario);
 

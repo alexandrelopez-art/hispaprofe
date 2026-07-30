@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { getUsuarioActual } from "@/lib/usuario";
 import { euros, horas, listarClases, totalesDeClases } from "@/lib/clases";
 import type { FiltroClases } from "@/lib/clases";
+import { estaSuprimido } from "@/lib/roles";
 import { deInput, fechaHora } from "@/lib/fechas";
 import { crearClase } from "@/lib/acciones-clases";
 import type { EstadoClase } from "@/lib/generated/prisma/enums";
@@ -279,7 +280,9 @@ export default async function ClasesPage({
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-semibold text-tinta">
                     {c.estudiante
-                      ? nombreDe(c.estudiante)
+                      ? estaSuprimido(c.estudiante)
+                        ? "Estudiante suprimido"
+                        : nombreDe(c.estudiante)
                       : `Grupo · ${c.grupo?.nombre ?? "sin grupo"}`}
                   </p>
                   <p className="truncate text-xs text-tinta-suave">
