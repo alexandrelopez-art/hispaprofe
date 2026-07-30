@@ -1,6 +1,13 @@
 import { prisma } from "@/lib/prisma";
 import { getUsuarioActual } from "@/lib/usuario";
-import { hacerProfesor, invitarProfesor, quitarProfesor } from "@/lib/acciones-admin";
+import {
+  bloquearPersona,
+  desbloquearPersona,
+  hacerProfesor,
+  invitarProfesor,
+  quitarProfesor,
+  suprimirPersona,
+} from "@/lib/acciones-admin";
 import type { Prisma } from "@/lib/generated/prisma/client";
 
 export const dynamic = "force-dynamic";
@@ -54,6 +61,8 @@ export default async function AdminPersonasPage({
       role: true,
       nivel: true,
       clerkId: true,
+      bloqueadoEl: true,
+      suprimidoEl: true,
     },
   });
 
@@ -114,15 +123,19 @@ export default async function AdminPersonasPage({
             !soyYo &&
             p.role !== "STUDENT" &&
             !(p.role === "ADMIN" && administradores <= 1);
+          const bloqueado = p.bloqueadoEl !== null;
+          const suprimido = p.suprimidoEl !== null;
 
           return (
             <li
               key={p.id}
-              className="flex flex-wrap items-center gap-3 rounded-xl border border-hp-100 bg-white px-4 py-3 shadow-suave"
+              className={`flex flex-wrap items-center gap-3 rounded-xl border border-hp-100 bg-white px-4 py-3 shadow-suave ${
+                bloqueado ? "opacity-60" : ""
+              }`}
             >
               <div className="min-w-0 flex-1">
                 <p className="truncate font-semibold text-tinta">
-                  {nombreDe(p)}
+                  {suprimido ? "Ficha suprimida" : nombreDe(p)}
                   {soyYo && (
                     <span className="ml-2 text-xs font-bold text-tinta-suave">
                       (tú)
@@ -130,11 +143,17 @@ export default async function AdminPersonasPage({
                   )}
                 </p>
                 <p className="truncate text-xs text-tinta-suave">
-                  {p.email}
+                  {suprimido ? "sin datos" : p.email}
                   {p.nivel && ` · ${p.nivel}`}
                   {!p.clerkId && " · ficha sin reclamar"}
                 </p>
               </div>
+
+              {bloqueado && (
+                <span className="shrink-0 rounded-md bg-fondo px-2 py-0.5 text-xs font-semibold text-tinta-suave ring-1 ring-inset ring-hp-100">
+                  {suprimido ? "Suprimido" : "Bloqueado"}
+                </span>
+              )}
 
               <span
                 className={`shrink-0 rounded-md px-2 py-0.5 text-xs font-semibold ring-1 ring-inset ${
@@ -167,7 +186,59 @@ export default async function AdminPersonasPage({
                     </button>
                   </form>
                 )}
+                {!soyYo && !suprimido && !bloqueado && (
+                  <form action={bloquearPersona}>
+                    <input type="hidden" name="usuarioId" value={p.id} />
+                    <button
+                      type="submit"
+                      className="h-9 rounded-full border-2 border-hp-200 px-4 text-xs font-bold text-tinta-suave transition-colors hover:border-bloque3 hover:text-tinta"
+                    >
+                      Bloquear
+                    </button>
+                  </form>
+                )}
+                {bloqueado && !suprimido && (
+                  <form action={desbloquearPersona}>
+                    <input type="hidden" name="usuarioId" value={p.id} />
+                    <button
+                      type="submit"
+                      className="h-9 rounded-full border-2 border-hp-200 px-4 text-xs font-bold text-hp-600 transition-colors hover:border-hp-400"
+                    >
+                      Desbloquear
+                    </button>
+                  </form>
+                )}
               </div>
+
+              {bloqueado && !suprimido && (
+                <details className="w-full">
+                  <summary className="cursor-pointer text-xs font-bold text-tinta-suave hover:text-hp-500">
+                    Suprimir esta ficha
+                  </summary>
+                  <p className="mt-2 text-xs text-tinta-suave">
+                    Se van su nombre, su correo, su cuenta, sus grupos, sus
+                    deberes y todo su progreso. Sus clases se quedan, con sus
+                    horas y su importe, como «Estudiante suprimido».{" "}
+                    <strong className="text-tinta">Esto no se puede deshacer.</strong>
+                  </p>
+                  <form action={suprimirPersona} className="mt-3 flex flex-wrap gap-2">
+                    <input type="hidden" name="usuarioId" value={p.id} />
+                    <input
+                      type="text"
+                      name="confirmacion"
+                      required
+                      placeholder={`Escribe ${p.email} para confirmar`}
+                      className="h-9 min-w-72 flex-1 rounded-full border border-hp-200 bg-fondo px-4 text-xs text-tinta outline-none focus:border-hp-400"
+                    />
+                    <button
+                      type="submit"
+                      className="h-9 rounded-full bg-bloque3 px-4 text-xs font-bold text-tinta transition-opacity hover:opacity-80"
+                    >
+                      Suprimir
+                    </button>
+                  </form>
+                </details>
+              )}
             </li>
           );
         })}
