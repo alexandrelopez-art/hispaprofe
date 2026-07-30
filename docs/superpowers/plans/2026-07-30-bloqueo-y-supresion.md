@@ -466,11 +466,18 @@ Y añadir en `main()`, antes del `console.log` final:
     );
   } else {
     const otro = await nuevaPersona("admin2", { role: "ADMIN" });
+    // La aserción va sobre `puedeBloquearse` y no sobre el efecto de
+    // `bloquear`: la guarda vive entera en la primera, así que comprobar
+    // solo que la fecha se puso pasaría igual con una guarda rota.
+    afirmar(
+      (await puedeBloquearse(otro.id, ana.id)) === null,
+      "con más de un administrador, a uno sí se le puede bloquear",
+    );
     await bloquear(otro.id);
     afirmar(
       (await prisma.user.findUniqueOrThrow({ where: { id: otro.id } }))
         .bloqueadoEl !== null,
-      "con más de un administrador, a uno sí se le puede bloquear",
+      "y bloquearlo le pone la fecha",
     );
   }
 ```
