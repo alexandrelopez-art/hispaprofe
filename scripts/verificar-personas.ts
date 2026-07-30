@@ -12,7 +12,8 @@ import {
   puedeSuprimirse,
   suprimir,
 } from "@/lib/admin";
-import { borrarClase, sePuedeBorrar } from "@/lib/clases";
+import { borrarClase, estudianteAsignable, sePuedeBorrar } from "@/lib/clases";
+import { listarEstudiantesElegibles } from "@/lib/estudiantes";
 import { prisma } from "@/lib/prisma";
 
 function afirmar(condicion: boolean, mensaje: string) {
@@ -117,11 +118,20 @@ async function main() {
   const deGrupo = await prisma.clase.create({
     data: { profesorId: profe.id, grupoId: grupo.id, empiezaEl: manana, minutos: 60 },
   });
+  const primerBloqueo = anaBloqueada.bloqueadoEl;
   await bloquear(ana.id);
   afirmar(
     (await prisma.clase.findUniqueOrThrow({ where: { id: deGrupo.id } })).estado ===
       "AGENDADA",
     "bloquear no toca la clase de un grupo donde solo es miembro",
+  );
+  // El «desde cuándo» es toda la razón de que sea una fecha y no un booleano:
+  // bloquear otra vez no puede reescribirlo.
+  afirmar(
+    (
+      await prisma.user.findUniqueOrThrow({ where: { id: ana.id } })
+    ).bloqueadoEl?.getTime() === primerBloqueo?.getTime(),
+    "bloquear a quien ya estaba bloqueado no cambia la fecha original",
   );
 
   // Bloquear a un profesor sí anula las clases que él daba.
@@ -136,7 +146,7 @@ async function main() {
   );
 
   // Desbloquear quita la fecha y no resucita nada.
-  await desbloquear(ana.id);
+  afirmar(await desbloquear(ana.id), "desbloquear a un bloqueado devuelve true");
   afirmar(
     (await prisma.user.findUniqueOrThrow({ where: { id: ana.id } })).bloqueadoEl ===
       null,
@@ -248,6 +258,44 @@ async function main() {
   afirmar(
     (await puedeSuprimirse(bea.id, otroAdmin.id)) !== null,
     "a una ficha ya suprimida no se le puede volver a suprimir",
+  );
+
+  // A una lápida no se le puede volver a hacer nada: si sale en una lista de
+  // estudiantes, un clic normal le crea asignaciones y progreso nuevos, que
+  // es justo lo que la supresión borró.
+  const elegibles = await listarEstudiantesElegibles({ select: { id: true } });
+  afirmar(
+    !elegibles.some((e) => e.id === bea.id),
+    "una ficha suprimida no sale entre los estudiantes elegibles",
+  );
+  afirmar(
+    elegibles.some((e) => e.id === ana.id),
+    "y un estudiante normal sí sale",
+  );
+
+  // Quitarla del desplegable es solo interfaz: una pestaña vieja o una
+  // petición fabricada siguen mandando su id, y la comprobación tiene que
+  // estar donde se escribe la clase.
+  afirmar(
+    (await estudianteAsignable(bea.id)) === false,
+    "no se le agenda una clase nueva a una ficha suprimida",
+  );
+  afirmar(await estudianteAsignable(ana.id), "a un estudiante normal sí");
+  afirmar(
+    await estudianteAsignable(null),
+    "y una clase de grupo no lleva estudiante que comprobar",
+  );
+
+  // Quien está suprimido está bloqueado por definición: desbloquear una
+  // lápida dejaría el estado que el diseño declara imposible.
+  afirmar(
+    (await desbloquear(bea.id)) === false,
+    "desbloquear se niega sobre una ficha suprimida y devuelve false",
+  );
+  afirmar(
+    (await prisma.user.findUniqueOrThrow({ where: { id: bea.id } }))
+      .bloqueadoEl !== null,
+    "y la lápida se queda con su fecha de bloqueo",
   );
 
   // Dos supresiones seguidas no chocan por el correo.
