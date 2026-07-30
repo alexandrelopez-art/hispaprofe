@@ -1,9 +1,10 @@
 import { prisma } from "@/lib/prisma";
 import { getUsuarioActual } from "@/lib/usuario";
-import { euros, horas } from "@/lib/clases";
+import { euros, horas, sePuedeBorrar } from "@/lib/clases";
 import { fechaHora, paraInput } from "@/lib/fechas";
 import {
   abrirDeberDeClase,
+  borrarLaClase,
   cambiarEstadoClase,
   cerrarDeberDeClase,
   cerrarTodos,
@@ -388,6 +389,27 @@ export default async function ClasePage({
         entra y se borran los de quien sale. Los que ya diste por hechos de
         quien sigue se quedan hechos.
       </p>
+
+      {sePuedeBorrar(clase.estado) && (
+        <details className="mt-10">
+          <summary className="cursor-pointer text-xs font-bold text-tinta-suave hover:text-hp-500">
+            Borrar esta clase
+          </summary>
+          <p className="mt-2 text-sm text-tinta-suave">
+            Desaparece del todo, con sus deberes. Si lo que quieres es dejar
+            constancia de que se cayó, anúlala en vez de borrarla.
+          </p>
+          <form action={borrarLaClase} className="mt-3">
+            <input type="hidden" name="claseId" value={clase.id} />
+            <button
+              type="submit"
+              className="h-9 rounded-full bg-bloque3 px-4 text-xs font-bold text-tinta transition-opacity hover:opacity-80"
+            >
+              Borrar la clase
+            </button>
+          </form>
+        </details>
+      )}
     </div>
   );
 }

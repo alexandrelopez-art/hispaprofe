@@ -1,10 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { exigirProfesor } from "@/lib/profesor";
 import {
   abrirDeber,
+  borrarClase,
   cerrarDeber,
   cerrarDeberesDeClase,
   congelarImporte,
@@ -254,4 +256,20 @@ export async function cerrarTodos(formData: FormData) {
 
   await cerrarDeberesDeClase(claseId);
   refrescar(claseId);
+}
+
+/**
+ * Borra la clase si no está dada. Después no se puede volver a su ficha, así
+ * que lleva a la lista en vez de refrescar una página que ya no existe.
+ */
+export async function borrarLaClase(formData: FormData) {
+  const claseId = String(formData.get("claseId") ?? "");
+  if (!claseId) return;
+  await exigirClaseSuya(claseId);
+
+  if (!(await borrarClase(claseId))) return;
+
+  revalidatePath("/profe/clases");
+  revalidatePath("/dashboard");
+  redirect("/profe/clases");
 }
