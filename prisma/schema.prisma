@@ -73,6 +73,17 @@ model User {
   // Tarifa por hora de este estudiante, en céntimos enteros. Los decimales
   // en coma flotante arrastran errores que al sumar un año se notan.
   tarifaCentimos Int?
+
+  /// Cuándo se le cerró el acceso. Null = entra con normalidad.
+  /// Fecha y no booleano: además de saber que está bloqueado, interesa
+  /// saber desde cuándo, y una fecha lo dice sin costar nada.
+  bloqueadoEl DateTime?
+
+  /// Cuándo se le vació la ficha. Null = la ficha es de una persona real.
+  /// Va aparte de bloqueadoEl y no en un estado único porque no son
+  /// excluyentes: quien está suprimido está bloqueado por definición.
+  suprimidoEl DateTime?
+
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
