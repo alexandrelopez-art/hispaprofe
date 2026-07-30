@@ -223,10 +223,16 @@ export default async function AdminPersonasPage({
                   </p>
                   <form action={suprimirPersona} className="mt-3 flex flex-wrap gap-2">
                     <input type="hidden" name="usuarioId" value={p.id} />
+                    {/*
+                      El único freno de la única acción irreversible no puede
+                      ser, para un lector de pantalla, una caja sin nombre: el
+                      placeholder no nombra el campo.
+                    */}
                     <input
                       type="text"
                       name="confirmacion"
                       required
+                      aria-label={`Escribe ${p.email} para confirmar la supresión`}
                       placeholder={`Escribe ${p.email} para confirmar`}
                       className="h-9 min-w-72 flex-1 rounded-full border border-hp-200 bg-fondo px-4 text-xs text-tinta outline-none focus:border-hp-400"
                     />

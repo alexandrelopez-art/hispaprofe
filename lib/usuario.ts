@@ -73,6 +73,12 @@ export async function getUsuarioActual() {
 
   const porCorreo = await prisma.user.findUnique({ where: { email } });
   if (porCorreo) {
+    // El bloqueo se lee antes de escribir: si no, un intento que va a acabar
+    // rechazado deja el nombre y el apellido de Clerk escritos en una ficha
+    // bloqueada, que en algo que va de privacidad es lo contrario de lo que
+    // se busca.
+    if (estaBloqueado(porCorreo)) return null;
+
     return dejarEntrar(
       await prisma.user.update({
         where: { id: porCorreo.id },
