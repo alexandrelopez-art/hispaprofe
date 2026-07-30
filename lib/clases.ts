@@ -57,6 +57,75 @@ export function horas(minutos: number): string {
 }
 
 /**
+ * La tarifa que aplica a una clase: la del estudiante, o la del grupo. Null
+ * si nadie la tiene puesta, que es un olvido y no una clase gratis.
+ */
+async function tarifaDe(
+  estudianteId: string | null,
+  grupoId: string | null,
+): Promise<number | null> {
+  if (estudianteId) {
+    const u = await prisma.user.findUnique({
+      where: { id: estudianteId },
+      select: { tarifaCentimos: true },
+    });
+    return u?.tarifaCentimos ?? null;
+  }
+  if (grupoId) {
+    const g = await prisma.grupo.findUnique({
+      where: { id: grupoId },
+      select: { tarifaCentimos: true },
+    });
+    return g?.tarifaCentimos ?? null;
+  }
+  return null;
+}
+
+/**
+ * Congela el precio de una clase dada: la tarifa de hoy por sus minutos,
+ * escrita una sola vez. Devuelve el importe que queda en la clase.
+ *
+ * Las dos guardas son la regla, no un detalle de la acción: solo una clase
+ * DADA tiene precio, y solo se escribe si no lo tenía. Recalcularlo
+ * reescribiría el pasado — subir la tarifa en marzo no puede cambiar lo que
+ * costó una clase de enero.
+ *
+ * Vive aquí y no en `cambiarEstadoClase` porque una acción de servidor no se
+ * puede llamar desde un script, y una regla que nada puede ejercitar es una
+ * regla de la que nadie puede fiarse.
+ */
+export async function congelarImporte(
+  claseId: string,
+): Promise<number | null> {
+  const clase = await prisma.clase.findUnique({
+    where: { id: claseId },
+    select: {
+      estado: true,
+      minutos: true,
+      estudianteId: true,
+      grupoId: true,
+      importeCentimos: true,
+    },
+  });
+  if (!clase) return null;
+  if (clase.estado !== "DADA") return null;
+  if (clase.importeCentimos !== null) return clase.importeCentimos;
+
+  const importeCentimos = importeDeClase(
+    await tarifaDe(clase.estudianteId, clase.grupoId),
+    clase.minutos,
+  );
+  // Sin tarifa no hay nada que escribir: el null se queda y la ficha avisa.
+  if (importeCentimos === null) return null;
+
+  await prisma.clase.update({
+    where: { id: claseId },
+    data: { importeCentimos },
+  });
+  return importeCentimos;
+}
+
+/**
  * Los estudiantes de una clase: el suyo si es particular, los del grupo si
  * es de grupo. Devuelve ids, que es lo único que necesitan los deberes.
  */

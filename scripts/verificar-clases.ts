@@ -18,8 +18,9 @@ import {
   listarClases,
   proximaClase,
   deberesPendientes,
+  congelarImporte,
 } from "@/lib/clases";
-import { fechaHora, paraInput } from "@/lib/fechas";
+import { deInput, fechaHora, paraInput } from "@/lib/fechas";
 import { prisma } from "@/lib/prisma";
 
 function afirmar(condicion: boolean, mensaje: string) {
@@ -80,6 +81,22 @@ async function main() {
     "la hora se escribe en la zona de Madrid, no en UTC",
   );
   afirmar(paraInput(cuando) === "2026-08-04T18:00", "el formato del input cuadra");
+
+  // Lo que escribe el profesor en un <input type="datetime-local"> son horas
+  // de Madrid. Estas tres pasan igual en un portátil de Madrid que en un
+  // servidor en UTC, que es justo lo que hay que asegurar.
+  afirmar(
+    deInput("2026-08-04T18:00")?.toISOString() === "2026-08-04T16:00:00.000Z",
+    "las 18:00 de agosto son las 16:00Z (horario de verano)",
+  );
+  afirmar(
+    deInput("2026-01-04T18:00")?.toISOString() === "2026-01-04T17:00:00.000Z",
+    "las 18:00 de enero son las 17:00Z (horario de invierno)",
+  );
+  afirmar(
+    deInput("cuando sea") === null,
+    "una fecha ilegible no se inventa: devuelve null",
+  );
 
   // 4. Los deberes: una fila por estudiante, y se cierran de una en una.
   const profe = await prisma.user.create({
@@ -330,6 +347,7 @@ async function main() {
     },
   });
   const otraVez = await proximaClase(ana.id, referencia);
+  afirmar(otraVez !== null, "sigue habiendo una próxima clase para Ana");
   afirmar(
     otraVez!.id === grupalFutura.id,
     "una clase de su grupo cuenta como suya, y la más cercana gana",
@@ -375,6 +393,78 @@ async function main() {
   afirmar(
     (await prisma.deber.count({ where: { claseId: particular.id } })) === 1,
     "pero la fila sigue ahí para el historial del profesor",
+  );
+
+  // 7. El importe se congela: se escribe una vez y no se reescribe nunca.
+  const marta = await prisma.user.create({
+    data: {
+      email: `marta-${marca}@ejemplo.test`,
+      firstName: "Marta",
+      tarifaCentimos: 2000,
+    },
+  });
+  const paraCongelar = await prisma.clase.create({
+    data: {
+      profesorId: profe.id,
+      estudianteId: marta.id,
+      empiezaEl: new Date("2026-08-08T18:00:00+02:00"),
+      minutos: 60,
+      estado: "DADA",
+      notas: marca,
+    },
+  });
+  afirmar(
+    (await congelarImporte(paraCongelar.id)) === 2000,
+    "una hora dada a 20 € la hora congela 20 €",
+  );
+
+  // La tarifa sube en marzo; las clases de enero no se enteran.
+  await prisma.user.update({
+    where: { id: marta.id },
+    data: { tarifaCentimos: 3000 },
+  });
+  afirmar(
+    (await congelarImporte(paraCongelar.id)) === 2000,
+    "volver a marcarla dada con la tarifa subida sigue dando 20 €",
+  );
+  const relectura = await prisma.clase.findUnique({
+    where: { id: paraCongelar.id },
+    select: { importeCentimos: true },
+  });
+  afirmar(
+    relectura?.importeCentimos === 2000,
+    "y en la base sigue habiendo 20 €, no 30",
+  );
+
+  // Sin tarifa no hay importe: por eso la ficha enseña el aviso ámbar.
+  const sinTarifaAun = await prisma.clase.create({
+    data: {
+      profesorId: profe.id,
+      estudianteId: ana.id,
+      empiezaEl: new Date("2026-08-09T18:00:00+02:00"),
+      minutos: 90,
+      estado: "DADA",
+      notas: marca,
+    },
+  });
+  afirmar(
+    (await congelarImporte(sinTarifaAun.id)) === null,
+    "una clase dada a quien no tiene tarifa se queda sin importe",
+  );
+
+  // Una clase que todavía no ha ocurrido no tiene precio que congelar.
+  const todaviaNo = await prisma.clase.create({
+    data: {
+      profesorId: profe.id,
+      estudianteId: marta.id,
+      empiezaEl: new Date("2026-08-10T18:00:00+02:00"),
+      minutos: 60,
+      notas: marca,
+    },
+  });
+  afirmar(
+    (await congelarImporte(todaviaNo.id)) === null,
+    "una clase agendada no congela nada, aunque haya tarifa",
   );
 
   console.log("\nTodas las verificaciones pasan.");
