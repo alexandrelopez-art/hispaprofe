@@ -17,6 +17,7 @@
 - Interfaz **en español con tildes**. Comentarios en español, cortos, explicando el porqué y no el qué.
 - Tokens de Tailwind del proyecto: `hp-50…hp-700`, `sol-100…sol-400`, `bloque1-3`, `tinta`, `tinta-suave`, `fondo`, `rounded-tarjeta`, `shadow-suave`, `shadow-tarjeta`. Nada de colores crudos.
 - **El dinero se guarda en céntimos enteros.** Nunca euros con decimales.
+- **Las horas se leen con `deInput` y se escriben con `paraInput`, las dos de `lib/fechas.ts`. Nada más construye un `Date` a partir de una cadena de formulario.** Un `<input type="datetime-local">` manda `2026-08-04T18:00` sin zona, y `new Date(...)` lo interpreta en la del servidor: en producción, que va en UTC, cada clase se guardaría desplazada y cada edición sumaría otro desfase. Esta regla llegó tarde, después de que la revisión de rama encontrara justo ese fallo.
 - **Solo las clases `DADA` suman horas e importe.** `AGENDADA` y `ANULADA` no.
 - **Una clase tiene estudiante o grupo, nunca los dos ni ninguno.** Prisma no lo sabe expresar; lo hace cumplir `validarClase`.
 - **El importe se congela** al marcar la clase como dada. Cambiar la tarifa después no toca las clases ya dadas.
@@ -2428,6 +2429,51 @@ git commit -m "Próxima clase y deberes en el tablero del estudiante"
 ```
 
 ---
+
+## Deuda conocida al cerrar la tanda 1
+
+Escrito el 2026-07-29, después de la revisión de rama. Nada de esto bloquea la
+tanda, pero está aquí para que no se descubra dos veces.
+
+**La lección de esta tanda: el plan mandó dos defectos.** Un IDOR al cerrar
+deberes, y las horas parseadas en la zona del servidor. Los dos pasaron nueve
+revisiones por tarea, porque una revisión por tarea no puede ver lo que el plan
+dio por bueno. Para la tanda 2 —que va a parsear timestamps de Google— la regla
+va escrita arriba, en las restricciones globales: **`deInput` para leer,
+`paraInput` para escribir, y nada más construye un `Date` desde una cadena de
+formulario.**
+
+Pendientes, por orden de lo que más pica:
+
+- **`scripts/verificar-admin.ts` falla hoy**, y no es de esta tanda. Afirma «al
+  último administrador no se le puede quitar el rol» dando por hecho que el
+  único `ADMIN` es el que él crea; desde que `ADMIN_EMAILS` asciende a la cuenta
+  real, hay dos. `puedeQuitarseElRol` es correcto: el script es frágil. Arreglo:
+  que cuente los administradores que ya hay y afirme sobre la diferencia, no
+  sobre un absoluto.
+- **La lista fuerza `profesorId` incluso para un administrador**, mientras la
+  ficha deja a un administrador abrir cualquier clase. El diseño dice «un
+  administrador ve todas». Hay que decidir cuál de las dos manda.
+- **`validarClase` calcula un motivo que nadie enseña.** O se enseñan los
+  errores de acción en toda la aplicación, o la función devuelve un booleano.
+  Calcular un mensaje que nadie ve es lo peor de las dos opciones.
+- **Las «horas contigo» del perfil del estudiante no cuentan las clases de
+  grupo.** Quien solo asiste en grupo aparece con cero.
+- **`deInput` es más laxa que el `new Date` que sustituye**: valida la forma,
+  no el calendario, así que `2026-02-30` rueda a marzo en vez de rechazarse.
+  Solo se llega escribiendo la dirección a mano.
+- **Duplicación entre las dos pantallas** (`estadoLabel`, `estadoStyle`,
+  `nombreDe`, y la consulta de estudiantes y grupos). Cuando haya una tercera
+  pantalla, esa es la señal para sacarlas.
+- **La costura de `lib/clases.ts`**, si crece en las tandas 2 o 3: lo puro
+  (`importeDeClase`, `validarClase`, `euros`, `horas`) a un lado y las consultas
+  al otro.
+- **`ON DELETE SET NULL` en las claves de `Clase`** puede dejar una clase sin
+  estudiante y sin grupo — justo el estado que `validarClase` prohíbe. Hoy nada
+  borra usuarios ni grupos; acordarse antes de construir «borrar personas».
+- **La barra de filtros no tiene `aria-label`** en sus cuatro controles. Los dos
+  campos de fecha son ilegibles para un lector de pantalla. Mismo patrón en
+  `/admin/personas`: se arregla de una pasada en los dos sitios.
 
 ## Lo que esta tanda deja pendiente a propósito
 
