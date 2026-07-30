@@ -1380,6 +1380,34 @@ Y el correo de debajo:
       </p>
 ```
 
+- [ ] **Step 4b: Sacar las fichas suprimidas de los desplegables**
+
+Este paso faltaba en la primera versión del plan y lo encontró la revisión de la
+tarea. Las dos pantallas de clases consultan los estudiantes para sus
+desplegables con `where: { role: "STUDENT" }`, y **una ficha suprimida conserva
+ese rol**, así que aparecía en la lista enseñando su correo lápida —que parece
+de verdad— y, peor, **se podía agendar una clase nueva con ella**.
+
+En `app/(app)/profe/clases/page.tsx` y en `app/(app)/profe/clases/[id]/page.tsx`,
+añadir al `where` de la consulta de `estudiantes`:
+
+```tsx
+      suprimidoEl: null,
+```
+
+**No filtres por `bloqueadoEl`:** bloquear cierra la puerta y anula las clases
+futuras, pero la persona sigue en las listas —es la decisión de diseño— y
+conserva su correo real, así que por ahí no se escapa nada.
+
+En la ficha, la opción del **destinatario actual** que se añade a mano cuando la
+consulta no lo trae —justo el caso que crea este filtro— necesita `suprimidoEl`
+en su `select` y pintarse como «Estudiante suprimido» en vez de pasar por
+`nombreDe`:
+
+```tsx
+                {estaSuprimido(e) ? "Estudiante suprimido" : nombreDe(e)}
+```
+
 - [ ] **Step 5: Comprobar tipos y lint**
 
 Run: `npx tsc --noEmit && npm run lint`
