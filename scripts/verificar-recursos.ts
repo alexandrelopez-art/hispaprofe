@@ -8,6 +8,7 @@ import {
   duplicar,
   puedeBorrarse,
   puedeDesengancharse,
+  puedeDespublicarse,
   puedeEditarse,
   puedeEngancharse,
   tipoDeEjercicio,
@@ -120,6 +121,12 @@ async function main() {
   // 4. Regla 3: un ejercicio enganchado no se borra.
   afirmar((await puedeBorrarse(publicado.id)) !== null, "un enganchado no se borra");
   afirmar((await puedeBorrarse(borrador.id)) === null, "uno suelto sí se borra");
+
+  // 4b. Regla nueva: un ejercicio enganchado no se despublica. `otro` sigue
+  // suelto en este punto: su intento de engancharse en el paso 3 falló
+  // porque el paso ya tenía a `publicado`.
+  afirmar((await puedeDespublicarse(publicado.id)) !== null, "un enganchado no se despublica");
+  afirmar((await puedeDespublicarse(otro.id)) === null, "uno suelto sí se despublica");
 
   // 5. Sin respuestas, se desengancha y se edita con normalidad. Esta fila
   //    es la que discrimina: sin ella, una implementación que prohibiera por

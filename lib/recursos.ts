@@ -103,6 +103,21 @@ export async function puedeBorrarse(ejercicioId: string): Promise<string | null>
 }
 
 /**
+ * Si este ejercicio se puede volver a borrador, o el motivo del no.
+ *
+ * Misma consulta que `puedeBorrarse`, pero para el otro sentido: si colgara
+ * de un paso, el estudiante que lo tiene delante se quedaría con un
+ * ejercicio que la aplicación considera a medio escribir.
+ */
+export async function puedeDespublicarse(ejercicioId: string): Promise<string | null> {
+  const cuantos = await prisma.pasoEjercicio.count({ where: { ejercicioId } });
+  if (cuantos > 0) {
+    return "Cuelga de un paso. Quítalo de ahí antes de volverlo a borrador.";
+  }
+  return null;
+}
+
+/**
  * Si este ejercicio se puede editar, o el motivo del no.
  *
  * Lo que prohíbe no es estar enganchado: es que alguien haya respondido. Las

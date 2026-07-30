@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { Prisma } from "@/lib/generated/prisma/client";
-import type { Destreza, Nivel } from "@/lib/generated/prisma/enums";
+import { Destreza, Nivel } from "@/lib/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
 import { exigirProfesor } from "@/lib/profesor";
 import { analizar } from "@/lib/ejercicios/registro";
@@ -14,6 +14,7 @@ import {
   duplicar,
   puedeBorrarse,
   puedeDesengancharse,
+  puedeDespublicarse,
   puedeEditarse,
   puedeEngancharse,
   tipoDeEjercicio,
@@ -60,16 +61,25 @@ export async function guardarEjercicio(
 
   const id = String(formData.get("id") ?? "");
   const titulo = String(formData.get("titulo") ?? "").trim();
-  const nivel = String(formData.get("nivel") ?? "") as Nivel;
+  const nivelBruto = String(formData.get("nivel") ?? "");
   const destrezaBruta = String(formData.get("destreza") ?? "");
-  const destreza = destrezaBruta ? (destrezaBruta as Destreza) : null;
   const etiquetas = String(formData.get("etiquetas") ?? "")
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
 
   if (!titulo) return { error: "Ponle un título." };
-  if (!nivel) return { error: "Elige un nivel." };
+  if (!nivelBruto) return { error: "Elige un nivel." };
+  // Contra las claves del enum generado, no una lista escrita a mano: así no
+  // hay dos sitios que se puedan quedar desfasados si el enum cambia.
+  if (!Object.hasOwn(Nivel, nivelBruto)) return { error: "Ese nivel no existe." };
+  // `destreza` vacía significa «ninguna» y es válida; solo se rechaza una
+  // cadena no vacía que no sea uno de los valores del enum.
+  if (destrezaBruta && !Object.hasOwn(Destreza, destrezaBruta)) {
+    return { error: "Esa destreza no existe." };
+  }
+  const nivel = nivelBruto as Nivel;
+  const destreza = destrezaBruta ? (destrezaBruta as Destreza) : null;
 
   let datos: unknown;
   try {
@@ -188,10 +198,8 @@ export async function despublicarEjercicio(
   const id = String(formData.get("id") ?? "");
   if (!id) return { error: "Falta el ejercicio." };
 
-  const cuantos = await prisma.pasoEjercicio.count({ where: { ejercicioId: id } });
-  if (cuantos > 0) {
-    return { error: "Cuelga de un paso. Quítalo de ahí antes de volverlo a borrador." };
-  }
+  const motivo = await puedeDespublicarse(id);
+  if (motivo) return { error: motivo };
 
   await prisma.ejercicio.update({ where: { id }, data: { publicado: false } });
   refrescar(id);
