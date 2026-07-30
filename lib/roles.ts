@@ -25,3 +25,22 @@ export function esCorreoDeAdmin(email: string): boolean {
 export function esAdmin(usuario: { role: string } | null | undefined): boolean {
   return usuario?.role === "ADMIN";
 }
+
+/**
+ * Bloqueado es quien tiene fecha de bloqueo. Se comprueba en
+ * `getUsuarioActual`, que es por donde pasa todo, y no en cada acción: una
+ * comprobación repartida por veinte sitios es una comprobación que alguien
+ * acabará olvidando.
+ */
+export function estaBloqueado(
+  usuario: { bloqueadoEl: Date | null } | null | undefined,
+): boolean {
+  return Boolean(usuario?.bloqueadoEl);
+}
+
+/** Suprimido es quien tiene la ficha vacía. Su fila sigue ahí a propósito. */
+export function estaSuprimido(
+  usuario: { suprimidoEl: Date | null } | null | undefined,
+): boolean {
+  return Boolean(usuario?.suprimidoEl);
+}
