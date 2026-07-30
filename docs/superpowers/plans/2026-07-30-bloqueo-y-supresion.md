@@ -713,10 +713,14 @@ export async function puedeSuprimirse(
   if (!usuario.bloqueadoEl) return "Primero hay que bloquearla.";
 
   if (usuario.role === "ADMIN") {
-    const cuantos = await prisma.user.count({
+    // El bloqueo ya protegió al último administrador activo: quien llega
+    // hasta aquí está bloqueado y por tanto no contaba como activo, así que
+    // suprimirlo no deja a nadie fuera. Esta red solo salta si alguien ha
+    // tocado la base a mano.
+    const activos = await prisma.user.count({
       where: { role: "ADMIN", bloqueadoEl: null },
     });
-    if (cuantos <= 1) return "No puedes suprimir al último administrador.";
+    if (activos === 0) return "No queda ningún administrador activo.";
   }
   return null;
 }
