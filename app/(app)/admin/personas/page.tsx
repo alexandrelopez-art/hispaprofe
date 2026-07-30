@@ -164,7 +164,11 @@ export default async function AdminPersonasPage({
               </span>
 
               <div className="flex shrink-0 gap-2">
-                {p.role === "STUDENT" && (
+                {/*
+                  Toda lápida se queda como STUDENT a propósito, así que sin
+                  el `!suprimido` este botón se le pinta encima a todas.
+                */}
+                {p.role === "STUDENT" && !suprimido && (
                   <form action={hacerProfesor}>
                     <input type="hidden" name="usuarioId" value={p.id} />
                     <button

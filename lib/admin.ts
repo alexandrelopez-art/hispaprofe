@@ -29,6 +29,26 @@ export async function puedeQuitarseElRol(usuarioId: string): Promise<boolean> {
 }
 
 /**
+ * Si a esta persona se le puede subir el rol a profesor.
+ *
+ * La negativa que importa es la ficha suprimida: `suprimir` la deja como
+ * STUDENT a propósito —«la lápida se queda sin poderes»—, que es justo el rol
+ * al que el panel le pinta encima el botón «Hacer profesor». Sin esta guarda,
+ * un clic corriente le devuelve los poderes que la supresión le quitó.
+ *
+ * A un administrador tampoco: subirlo a profesor sería bajarlo de rango.
+ */
+export async function puedeHacerseProfesor(usuarioId: string): Promise<boolean> {
+  const usuario = await prisma.user.findUnique({
+    where: { id: usuarioId },
+    select: { role: true, suprimidoEl: true },
+  });
+  if (!usuario) return false;
+  if (usuario.suprimidoEl) return false;
+  return usuario.role !== "ADMIN";
+}
+
+/**
  * Si bloquear a esta persona es mala idea, el motivo; si no, null.
  *
  * Las dos negativas son las mismas que protegen a `quitarProfesor`, y por el

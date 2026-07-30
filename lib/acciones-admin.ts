@@ -7,6 +7,7 @@ import {
   desbloquear,
   exigirAdmin,
   puedeBloquearse,
+  puedeHacerseProfesor,
   puedeQuitarseElRol,
   puedeSuprimirse,
   suprimir,
@@ -19,17 +20,17 @@ function refrescar() {
   revalidatePath("/dashboard");
 }
 
-/** Sube a alguien a profesor. Un administrador no baja de rango por esto. */
+/**
+ * Sube a alguien a profesor. Un administrador no baja de rango por esto, y a
+ * una ficha suprimida no se le devuelven poderes: quién puede subir lo decide
+ * `puedeHacerseProfesor`, que vive fuera para que el script pueda ejercitarlo.
+ */
 export async function hacerProfesor(formData: FormData) {
   await exigirAdmin();
   const usuarioId = String(formData.get("usuarioId") ?? "");
   if (!usuarioId) return;
 
-  const usuario = await prisma.user.findUnique({
-    where: { id: usuarioId },
-    select: { role: true },
-  });
-  if (!usuario || usuario.role === "ADMIN") return;
+  if (!(await puedeHacerseProfesor(usuarioId))) return;
 
   await prisma.user.update({ where: { id: usuarioId }, data: { role: "PROFESOR" } });
 
