@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { listarEstudiantesElegibles } from "@/lib/estudiantes";
 import { getUsuarioActual } from "@/lib/usuario";
 import {
   asignarSecuenciaAVarios,
@@ -71,9 +72,7 @@ export default async function RecorridoDetallePage({
 
   const [estudiantes, asignaciones] = esProfe
     ? await Promise.all([
-        prisma.user.findMany({
-          where: { role: "STUDENT" },
-          orderBy: [{ firstName: "asc" }, { email: "asc" }],
+        listarEstudiantesElegibles({
           select: {
             id: true,
             firstName: true,

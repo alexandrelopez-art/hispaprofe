@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { listarEstudiantesElegibles } from "@/lib/estudiantes";
 import { getUsuarioActual } from "@/lib/usuario";
 import { redirect } from "next/navigation";
 import Link from "next/link";
@@ -13,9 +14,7 @@ export default async function ImportarPage() {
   }
 
   const [estudiantes, secuencias] = await Promise.all([
-    prisma.user.findMany({
-      where: { role: "STUDENT" },
-      orderBy: [{ firstName: "asc" }, { email: "asc" }],
+    listarEstudiantesElegibles({
       select: { id: true, firstName: true, lastName: true, email: true },
     }),
     prisma.recorrido.findMany({

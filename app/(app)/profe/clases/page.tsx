@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { listarEstudiantesElegibles } from "@/lib/estudiantes";
 import { getUsuarioActual } from "@/lib/usuario";
 import { euros, horas, listarClases, totalesDeClases } from "@/lib/clases";
 import type { FiltroClases } from "@/lib/clases";
@@ -100,12 +101,7 @@ export default async function ClasesPage({
   const [clases, totales, estudiantes, grupos] = await Promise.all([
     listarClases(filtro),
     totalesDeClases(filtro),
-    prisma.user.findMany({
-      // Una ficha suprimida no es una persona con quien agendar: solo queda
-      // su lápida para que sus clases pasadas cuadren. Los bloqueados sí
-      // siguen aquí a propósito, esos conservan su correo real.
-      where: { role: "STUDENT", suprimidoEl: null },
-      orderBy: [{ firstName: "asc" }, { email: "asc" }],
+    listarEstudiantesElegibles({
       select: { id: true, firstName: true, lastName: true, email: true },
     }),
     prisma.grupo.findMany({

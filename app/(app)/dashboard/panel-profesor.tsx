@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { contarEstudiantesElegibles } from "@/lib/estudiantes";
 import Link from "next/link";
 
 type Usuario = { id: string; firstName: string | null; email: string };
@@ -29,7 +30,7 @@ export default async function PanelProfesor({ usuario }: { usuario: Usuario }) {
     await Promise.all([
       prisma.recorrido.count({ where: { autorId: usuario.id } }),
       prisma.recorrido.count(),
-      prisma.user.count({ where: { role: "STUDENT" } }),
+      contarEstudiantesElegibles(),
       prisma.grupo.count({ where: { profesorId: usuario.id, archivado: false } }),
       prisma.asignacion.findMany({
         where: { archivada: false },

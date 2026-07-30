@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/prisma";
+import { listarEstudiantesElegibles } from "@/lib/estudiantes";
 import { getUsuarioActual } from "@/lib/usuario";
 import { redirect } from "next/navigation";
 import Link from "next/link";
@@ -25,9 +25,7 @@ function nombreDe(u: {
 type Estudiante = Awaited<ReturnType<typeof cargarEstudiantes>>[number];
 
 async function cargarEstudiantes() {
-  return prisma.user.findMany({
-    where: { role: "STUDENT" },
-    orderBy: [{ firstName: "asc" }, { email: "asc" }],
+  return listarEstudiantesElegibles({
     include: {
       asignacionesRecibidas: {
         where: { archivada: false },
