@@ -27,7 +27,20 @@ import {
  * pantalla sin saber si guardó. El resto de la aplicación sigue como está;
  * esta decisión no se extiende sola.
  */
-export type EstadoRecurso = { error?: string; ok?: string };
+export type EstadoRecurso = {
+  /** El motivo del rechazo, para enseñarlo tal cual. */
+  error?: string;
+  /** Confirmación corta para enseñar. Nunca un identificador. */
+  ok?: string;
+  /**
+   * La fila a la que hay que ir después: la recién creada al guardar, o la
+   * copia al duplicar. Va en su propio campo y no dentro de `ok` porque son
+   * dos cosas distintas —una se enseña, la otra se navega— y meterlas en la
+   * misma clave acaba con un cuid pintado en pantalla el día que alguien
+   * renderice la confirmación.
+   */
+  id?: string;
+};
 
 function refrescar(ejercicioId?: string) {
   revalidatePath("/profe/recursos");
@@ -106,7 +119,7 @@ export async function guardarEjercicio(
     },
   });
   refrescar(creado.id);
-  return { ok: creado.id };
+  return { ok: "Creado.", id: creado.id };
 }
 
 /**
@@ -197,7 +210,7 @@ export async function duplicarEjercicio(
   if (!copiaId) return { error: "Ese ejercicio no existe." };
 
   refrescar(copiaId);
-  return { ok: copiaId };
+  return { ok: "Duplicado.", id: copiaId };
 }
 
 export async function borrarEjercicio(
