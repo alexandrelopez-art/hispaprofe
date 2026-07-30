@@ -3,15 +3,19 @@ import { getUsuarioActual } from "@/lib/usuario";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import type { Prisma } from "@/lib/generated/prisma/client";
+import { Nivel } from "@/lib/generated/prisma/enums";
 
 export const dynamic = "force-dynamic";
 
+// WIDGET no está: Recursos no lo gestiona (no tiene `datos.ejercicio` ni
+// editor propio, y su página da 404). Esta tabla también hace de lista de
+// tipos válidos para el filtro de la URL, así que basta con no ponerlo aquí
+// para que desaparezca del desplegable y de la consulta a la vez.
 const tipoLabel: Record<string, string> = {
   OPCION_MULTIPLE: "Opción",
   HUECOS: "Huecos",
   RELACIONAR: "Relacionar",
   ORDENAR: "Ordenar",
-  WIDGET: "Widget",
 };
 
 export default async function RecursosPage({
@@ -26,9 +30,23 @@ export default async function RecursosPage({
 
   const { nivel, tipo, estado, q } = await searchParams;
 
+  // Los filtros vienen de la URL, no de un <select> que el servidor
+  // controle: alguien puede teclear cualquier cosa. Un valor que no exista
+  // en el enum generado revienta a Prisma con un `PrismaClientValidationError`
+  // (un 500) en vez de ignorarse. Se comprueba con `Object.hasOwn` contra el
+  // propio enum, igual que ya hace `guardarEjercicio` en
+  // `lib/acciones-recursos.ts`.
+  const nivelValido = nivel && Object.hasOwn(Nivel, nivel) ? nivel : undefined;
+  const tipoValido = tipo && Object.hasOwn(tipoLabel, tipo) ? tipo : undefined;
+
   const where: Prisma.EjercicioWhereInput = {
-    ...(nivel ? { nivel: nivel as Prisma.EnumNivelFilter["equals"] } : {}),
-    ...(tipo ? { tipo: tipo as Prisma.EnumTipoEjercicioFilter["equals"] } : {}),
+    // Sin filtro de tipo, se excluye WIDGET siempre: Recursos no lo
+    // gestiona. `tipoValido` ya descarta un `?tipo=WIDGET` escrito a mano,
+    // porque WIDGET no está en `tipoLabel`.
+    tipo: tipoValido
+      ? (tipoValido as Prisma.EnumTipoEjercicioFilter["equals"])
+      : { not: "WIDGET" },
+    ...(nivelValido ? { nivel: nivelValido as Prisma.EnumNivelFilter["equals"] } : {}),
     ...(estado === "publicado" ? { publicado: true } : {}),
     ...(estado === "borrador" ? { publicado: false } : {}),
     ...(q ? { titulo: { contains: q, mode: "insensitive" as const } } : {}),

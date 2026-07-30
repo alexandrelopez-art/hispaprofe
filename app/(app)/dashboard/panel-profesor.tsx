@@ -109,6 +109,12 @@ export default async function PanelProfesor({ usuario }: { usuario: Usuario }) {
         >
           Importar resultados
         </Link>
+        <Link
+          href="/profe/recursos"
+          className="h-10 rounded-full border-2 border-hp-200 px-5 text-sm font-bold leading-9 text-hp-600 transition-colors hover:border-hp-400"
+        >
+          Recursos
+        </Link>
       </div>
 
       <h2 className="mt-10 text-lg font-bold text-tinta">

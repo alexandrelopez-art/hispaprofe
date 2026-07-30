@@ -98,6 +98,21 @@ export default function Editor({
     if (estadoBorrar.ok) router.replace("/profe/recursos");
   }, [estadoBorrar.ok, router]);
 
+  /**
+   * Un solo mensaje para las cuatro acciones, no cuatro bloques copiados:
+   * al segundo guardado de un ejercicio ya existente no hay ningún sitio a
+   * donde navegar, así que sin esto el "Guardado." no se veía nunca, y
+   * duplicar fallaba en silencio porque a su bloque de error le tocó
+   * quedarse fuera cuando había cuatro copiados a mano. El error manda sobre
+   * la confirmación: si algo falló, no tiene sentido enseñar un "ok" de otra
+   * acción a la vez.
+   */
+  const mensajeError =
+    estado.error ?? estadoPublicar.error ?? estadoDuplicar.error ?? estadoBorrar.error ?? null;
+  const mensajeOk = mensajeError
+    ? null
+    : (estado.ok ?? estadoPublicar.ok ?? estadoDuplicar.ok ?? null);
+
   return (
     <div className="grid gap-8 lg:grid-cols-2">
       <form action={guardar} className="space-y-6">
@@ -176,21 +191,22 @@ export default function Editor({
         </label>
 
         <fieldset disabled={Boolean(bloqueado)}>
-          {marca === "opcion" && <EditorOpcion datos={datos} alCambiar={setDatos} />}
+          {marca === "opcion" ? (
+            <EditorOpcion datos={datos} alCambiar={setDatos} />
+          ) : (
+            <p className="rounded-tarjeta border border-dashed border-hp-200 p-6 text-center text-sm text-tinta-suave">
+              Este tipo de ejercicio todavía no tiene editor. Puedes cambiar
+              el título, el nivel, la destreza y las etiquetas, pero no su
+              contenido.
+            </p>
+          )}
         </fieldset>
 
-        {estado.error && (
-          <p className="rounded-tarjeta bg-sol-100 px-4 py-3 text-sm text-tinta">{estado.error}</p>
+        {mensajeError && (
+          <p className="rounded-tarjeta bg-sol-100 px-4 py-3 text-sm text-tinta">{mensajeError}</p>
         )}
-        {estadoPublicar.error && (
-          <p className="rounded-tarjeta bg-sol-100 px-4 py-3 text-sm text-tinta">
-            {estadoPublicar.error}
-          </p>
-        )}
-        {estadoBorrar.error && (
-          <p className="rounded-tarjeta bg-sol-100 px-4 py-3 text-sm text-tinta">
-            {estadoBorrar.error}
-          </p>
+        {mensajeOk && (
+          <p className="rounded-tarjeta bg-hp-100 px-4 py-3 text-sm text-tinta">{mensajeOk}</p>
         )}
 
         <div className="flex flex-wrap items-center gap-3">

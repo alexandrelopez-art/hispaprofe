@@ -13,9 +13,11 @@ export const preguntaOpcionSchema = z.object({
   id: z.string(),
   enunciado: z.string(),
   /** Sus propias opciones. Se omite cuando el ejercicio usa lista comun. */
-  opciones: z.array(z.string()).min(2).optional(),
+  opciones: z.array(z.string()).min(2, { message: "Necesita al menos dos opciones." }).optional(),
   /** Indices de las opciones buenas. Una sola cuando `multiple` es false. */
-  correctas: z.array(z.number().int().min(0)).min(1),
+  correctas: z
+    .array(z.number().int().min(0, { message: "El índice de una opción no puede ser negativo." }))
+    .min(1, { message: "Marca al menos una respuesta correcta." }),
   /** Audio que hay que escuchar para responder. Opcional. */
   audio: z.string().optional(),
 });
@@ -30,10 +32,15 @@ export const opcionSchema = z
      * ejemplo. La misma opcion puede valer en varias preguntas, que es lo
      * que distingue este formato de `relacionar`.
      */
-    opcionesComunes: z.array(z.string()).min(2).optional(),
+    opcionesComunes: z
+      .array(z.string())
+      .min(2, { message: "La lista común necesita al menos dos opciones." })
+      .optional(),
     /** Con muchas preguntas y lista comun, once filas de botones son un muro. */
     presentacion: z.enum(["botones", "desplegable"]).default("botones"),
-    preguntas: z.array(preguntaOpcionSchema).min(1),
+    preguntas: z
+      .array(preguntaOpcionSchema)
+      .min(1, { message: "El ejercicio necesita al menos una pregunta." }),
   })
   .refine(
     (d) => d.opcionesComunes !== undefined || d.preguntas.every((p) => p.opciones),

@@ -74,6 +74,14 @@ export default async function AppLayout({
                 Clases
               </Link>
             )}
+            {esProfe && (
+              <Link
+                href="/profe/recursos"
+                className="hover:text-hp-500 transition-colors"
+              >
+                Recursos
+              </Link>
+            )}
             {esAdministrador && (
               <Link
                 href="/admin"

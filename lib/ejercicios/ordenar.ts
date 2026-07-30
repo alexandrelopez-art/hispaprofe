@@ -16,7 +16,7 @@ export const ordenarSchema = z.object({
   ejercicio: z.literal("ordenar"),
   consigna: z.string(),
   /** Las piezas en su orden correcto. Al estudiante le llegan barajadas. */
-  piezas: z.array(piezaSchema).min(2),
+  piezas: z.array(piezaSchema).min(2, { message: "El ejercicio necesita al menos dos piezas." }),
 });
 
 export type Ordenar = z.infer<typeof ordenarSchema>;

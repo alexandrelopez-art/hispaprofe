@@ -26,6 +26,48 @@ export const OPCION_VACIA: DatosOpcion = {
   preguntas: [{ id: "p1", enunciado: "", opciones: ["", ""], correctas: [] }],
 };
 
+/**
+ * El siguiente id de pregunta, único dentro del ejercicio. Va por el máximo
+ * de los sufijos que ya existen y no por `longitud + 1`: quitar una pregunta
+ * de en medio y añadir otra repetiría un id con `longitud + 1` (p1, p2, p3 →
+ * quitar p2 → p1, p3, longitud 2 → "p3" otra vez), y ese id es la clave con
+ * la que se guardan las respuestas del estudiante — dos preguntas con el
+ * mismo id comparten radios y `corregirOpcion` puntúa las dos igual.
+ *
+ * Tampoco usa `Date.now()` ni `Math.random()`: el proyecto necesita que dos
+ * ejercicios iguales produzcan los mismos datos.
+ */
+function siguienteIdPregunta(preguntas: Pregunta[]): string {
+  const maximo = preguntas.reduce((max, p) => {
+    const m = /^p(\d+)$/.exec(p.id);
+    return m ? Math.max(max, Number(m[1])) : max;
+  }, 0);
+  return `p${maximo + 1}`;
+}
+
+/**
+ * Los índices de `correctas` que siguen dentro de rango, y como mucho uno si
+ * el ejercicio no admite varias. Cualquier cambio que pueda dejar un índice
+ * apuntando a una opción que ya no existe —cambiar la bifurcación, pasar de
+ * varias a una— pasa por aquí: sin saneo, `opcionSchema` rechaza el guardado
+ * en silencio y no queda nada marcado en pantalla que el profesor pueda
+ * arreglar.
+ */
+function sanearCorrectas(correctas: number[], totalOpciones: number, multiple: boolean): number[] {
+  const enRango = correctas.filter((i) => i >= 0 && i < totalOpciones);
+  return multiple ? enRango : enRango.slice(0, 1);
+}
+
+/**
+ * Quita un índice de en medio y desplaza los que venían después. Es la
+ * regla que ya usaba «Quitar» en las opciones propias, generalizada para
+ * poder aplicarla también a la lista común, donde una opción le afecta a
+ * las `correctas` de todas las preguntas a la vez.
+ */
+function quitarIndice(correctas: number[], indice: number): number[] {
+  return correctas.filter((c) => c !== indice).map((c) => (c > indice ? c - 1 : c));
+}
+
 export default function EditorOpcion({
   datos,
   alCambiar,
@@ -64,7 +106,19 @@ export default function EditorOpcion({
           <input
             type="checkbox"
             checked={d.multiple}
-            onChange={(e) => cambiar({ multiple: e.target.checked })}
+            onChange={(e) => {
+              const multiple = e.target.checked;
+              // Pasar de "varias" a "una" puede dejar más de un índice
+              // marcado: el control real es un botón redondo que solo deja
+              // elegir uno, así que se recorta a la primera.
+              cambiar({
+                multiple,
+                preguntas: d.preguntas.map((p) => ({
+                  ...p,
+                  correctas: sanearCorrectas(p.correctas, opcionesDe(p).length, multiple),
+                })),
+              });
+            }}
           />
           Se puede marcar más de una
         </label>
@@ -77,11 +131,27 @@ export default function EditorOpcion({
               e.target.checked
                 ? cambiar({
                     opcionesComunes: ["", ""],
-                    preguntas: d.preguntas.map(({ opciones: _, ...resto }) => resto),
+                    // Las opciones propias desaparecen y la lista común
+                    // arranca con dos vacías: cualquier `correctas` que
+                    // apuntara más allá de la posición 1 queda huérfana.
+                    preguntas: d.preguntas.map(({ opciones: _, ...resto }) => ({
+                      ...resto,
+                      correctas: sanearCorrectas(resto.correctas, 2, d.multiple),
+                    })),
                   })
                 : cambiar({
                     opcionesComunes: undefined,
-                    preguntas: d.preguntas.map((p) => ({ ...p, opciones: ["", ""] })),
+                    // "Cómo se enseña" solo se edita dentro de la lista
+                    // común: si no se resetea aquí, un "desplegable" elegido
+                    // antes de desmarcar sobrevive escondido en los datos y
+                    // el estudiante sigue viendo desplegables sin que nadie
+                    // pueda volver a cambiarlo desde este formulario.
+                    presentacion: "botones",
+                    preguntas: d.preguntas.map((p) => ({
+                      ...p,
+                      opciones: ["", ""],
+                      correctas: sanearCorrectas(p.correctas, 2, d.multiple),
+                    })),
                   })
             }
           />
@@ -125,15 +195,25 @@ export default function EditorOpcion({
                     }}
                   />
                 </div>
-                <BotonQuitar
-                  onClick={() =>
-                    cambiar({
-                      opcionesComunes: (d.opcionesComunes ?? []).filter((_, j) => j !== i),
-                    })
-                  }
-                >
-                  Quitar
-                </BotonQuitar>
+                {(d.opcionesComunes ?? []).length > 2 && (
+                  <BotonQuitar
+                    onClick={() =>
+                      cambiar({
+                        opcionesComunes: (d.opcionesComunes ?? []).filter((_, j) => j !== i),
+                        // La lista común es de todas las preguntas: quitar
+                        // una opción de en medio desplaza el índice de la
+                        // respuesta correcta en cada una de ellas, no solo
+                        // en la que se estuviera editando.
+                        preguntas: d.preguntas.map((p) => ({
+                          ...p,
+                          correctas: quitarIndice(p.correctas, i),
+                        })),
+                      })
+                    }
+                  >
+                    Quitar
+                  </BotonQuitar>
+                )}
               </div>
             ))}
           </div>
@@ -193,12 +273,12 @@ export default function EditorOpcion({
                     className={`${campo} mt-0`}
                   />
                 )}
-                {!usaComunes && (
+                {!usaComunes && (p.opciones ?? []).length > 2 && (
                   <BotonQuitar
                     onClick={() =>
                       cambiarPregunta(i, {
                         opciones: (p.opciones ?? []).filter((_, k) => k !== j),
-                        correctas: p.correctas.filter((c) => c !== j).map((c) => (c > j ? c - 1 : c)),
+                        correctas: quitarIndice(p.correctas, j),
                       })
                     }
                   >
@@ -237,11 +317,7 @@ export default function EditorOpcion({
             preguntas: [
               ...d.preguntas,
               {
-                // El id tiene que ser único dentro del ejercicio: es la clave
-                // con la que se guardan las respuestas del estudiante. El
-                // contador va por longitud + 1 y no por Date.now() para que
-                // dos ejercicios iguales salgan iguales.
-                id: `p${d.preguntas.length + 1}`,
+                id: siguienteIdPregunta(d.preguntas),
                 enunciado: "",
                 ...(usaComunes ? {} : { opciones: ["", ""] }),
                 correctas: [],

@@ -13,7 +13,7 @@ import {
 export const huecoSchema = z.object({
   id: z.string(),
   /** Todas las formas que se dan por buenas en este hueco. */
-  acepta: z.array(z.string()).min(1),
+  acepta: z.array(z.string()).min(1, { message: "Cada hueco necesita al menos una respuesta aceptada." }),
 });
 
 export const huecosSchema = z
@@ -21,7 +21,7 @@ export const huecosSchema = z
     ejercicio: z.literal("huecos"),
     consigna: z.string(),
     texto: z.string(),
-    huecos: z.array(huecoSchema).min(1),
+    huecos: z.array(huecoSchema).min(1, { message: "El ejercicio necesita al menos un hueco." }),
   })
   .refine(
     (d) => {

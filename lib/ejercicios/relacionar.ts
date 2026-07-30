@@ -17,7 +17,7 @@ export const relacionarSchema = z
   .object({
     ejercicio: z.literal("relacionar"),
     consigna: z.string(),
-    parejas: z.array(parejaSchema).min(2),
+    parejas: z.array(parejaSchema).min(2, { message: "El ejercicio necesita al menos dos parejas." }),
   })
   .refine(
     (d) => new Set(d.parejas.map((p) => p.derecha)).size === d.parejas.length,
