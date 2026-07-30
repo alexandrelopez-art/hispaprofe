@@ -155,6 +155,9 @@ async function main() {
 main()
   .catch((e) => {
     console.error(e instanceof Error ? e.message : e);
-    process.exit(1);
+    // `process.exit` aquí mataría el proceso antes del `finally`, y la
+    // limpieza no correría. En TDD el paso RED falla a propósito, así que
+    // eso deja basura en la base cada vez.
+    process.exitCode = 1;
   })
   .finally(() => prisma.$disconnect());
