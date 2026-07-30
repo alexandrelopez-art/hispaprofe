@@ -28,6 +28,16 @@ export default function Previsualizacion({ datos }: { datos: unknown }) {
   const [error, setError] = useState<string | null>(null);
   const [valor, setValor] = useState<Respuestas>({});
   const [correccion, setCorreccion] = useState<Correccion | null>(null);
+  /**
+   * El `datosJson` que de verdad produjo `publica`, no el que hay ahora en
+   * la prop. Como el reinicio de `valor`/`correccion` vive dentro del
+   * `.then()` (ver comentario del efecto), mientras esa petición está en
+   * vuelo `publica` sigue siendo la del ejercicio anterior con su
+   * `contestadas` ya completo — así que el botón "Corregir" no puede fiarse
+   * de comparar contra `datosJson` en directo, o se habilitaría sobre un
+   * ejercicio nuevo con respuestas pensadas para el viejo.
+   */
+  const [datosJsonPublica, setDatosJsonPublica] = useState<string | null>(null);
 
   // Cada vez que el editor cambia el ejercicio, la previsualización vuelve a
   // empezar: las respuestas de antes se refieren a preguntas que puede que
@@ -46,10 +56,12 @@ export default function Previsualizacion({ datos }: { datos: unknown }) {
         setError(r.error);
         setPublica(null);
         setTipo(null);
+        setDatosJsonPublica(null);
       } else {
         setError(null);
         setPublica(r.publica);
         setTipo(r.tipo);
+        setDatosJsonPublica(datosJson);
       }
     });
 
@@ -72,6 +84,11 @@ export default function Previsualizacion({ datos }: { datos: unknown }) {
       </p>
     );
   }
+
+  // Misma extracción que hace `components/ejercicios/ejercicio.tsx`: el
+  // profesor tiene que ver el mismo enunciado que verá el estudiante, no
+  // solo el widget de respuesta.
+  const consigna = (publica as { consigna?: string }).consigna ?? "";
 
   const props: PropsCara = {
     publica,
@@ -117,17 +134,22 @@ export default function Previsualizacion({ datos }: { datos: unknown }) {
         que hagas aquí se guarda.
       </p>
 
+      {consigna && <p className="mt-4 font-bold text-tinta">{consigna}</p>}
+
       <div className="mt-6">{cara}</div>
 
       <div className="mt-6 flex flex-wrap items-center gap-3">
         <button
           type="button"
           onClick={async () => {
-            const r = await previsualizar(datosJson, valor);
+            // Se manda el `datosJson` que produjo `publica`, no el de la
+            // prop en directo: son el mismo mientras el botón está
+            // habilitado, pero solo uno de los dos es garantía.
+            const r = await previsualizar(datosJsonPublica ?? datosJson, valor);
             if ("error" in r) setError(r.error);
             else setCorreccion(r.correccion);
           }}
-          disabled={correccion !== null || contestadas < total}
+          disabled={correccion !== null || contestadas < total || datosJsonPublica !== datosJson}
           className="h-11 rounded-full bg-hp-400 px-6 text-sm font-extrabold text-white transition-colors hover:bg-hp-500 disabled:cursor-not-allowed disabled:opacity-40"
         >
           Corregir
