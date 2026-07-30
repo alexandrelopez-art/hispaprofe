@@ -422,6 +422,29 @@ export async function deberesPendientes(
 }
 
 /**
+ * A una ficha suprimida no se le agenda una clase nueva.
+ *
+ * Quitarla del desplegable es solo interfaz: una pestaña abierta desde antes
+ * o una petición fabricada siguen mandando su id, y agendarle una clase le
+ * devuelve una vida que la supresión le quitó. Vive aquí y no en la acción
+ * porque una acción de servidor no se puede llamar desde un script.
+ *
+ * Sin estudiante devuelve true: la clase es de un grupo y no hay a quién
+ * comprobar. Del rol no se comprueba nada, porque a quien ascendió a profesor
+ * después de recibir clases se le siguen pudiendo agendar.
+ */
+export async function estudianteAsignable(
+  estudianteId: string | null,
+): Promise<boolean> {
+  if (!estudianteId) return true;
+  const estudiante = await prisma.user.findUnique({
+    where: { id: estudianteId },
+    select: { suprimidoEl: true },
+  });
+  return estudiante !== null && estudiante.suprimidoEl === null;
+}
+
+/**
  * Una clase dada no se borra: son horas trabajadas y puede que facturadas.
  * Para borrarla hay que volver a agendarla primero, que es un gesto
  * consciente y reversible.

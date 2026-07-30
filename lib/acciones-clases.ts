@@ -10,6 +10,7 @@ import {
   cerrarDeber,
   cerrarDeberesDeClase,
   congelarImporte,
+  estudianteAsignable,
   sincronizarDeberes,
   validarClase,
 } from "@/lib/clases";
@@ -76,10 +77,11 @@ async function esDeberDeLaClase(
  * así que sin esto una petición fabricada colgaría una clase del grupo de
  * otro profesor y la ficha enseñaría los nombres y correos de sus miembros.
  *
- * Del `estudianteId` no se comprueba nada más que lo que ya impone la clave
- * ajena: no existe en el modelo una pertenencia «este estudiante es de este
- * profesor» que poder exigir, y filtrar por `role: STUDENT` echaría fuera a
- * quien haya sido ascendido a profesor después de recibir clases.
+ * Del `estudianteId` no se comprueba aquí la propiedad: no existe en el
+ * modelo una pertenencia «este estudiante es de este profesor» que poder
+ * exigir, y filtrar por `role: STUDENT` echaría fuera a quien haya sido
+ * ascendido a profesor después de recibir clases. Lo que sí se comprueba, en
+ * `estudianteAsignable`, es que no sea una ficha suprimida.
  */
 async function grupoAsignable(
   usuario: { id: string; role: string },
@@ -138,6 +140,7 @@ export async function crearClase(formData: FormData) {
   const datos = datosDeClase(formData);
   if (!datos) return;
   if (!(await grupoAsignable(usuario, datos.grupoId))) return;
+  if (!(await estudianteAsignable(datos.estudianteId))) return;
 
   await prisma.clase.create({
     data: {
@@ -161,6 +164,13 @@ export async function editarClase(formData: FormData) {
   const cambioDestinatario =
     datos.estudianteId !== clase.estudianteId ||
     datos.grupoId !== clase.grupoId;
+
+  // La lápida solo se rechaza como destinatario nuevo: una clase que ya era
+  // suya se sigue pudiendo corregir —son horas trabajadas y su opción sigue
+  // en el desplegable— pero no se le puede pasar otra.
+  if (cambioDestinatario && !(await estudianteAsignable(datos.estudianteId))) {
+    return;
+  }
 
   // Cambiar la duración de una clase ya dada deja su precio sin cuadrar: 90
   // minutos cobrados a 60. Vuelve a null para que la ficha lo pida en vez de
