@@ -98,7 +98,8 @@ export default async function PanelEstudiante({
           <ul className="mt-3 space-y-3">
             {deberes.map((d) => (
               <li key={d.id}>
-                <p className="whitespace-pre-line text-sm text-tinta">
+                {/* break-words: una URL pegada sin espacios desborda la tarjeta. */}
+                <p className="whitespace-pre-line break-words text-sm text-tinta">
                   {d.texto}
                 </p>
                 <p className="mt-1 text-xs text-tinta-suave">

@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { getUsuarioActual } from "@/lib/usuario";
 import { euros, horas, listarClases, totalesDeClases } from "@/lib/clases";
 import type { FiltroClases } from "@/lib/clases";
-import { fechaHora } from "@/lib/fechas";
+import { deInput, fechaHora } from "@/lib/fechas";
 import { crearClase } from "@/lib/acciones-clases";
 import type { EstadoClase } from "@/lib/generated/prisma/enums";
 import { redirect } from "next/navigation";
@@ -36,11 +36,24 @@ function nombreDe(u: {
  * `finDeDia` es imprescindible en «hasta»: un <input type="date"> da
  * «2026-08-05», y tomarlo como medianoche dejaría fuera la clase de ese
  * mismo día a las seis de la tarde. «Hasta el 5» significa el 5 incluido.
+ *
+ * Los dos extremos se leen como horas de Madrid con `deInput`: en un servidor
+ * en UTC, «hasta el 5» a medianoche del host colaría las clases de madrugada
+ * del día siguiente.
  */
 function fechaDeTexto(bruto?: string, finDeDia = false): Date | undefined {
   if (!bruto) return undefined;
-  const d = new Date(`${bruto}T${finDeDia ? "23:59:59" : "00:00:00"}`);
-  return Number.isNaN(d.getTime()) ? undefined : d;
+  return deInput(`${bruto}T${finDeDia ? "23:59" : "00:00"}`) ?? undefined;
+}
+
+/**
+ * El estado del filtro, acotado a los tres que existen. Un `?estado=FOO`
+ * escrito a mano llegaría a Prisma y reventaría la página con un 500.
+ */
+function estadoDeTexto(bruto?: string): EstadoClase | undefined {
+  return bruto === "AGENDADA" || bruto === "DADA" || bruto === "ANULADA"
+    ? bruto
+    : undefined;
 }
 
 function Total({ n, etiqueta }: { n: string; etiqueta: string }) {
@@ -79,7 +92,7 @@ export default async function ClasesPage({
     grupoId: tipo === "grupo" ? id : undefined,
     desde: fechaDeTexto(q.desde),
     hasta: fechaDeTexto(q.hasta, true),
-    estado: q.estado ? (q.estado as EstadoClase) : undefined,
+    estado: estadoDeTexto(q.estado),
     cobrada: q.cobrada === "si" ? true : q.cobrada === "no" ? false : undefined,
   };
 
@@ -247,7 +260,7 @@ export default async function ClasesPage({
         <p className="mt-4 rounded-xl bg-sol-100 px-4 py-3 text-sm text-tinta">
           {totales.sinTarifa} clase{totales.sinTarifa !== 1 ? "s" : ""} dada
           {totales.sinTarifa !== 1 ? "s" : ""} sin importe. Le falta la tarifa
-          por hora a quien la recibió.
+          por hora a quien {totales.sinTarifa !== 1 ? "las" : "la"} recibió.
         </p>
       )}
 

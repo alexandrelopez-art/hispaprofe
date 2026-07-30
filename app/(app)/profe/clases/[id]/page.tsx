@@ -92,6 +92,24 @@ export default async function ClasePage({
       ? `grupo:${clase.grupo.id}`
       : "";
 
+  /**
+   * El destinatario de esta clase entra en la lista aunque las consultas no
+   * lo traigan: dejó de ser STUDENT, o es el grupo de otro profesor y lo está
+   * mirando un admin. Sin una opción que coincida con `defaultValue`, el
+   * navegador preselecciona la primera y guardar cualquier otro campo
+   * reasignaría la clase a un desconocido.
+   */
+  const suEstudiante = clase.estudiante;
+  const suGrupo = clase.grupo;
+  const opcionesEstudiantes =
+    suEstudiante && !estudiantes.some((e) => e.id === suEstudiante.id)
+      ? [suEstudiante, ...estudiantes]
+      : estudiantes;
+  const opcionesGrupos =
+    suGrupo && !grupos.some((g) => g.id === suGrupo.id)
+      ? [suGrupo, ...grupos]
+      : grupos;
+
   const sinCerrar = clase.asignados.filter((d) => !d.cerradoEl).length;
 
   return (
@@ -137,8 +155,10 @@ export default async function ClasePage({
 
       {clase.estado === "DADA" && clase.importeCentimos === null && (
         <p className="mt-4 rounded-xl bg-sol-100 px-4 py-3 text-sm text-tinta">
-          Esta clase no tiene importe: a quien la recibió le falta la tarifa por
-          hora. Ponla en su ficha y vuelve a marcar la clase como dada.
+          Esta clase no tiene importe: todavía no hay ningún sitio donde
+          escribir una tarifa por hora. El precio se congela al marcarla dada,
+          así que cuando haya tarifas podrás volver a agendarla y marcarla dada
+          otra vez para ponerle el suyo.
         </p>
       )}
 
@@ -164,7 +184,7 @@ export default async function ClasePage({
         </label>
 
         <label className="mt-4 block text-sm font-semibold text-tinta">
-          Deberes (los ve el estudiante en su tablero)
+          Deberes (los ve en su tablero quien está en la clase)
           <textarea
             name="deberes"
             rows={3}
@@ -195,7 +215,9 @@ export default async function ClasePage({
                   type="submit"
                   className="h-9 rounded-full border-2 border-hp-200 px-4 text-xs font-bold text-hp-600 transition-colors hover:border-hp-400"
                 >
-                  Cerrar los {sinCerrar} que quedan
+                  {sinCerrar === 1
+                    ? "Cerrar el que queda"
+                    : `Cerrar los ${sinCerrar} que quedan`}
                 </button>
               </form>
             )}
@@ -284,16 +306,24 @@ export default async function ClasePage({
             defaultValue={destinatarioActual}
             className="mt-1 h-10 w-full rounded-full border border-hp-200 bg-fondo px-4 text-sm font-normal text-tinta outline-none focus:border-hp-400"
           >
-            {estudiantes.map((e) => (
-              <option key={e.id} value={`alumno:${e.id}`}>
-                {nombreDe(e)}
-              </option>
-            ))}
-            {grupos.map((g) => (
-              <option key={g.id} value={`grupo:${g.id}`}>
-                Grupo · {g.nombre}
-              </option>
-            ))}
+            {opcionesEstudiantes.length > 0 && (
+              <optgroup label="Estudiantes">
+                {opcionesEstudiantes.map((e) => (
+                  <option key={e.id} value={`alumno:${e.id}`}>
+                    {nombreDe(e)}
+                  </option>
+                ))}
+              </optgroup>
+            )}
+            {opcionesGrupos.length > 0 && (
+              <optgroup label="Grupos">
+                {opcionesGrupos.map((g) => (
+                  <option key={g.id} value={`grupo:${g.id}`}>
+                    {g.nombre}
+                  </option>
+                ))}
+              </optgroup>
+            )}
           </select>
         </label>
 
