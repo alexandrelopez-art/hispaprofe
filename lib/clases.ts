@@ -412,3 +412,26 @@ export async function deberesPendientes(
     claseEl: f.clase.empiezaEl,
   }));
 }
+
+/**
+ * Una clase dada no se borra: son horas trabajadas y puede que facturadas.
+ * Para borrarla hay que volver a agendarla primero, que es un gesto
+ * consciente y reversible.
+ */
+export function sePuedeBorrar(estado: EstadoClase): boolean {
+  return estado !== "DADA";
+}
+
+/**
+ * Borra la clase salvo que esté dada, y se lleva sus deberes por la cascada
+ * del esquema. El filtro va dentro del propio delete para que no haya carrera
+ * entre comprobar y borrar, igual que en `desmarcarSiNoRevisado`.
+ *
+ * Devuelve true si borró algo.
+ */
+export async function borrarClase(claseId: string): Promise<boolean> {
+  const { count } = await prisma.clase.deleteMany({
+    where: { id: claseId, estado: { not: "DADA" } },
+  });
+  return count > 0;
+}

@@ -12,6 +12,7 @@ import {
   puedeSuprimirse,
   suprimir,
 } from "@/lib/admin";
+import { borrarClase, sePuedeBorrar } from "@/lib/clases";
 import { prisma } from "@/lib/prisma";
 
 function afirmar(condicion: boolean, mensaje: string) {
@@ -273,6 +274,41 @@ async function main() {
     (await prisma.user.findUniqueOrThrow({ where: { id: adminSaliente.id } }))
       .role === "STUDENT",
     "y al suprimirlo su rol baja a STUDENT",
+  );
+
+  // 4. Borrar una clase: nunca una que ya se dio.
+  afirmar(sePuedeBorrar("AGENDADA"), "una agendada se puede borrar");
+  afirmar(sePuedeBorrar("ANULADA"), "una anulada también");
+  afirmar(!sePuedeBorrar("DADA"), "una dada no");
+
+  const borrable = await prisma.clase.create({
+    data: {
+      profesorId: profe.id,
+      estudianteId: ana.id,
+      empiezaEl: manana,
+      minutos: 45,
+      deberes: "Deberes que deben irse con ella.",
+    },
+  });
+  await prisma.deber.create({ data: { claseId: borrable.id, estudianteId: ana.id } });
+
+  afirmar(await borrarClase(borrable.id), "borrar una agendada devuelve true");
+  afirmar(
+    (await prisma.clase.count({ where: { id: borrable.id } })) === 0,
+    "y la clase ya no está",
+  );
+  afirmar(
+    (await prisma.deber.count({ where: { claseId: borrable.id } })) === 0,
+    "sus deberes se van con ella",
+  );
+
+  afirmar(
+    (await borrarClase(suClase.id)) === false,
+    "borrar una clase dada no hace nada y devuelve false",
+  );
+  afirmar(
+    (await prisma.clase.count({ where: { id: suClase.id } })) === 1,
+    "la clase dada sigue ahí",
   );
 
   console.log("\nTodas las verificaciones pasan.");
