@@ -7,6 +7,7 @@ import { getUsuarioActual } from "@/lib/usuario";
 import { exigirProfesor } from "@/lib/profesor";
 import { listarEstudiantes } from "@/lib/google";
 import { desmarcarSiNoRevisado } from "@/lib/progreso";
+import { estudianteAsignable } from "@/lib/estudiantes";
 import { corregir, analizar } from "@/lib/ejercicios/registro";
 import type { Respuestas } from "@/lib/ejercicios/tipos";
 import { Prisma } from "@/lib/generated/prisma/client";
@@ -62,6 +63,11 @@ export async function asignarSecuencia(formData: FormData) {
   const nota = String(formData.get("nota") ?? "").trim();
   if (!estudianteId || !recorridoId) return;
 
+  // Una `Asignacion` es de las dos tablas que borra `suprimir`: recrearla le
+  // devolvería a la lápida el progreso que su supresión se llevó. El botón de
+  // atrás justo después de suprimir basta para llegar aquí con su id.
+  if (!(await estudianteAsignable(estudianteId))) return;
+
   await asignarA([estudianteId], recorridoId, profesor.id, nota);
 
   revalidatePath(`/profe/alumnos/${estudianteId}`);
@@ -80,12 +86,21 @@ export async function asignarSecuenciaAVarios(formData: FormData) {
     .filter(Boolean);
   if (!recorridoId || estudianteIds.length === 0) return;
 
-  await asignarA(estudianteIds, recorridoId, profesor.id, nota);
+  // Se quita a la lápida y se asigna a los demás, en vez de tirar la tanda
+  // entera: una ficha suprimida colada en la lista viene de una pestaña vieja,
+  // y los otros estudiantes no tienen la culpa.
+  const asignables: string[] = [];
+  for (const estudianteId of estudianteIds) {
+    if (await estudianteAsignable(estudianteId)) asignables.push(estudianteId);
+  }
+  if (asignables.length === 0) return;
+
+  await asignarA(asignables, recorridoId, profesor.id, nota);
 
   revalidatePath(`/recorridos/${recorridoId}`);
   revalidatePath("/profe/alumnos");
   revalidatePath("/dashboard");
-  for (const estudianteId of estudianteIds) {
+  for (const estudianteId of asignables) {
     revalidatePath(`/profe/alumnos/${estudianteId}`);
   }
 }
@@ -822,6 +837,10 @@ export async function importarPuntos(formData: FormData) {
     const estudianteId = estudianteIds[i];
     const puntos = Math.max(0, puntosLista[i] ?? 0);
     if (!estudianteId) continue;
+    // Aquí se escriben las dos tablas que borra `suprimir` —la asignación y
+    // el paso con sus puntos—, así que a una lápida se la salta y se sigue
+    // con los demás emparejados.
+    if (!(await estudianteAsignable(estudianteId))) continue;
 
     const asignacion = await prisma.asignacion.upsert({
       where: { estudianteId_recorridoId: { estudianteId, recorridoId } },

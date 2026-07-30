@@ -10,10 +10,10 @@ import {
   cerrarDeber,
   cerrarDeberesDeClase,
   congelarImporte,
-  estudianteAsignable,
   sincronizarDeberes,
   validarClase,
 } from "@/lib/clases";
+import { estudianteAsignable } from "@/lib/estudiantes";
 import { deInput } from "@/lib/fechas";
 import type { EstadoClase } from "@/lib/generated/prisma/enums";
 

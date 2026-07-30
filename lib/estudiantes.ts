@@ -47,3 +47,30 @@ export async function listarEstudiantesElegibles<
 export async function contarEstudiantesElegibles(): Promise<number> {
   return prisma.user.count({ where: estudiantesElegibles });
 }
+
+/**
+ * A una ficha suprimida no se le escribe nada nuevo: ni una clase, ni una
+ * asignación, ni un paso completado con sus puntos.
+ *
+ * Sacarla de las listas es solo interfaz: una pestaña abierta desde antes, un
+ * marcador guardado o una petición fabricada siguen mandando su id, y
+ * cualquiera de esas escrituras le devuelve una vida que la supresión le
+ * quitó. Vive aquí, junto al filtro de las listas, porque es la misma regla
+ * vista desde el otro lado, y fuera de las acciones porque una acción de
+ * servidor no se puede llamar desde un script.
+ *
+ * Sin estudiante devuelve true: la clase es de un grupo y no hay a quién
+ * comprobar. Del rol no se comprueba nada, porque a quien ascendió a profesor
+ * después de recibir clases se le siguen pudiendo agendar. Del bloqueo
+ * tampoco: bloquear es reversible y su ficha sigue siendo de alguien.
+ */
+export async function estudianteAsignable(
+  estudianteId: string | null,
+): Promise<boolean> {
+  if (!estudianteId) return true;
+  const estudiante = await prisma.user.findUnique({
+    where: { id: estudianteId },
+    select: { suprimidoEl: true },
+  });
+  return estudiante !== null && estudiante.suprimidoEl === null;
+}

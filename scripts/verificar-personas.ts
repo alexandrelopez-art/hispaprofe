@@ -9,11 +9,15 @@ import {
   bloquear,
   desbloquear,
   puedeBloquearse,
+  puedeHacerseProfesor,
   puedeSuprimirse,
   suprimir,
 } from "@/lib/admin";
-import { borrarClase, estudianteAsignable, sePuedeBorrar } from "@/lib/clases";
-import { listarEstudiantesElegibles } from "@/lib/estudiantes";
+import { borrarClase, sePuedeBorrar } from "@/lib/clases";
+import {
+  estudianteAsignable,
+  listarEstudiantesElegibles,
+} from "@/lib/estudiantes";
 import { prisma } from "@/lib/prisma";
 
 function afirmar(condicion: boolean, mensaje: string) {
@@ -260,6 +264,10 @@ async function main() {
     "a una ficha ya suprimida no se le puede volver a suprimir",
   );
 
+  // Un bloqueado que no está suprimido: bloquear no es suprimir.
+  const dani = await nuevaPersona("dani");
+  await bloquear(dani.id);
+
   // A una lápida no se le puede volver a hacer nada: si sale en una lista de
   // estudiantes, un clic normal le crea asignaciones y progreso nuevos, que
   // es justo lo que la supresión borró.
@@ -273,17 +281,38 @@ async function main() {
     "y un estudiante normal sí sale",
   );
 
-  // Quitarla del desplegable es solo interfaz: una pestaña vieja o una
-  // petición fabricada siguen mandando su id, y la comprobación tiene que
-  // estar donde se escribe la clase.
+  // Quitarla de los desplegables y de las listas es solo interfaz: una
+  // pestaña vieja o una petición fabricada siguen mandando su id, y la
+  // comprobación tiene que estar donde se escribe —la clase, la asignación o
+  // los puntos importados—, que son justo las tablas que la supresión borró.
   afirmar(
     (await estudianteAsignable(bea.id)) === false,
-    "no se le agenda una clase nueva a una ficha suprimida",
+    "no se le agenda una clase ni se le asigna nada a una ficha suprimida",
   );
   afirmar(await estudianteAsignable(ana.id), "a un estudiante normal sí");
   afirmar(
+    await estudianteAsignable(dani.id),
+    "y a un bloqueado también: su ficha sigue siendo de alguien",
+  );
+  afirmar(
     await estudianteAsignable(null),
     "y una clase de grupo no lleva estudiante que comprobar",
+  );
+
+  // Toda lápida se queda como STUDENT a propósito, así que el panel le pinta
+  // encima el botón «Hacer profesor»: sin esta guarda, un clic corriente le
+  // devuelve los poderes que la supresión le quitó.
+  afirmar(
+    (await puedeHacerseProfesor(bea.id)) === false,
+    "a una ficha suprimida no se le puede hacer profesor",
+  );
+  afirmar(
+    await puedeHacerseProfesor(ana.id),
+    "a un estudiante de verdad sí se le puede",
+  );
+  afirmar(
+    (await puedeHacerseProfesor(otroAdmin.id)) === false,
+    "y a un administrador no se le baja de rango por este camino",
   );
 
   // Quien está suprimido está bloqueado por definición: desbloquear una

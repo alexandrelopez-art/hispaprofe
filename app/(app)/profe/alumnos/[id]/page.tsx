@@ -75,7 +75,12 @@ export default async function AlumnoPage({
     totalesDeClases({ profesorId: usuario.id, estudianteId: id }),
   ]);
 
-  const nombre = estaSuprimido(estudiante)
+  // La ficha se sigue enseñando aunque esté suprimida —las horas y el
+  // historial son del profesor y no se esconden—, pero sin nada que hacerle
+  // encima: el botón de atrás justo después de suprimir lleva aquí.
+  const suprimido = estaSuprimido(estudiante);
+
+  const nombre = suprimido
     ? "Ficha suprimida"
     : [estudiante.firstName, estudiante.lastName].filter(Boolean).join(" ") ||
       estudiante.email;
@@ -100,7 +105,7 @@ export default async function AlumnoPage({
         )}
       </div>
       <p className="mt-1 text-tinta-suave">
-        {estaSuprimido(estudiante) ? "sin datos" : estudiante.email}
+        {suprimido ? "sin datos" : estudiante.email}
       </p>
 
       {totalesClases.cuantas > 0 && (
@@ -269,52 +274,58 @@ export default async function AlumnoPage({
         </ul>
       )}
 
-      <h2 className="mt-10 text-lg font-bold text-tinta">Asignar una secuencia</h2>
+      {!suprimido && (
+        <>
+          <h2 className="mt-10 text-lg font-bold text-tinta">
+            Asignar una secuencia
+          </h2>
 
-      <form
-        action={asignarSecuencia}
-        className="mt-3 rounded-tarjeta border border-hp-100 bg-white p-5 shadow-suave"
-      >
-        <input type="hidden" name="estudianteId" value={estudiante.id} />
-
-        <label className="block text-sm font-semibold text-tinta">
-          Secuencia
-          <select
-            name="recorridoId"
-            required
-            defaultValue=""
-            className="mt-1 h-10 w-full rounded-full border border-hp-200 bg-white px-4 text-sm text-tinta outline-none focus:border-hp-400"
+          <form
+            action={asignarSecuencia}
+            className="mt-3 rounded-tarjeta border border-hp-100 bg-white p-5 shadow-suave"
           >
-            <option value="" disabled>
-              Elige una secuencia
-            </option>
-            {secuencias.map((secuencia) => (
-              <option key={secuencia.id} value={secuencia.id}>
-                {servicioLabel[secuencia.tipo] ?? secuencia.tipo} ·{" "}
-                {nivelLabel[secuencia.nivel] ?? secuencia.nivel} ·{" "}
-                {secuencia.titulo}
-              </option>
-            ))}
-          </select>
-        </label>
+            <input type="hidden" name="estudianteId" value={estudiante.id} />
 
-        <label className="mt-4 block text-sm font-semibold text-tinta">
-          Nota para el estudiante (opcional)
-          <input
-            type="text"
-            name="nota"
-            placeholder="Por ejemplo: hazlo antes del jueves"
-            className="mt-1 h-10 w-full rounded-full border border-hp-200 bg-white px-4 text-sm font-normal text-tinta outline-none focus:border-hp-400"
-          />
-        </label>
+            <label className="block text-sm font-semibold text-tinta">
+              Secuencia
+              <select
+                name="recorridoId"
+                required
+                defaultValue=""
+                className="mt-1 h-10 w-full rounded-full border border-hp-200 bg-white px-4 text-sm text-tinta outline-none focus:border-hp-400"
+              >
+                <option value="" disabled>
+                  Elige una secuencia
+                </option>
+                {secuencias.map((secuencia) => (
+                  <option key={secuencia.id} value={secuencia.id}>
+                    {servicioLabel[secuencia.tipo] ?? secuencia.tipo} ·{" "}
+                    {nivelLabel[secuencia.nivel] ?? secuencia.nivel} ·{" "}
+                    {secuencia.titulo}
+                  </option>
+                ))}
+              </select>
+            </label>
 
-        <button
-          type="submit"
-          className="mt-5 h-10 rounded-full bg-hp-400 px-5 text-sm font-bold text-white transition-colors hover:bg-hp-500"
-        >
-          Asignar
-        </button>
-      </form>
+            <label className="mt-4 block text-sm font-semibold text-tinta">
+              Nota para el estudiante (opcional)
+              <input
+                type="text"
+                name="nota"
+                placeholder="Por ejemplo: hazlo antes del jueves"
+                className="mt-1 h-10 w-full rounded-full border border-hp-200 bg-white px-4 text-sm font-normal text-tinta outline-none focus:border-hp-400"
+              />
+            </label>
+
+            <button
+              type="submit"
+              className="mt-5 h-10 rounded-full bg-hp-400 px-5 text-sm font-bold text-white transition-colors hover:bg-hp-500"
+            >
+              Asignar
+            </button>
+          </form>
+        </>
+      )}
     </div>
   );
 }
