@@ -41,6 +41,28 @@ export const VACIO: Partial<Record<MarcaEjercicio, unknown>> = {
   ordenar: ORDENAR_VACIO,
 };
 
+/**
+ * Los mismos datos, siempre la misma cadena: las claves de cada objeto van
+ * ordenadas y las que valen `undefined` se caen, igual que hace
+ * `JSON.stringify` al mandarlas. Hace falta para comparar lo que hay en el
+ * formulario con lo que devolvió el servidor: la columna `datos` es `jsonb`,
+ * y `jsonb` reordena las claves por su cuenta, así que un `JSON.stringify` a
+ * secas diría «hay cambios sin guardar» en cuanto la fila vuelve de la base
+ * aunque nadie haya tocado nada. El orden de los arrays sí se respeta, que
+ * ahí sí significa algo.
+ */
+function canonico(v: unknown): string {
+  if (v === null || typeof v !== "object") return JSON.stringify(v) ?? "null";
+  if (Array.isArray(v)) return `[${v.map(canonico).join(",")}]`;
+  const entradas = Object.entries(v as Record<string, unknown>)
+    .filter(([, valor]) => valor !== undefined)
+    .sort(([a], [b]) => (a < b ? -1 : 1));
+  return `{${entradas.map(([k, valor]) => `${JSON.stringify(k)}:${canonico(valor)}`).join(",")}}`;
+}
+
+/** Cuál de las cuatro acciones fue la última en dispararse. */
+type Accion = "guardar" | "publicar" | "duplicar" | "borrar";
+
 export type FilaEjercicio = {
   id: string;
   titulo: string;
@@ -73,18 +95,44 @@ export default function Editor({
     guardarEjercicio,
     {},
   );
-  const [estadoPublicar, publicar] = useActionState<EstadoRecurso, FormData>(
+  const [estadoPublicar, publicar, publicando] = useActionState<EstadoRecurso, FormData>(
     inicial?.publicado ? despublicarEjercicio : publicarEjercicio,
     {},
   );
-  const [estadoDuplicar, duplicarAccion] = useActionState<EstadoRecurso, FormData>(
+  const [estadoDuplicar, duplicarAccion, duplicando] = useActionState<EstadoRecurso, FormData>(
     duplicarEjercicio,
     {},
   );
-  const [estadoBorrar, borrar] = useActionState<EstadoRecurso, FormData>(
+  const [estadoBorrar, borrar, borrando] = useActionState<EstadoRecurso, FormData>(
     borrarEjercicio,
     {},
   );
+
+  /**
+   * Si lo que hay en el formulario ya no es lo que hay en la base.
+   *
+   * «Publicar» y «Duplicar» trabajan sobre la fila guardada: releen `datos`
+   * de la base y no miran el `<input hidden name="datos">` del envío. Con
+   * cambios sin guardar eso decía «Publicado.» mientras la pantalla seguía
+   * enseñando una corrección que no había llegado a ninguna parte. Con esto
+   * se apagan hasta que se guarde, que es lo que hay que hacer de todos
+   * modos, en vez de esconder una escritura dentro de otra acción.
+   */
+  const sinGuardar =
+    canonico({
+      titulo: titulo.trim(),
+      nivel,
+      destreza,
+      etiquetas: etiquetas.split(",").map((s) => s.trim()).filter(Boolean),
+      datos,
+    }) !==
+    canonico({
+      titulo: inicial?.titulo ?? "",
+      nivel: inicial?.nivel ?? "",
+      destreza: inicial?.destreza ?? "",
+      etiquetas: inicial?.etiquetas ?? [],
+      datos: inicial?.datos ?? null,
+    });
 
   /**
    * Guardar uno nuevo devuelve el id de la fila recién creada y duplicar el
@@ -111,15 +159,48 @@ export default function Editor({
    * al segundo guardado de un ejercicio ya existente no hay ningún sitio a
    * donde navegar, así que sin esto el "Guardado." no se veía nunca, y
    * duplicar fallaba en silencio porque a su bloque de error le tocó
-   * quedarse fuera cuando había cuatro copiados a mano. El error manda sobre
-   * la confirmación: si algo falló, no tiene sentido enseñar un "ok" de otra
-   * acción a la vez.
+   * quedarse fuera cuando había cuatro copiados a mano.
+   *
+   * Se enseña el resultado de la última acción que se pulsó y solo ese. Los
+   * cuatro `useActionState` son independientes y ninguno limpia al otro: al
+   * encadenarlos por prioridad fija, un error de «Guardar» ya arreglado
+   * seguía en pantalla —y anulaba el «Publicado.»— después de que
+   * «Publicar» hubiera ido bien. Cuál se pulsó se apunta en el `onClick` de
+   * cada botón, que corre antes de que el formulario se envíe.
    */
-  const mensajeError =
-    estado.error ?? estadoPublicar.error ?? estadoDuplicar.error ?? estadoBorrar.error ?? null;
-  const mensajeOk = mensajeError
-    ? null
-    : (estado.ok ?? estadoPublicar.ok ?? estadoDuplicar.ok ?? null);
+  const [ultima, setUltima] = useState<Accion>("guardar");
+  const resultado: Record<Accion, EstadoRecurso> = {
+    guardar: estado,
+    publicar: estadoPublicar,
+    duplicar: estadoDuplicar,
+    borrar: estadoBorrar,
+  };
+  const enMarcha: Record<Accion, boolean> = {
+    guardar: guardando,
+    publicar: publicando,
+    duplicar: duplicando,
+    borrar: borrando,
+  };
+  // Mientras la acción está en vuelo no se enseña su resultado anterior: ese
+  // ya es de un intento que el profesor acaba de reemplazar.
+  const mensajeError = enMarcha[ultima] ? null : (resultado[ultima].error ?? null);
+  const mensajeOk =
+    enMarcha[ultima] || mensajeError ? null : (resultado[ultima].ok ?? null);
+
+  /**
+   * La línea de al lado de los botones. Dice también por qué «Publicar» está
+   * apagado: un botón deshabilitado sin explicación es otra forma de no
+   * contar lo que pasa.
+   */
+  const lineaDeEstado = !inicial
+    ? "Borrador"
+    : !sinGuardar
+      ? inicial.publicado
+        ? "Publicado"
+        : "Borrador"
+      : inicial.publicado
+        ? "Publicado, con cambios sin guardar."
+        : "Sin guardar: guarda antes de publicar.";
 
   return (
     <div className="grid gap-8 lg:grid-cols-2">
@@ -134,7 +215,22 @@ export default function Editor({
         {bloqueado && (
           <p className="rounded-tarjeta bg-sol-100 px-4 py-3 text-sm text-tinta">
             {bloqueado}{" "}
-            <button formAction={duplicarAccion} name="id" value={inicial?.id ?? ""} className="font-bold underline">
+            {/*
+              Duplicar copia la fila guardada, no lo que hay en pantalla, así
+              que le pasaría lo mismo que a «Publicar» con cambios sin
+              guardar. No se apaga por eso, y a propósito: este botón solo
+              existe dentro del aviso de bloqueo, donde todos los campos
+              están deshabilitados y no puede haber ningún cambio que
+              perder. Apagarlo ahí solo serviría para dejar sin salida al
+              único camino que tiene un ejercicio ya respondido.
+            */}
+            <button
+              formAction={duplicarAccion}
+              name="id"
+              value={inicial?.id ?? ""}
+              onClick={() => setUltima("duplicar")}
+              className="font-bold underline"
+            >
               Duplicar y editar la copia
             </button>
           </p>
@@ -230,6 +326,7 @@ export default function Editor({
         <div className="flex flex-wrap items-center gap-3">
           <button
             type="submit"
+            onClick={() => setUltima("guardar")}
             disabled={guardando || Boolean(bloqueado)}
             className="h-11 rounded-full bg-hp-400 px-6 text-sm font-extrabold text-white transition-colors hover:bg-hp-500 disabled:opacity-40"
           >
@@ -241,15 +338,18 @@ export default function Editor({
               formAction={publicar}
               name="id"
               value={inicial.id}
-              className="h-11 rounded-full border border-hp-200 px-6 text-sm font-bold text-tinta hover:border-hp-400"
+              onClick={() => setUltima("publicar")}
+              // Volver a borrador no mira `datos`, así que unos cambios sin
+              // guardar no le hacen prometer nada falso: solo se apaga en el
+              // sentido de publicar.
+              disabled={!inicial.publicado && sinGuardar}
+              className="h-11 rounded-full border border-hp-200 px-6 text-sm font-bold text-tinta hover:border-hp-400 disabled:opacity-40 disabled:hover:border-hp-200"
             >
               {inicial.publicado ? "Volver a borrador" : "Publicar"}
             </button>
           )}
 
-          <span className="flex-1 text-sm text-tinta-suave">
-            {inicial?.publicado ? "Publicado" : "Borrador"}
-          </span>
+          <span className="flex-1 text-sm text-tinta-suave">{lineaDeEstado}</span>
 
           {/*
             Borrar solo tiene sentido para limpiar los borradores que uno
@@ -261,6 +361,7 @@ export default function Editor({
               formAction={borrar}
               name="id"
               value={inicial.id}
+              onClick={() => setUltima("borrar")}
               className="text-sm font-semibold text-tinta-suave underline hover:text-hp-500"
             >
               Borrar
