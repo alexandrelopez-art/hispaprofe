@@ -4,6 +4,7 @@
  * Ejecutar con:  npx tsx scripts/verificar-expresion.ts
  */
 import "dotenv/config";
+import { clasesParaCitar, puedeCitarse } from "@/lib/citas";
 import {
   analizarExpresion,
   expresionSchema,
@@ -25,6 +26,7 @@ let recorridoId: string | null = null;
 let pasoId: string | null = null;
 let asignacionId: string | null = null;
 const usuarioIds: string[] = [];
+const claseIds: string[] = [];
 
 const ESCRITA = {
   ejercicio: "expresion",
@@ -175,6 +177,57 @@ async function main() {
     "una vez corregida, ya no se puede reescribir",
   );
 
+  // ─── La cita del oral ───────────────────────────────────────────────
+  const otro = await prisma.user.create({
+    data: { email: `otro-${marca}@ejemplo.test`, role: "STUDENT" },
+  });
+  usuarioIds.push(otro.id);
+
+  const manana = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+  const suya = await prisma.clase.create({
+    data: { profesorId: profesor.id, estudianteId: estudiante.id, empiezaEl: manana, minutos: 60 },
+  });
+  claseIds.push(suya.id);
+  const ajena = await prisma.clase.create({
+    data: { profesorId: profesor.id, estudianteId: otro.id, empiezaEl: manana, minutos: 60 },
+  });
+  claseIds.push(ajena.id);
+  const anulada = await prisma.clase.create({
+    data: {
+      profesorId: profesor.id,
+      estudianteId: estudiante.id,
+      empiezaEl: manana,
+      minutos: 60,
+      estado: "ANULADA",
+    },
+  });
+  claseIds.push(anulada.id);
+
+  afirmar((await puedeCitarse(asignacion.id, suya.id)) === null, "se puede citar en una clase suya");
+  afirmar(
+    (await puedeCitarse(asignacion.id, ajena.id)) !== null,
+    "no se puede citar en la clase de otro alumno",
+  );
+  afirmar(
+    (await puedeCitarse(asignacion.id, anulada.id)) !== null,
+    "no se puede citar en una clase anulada",
+  );
+  afirmar(
+    (await puedeCitarse(asignacion.id, "noexiste")) !== null,
+    "no se puede citar en una clase que no existe",
+  );
+
+  const ofrecidas = await clasesParaCitar(asignacion.id);
+  afirmar(
+    ofrecidas.some((c) => c.id === suya.id),
+    "la clase suya sale entre las que se ofrecen",
+  );
+  afirmar(
+    !ofrecidas.some((c) => c.id === ajena.id || c.id === anulada.id),
+    "ni la ajena ni la anulada salen entre las que se ofrecen",
+  );
+
   console.log("\nTodo bien.");
 }
 
@@ -210,6 +263,10 @@ main()
     if (recorridoId) {
       const id = recorridoId;
       await intentar("recorrido", () => prisma.recorrido.delete({ where: { id } }));
+    }
+    if (claseIds.length) {
+      // Antes que los usuarios: Clase.profesorId es RESTRICT.
+      await intentar("clases", () => prisma.clase.deleteMany({ where: { id: { in: claseIds } } }));
     }
     if (usuarioIds.length) {
       await intentar("usuarios", () => prisma.user.deleteMany({ where: { id: { in: usuarioIds } } }));
