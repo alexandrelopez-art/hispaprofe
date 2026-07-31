@@ -16,6 +16,8 @@ import {
 } from "@/lib/recursos";
 import { prisma } from "@/lib/prisma";
 import { corregirRelacionar, relacionarSchema, versionPublicaRelacionar } from "@/lib/ejercicios/relacionar";
+import { opcionSchema, versionPublicaOpcion } from "@/lib/ejercicios/opcion";
+import { trozos } from "@/lib/ejercicios/tipos";
 
 function afirmar(condicion: boolean, mensaje: string) {
   if (!condicion) throw new Error(`FALLO: ${mensaje}`);
@@ -275,6 +277,81 @@ async function main() {
       ],
     }).success,
     "un relacionar sin sobrantes sigue siendo válido",
+  );
+
+  // ─── El pasaje con huecos de `opcion` ───────────────────────────────
+  const CLOZE = {
+    ejercicio: "opcion" as const,
+    consigna: "Rellena los huecos.",
+    multiple: false,
+    presentacion: "desplegable" as const,
+    texto: "Nunca {{19}} sabe dónde puede estar tu {{20}} libre.",
+    preguntas: [
+      { id: "19", enunciado: "19.", opciones: ["me", "se", "le"], correctas: [1] },
+      { id: "20", enunciado: "20.", opciones: ["momento", "tiempo", "ocio"], correctas: [1] },
+    ],
+  };
+
+  const cloze = opcionSchema.safeParse(CLOZE);
+  afirmar(cloze.success, "un opcion con texto y marcas que cuadran es válido");
+
+  // Una marca que no es de ninguna pregunta: la cara dibujaría un
+  // desplegable que no cuenta para el progreso y el envío no se activaría.
+  afirmar(
+    !opcionSchema.safeParse({
+      ...CLOZE,
+      texto: "Nunca {{19}} sabe dónde puede estar tu {{21}} libre.",
+    }).success,
+    "una marca que no corresponde a ninguna pregunta se rechaza",
+  );
+
+  // Y al revés: una pregunta sin sitio en el texto no se puede contestar,
+  // así que el contador tampoco llegaría nunca al total.
+  afirmar(
+    !opcionSchema.safeParse({
+      ...CLOZE,
+      texto: "Nunca {{19}} sabe dónde puede estar tu tiempo libre.",
+    }).success,
+    "una pregunta sin marca en el texto se rechaza",
+  );
+
+  // Lo de siempre sigue valiendo: casi ningún `opcion` lleva pasaje.
+  afirmar(
+    opcionSchema.safeParse({
+      ejercicio: "opcion",
+      consigna: "Elige.",
+      multiple: false,
+      preguntas: [{ id: "a", enunciado: "¿?", opciones: ["sí", "no"], correctas: [0] }],
+    }).success,
+    "un opcion sin texto sigue siendo válido",
+  );
+
+  // Sin el texto en la versión pública, la cara no puede pintar nada.
+  const clozePublica = versionPublicaOpcion(cloze.data!);
+  afirmar(clozePublica.texto === CLOZE.texto, "el pasaje viaja a la versión pública");
+  afirmar(
+    versionPublicaOpcion(
+      opcionSchema.parse({
+        ejercicio: "opcion",
+        consigna: "Elige.",
+        multiple: false,
+        preguntas: [{ id: "a", enunciado: "¿?", opciones: ["sí", "no"], correctas: [0] }],
+      }),
+    ).texto === undefined,
+    "sin pasaje, la versión pública no lo inventa",
+  );
+
+  // La versión pública nunca lleva las respuestas buenas, con pasaje o sin él.
+  afirmar(
+    !JSON.stringify(clozePublica).includes("correctas"),
+    "la versión pública del cloze no lleva las correctas",
+  );
+
+  // `trozos` es la misma para los dos tipos desde la Task 1.
+  const partesCloze = trozos(CLOZE.texto);
+  afirmar(
+    partesCloze.filter((p) => p.tipo === "hueco").map((p) => p.valor).join(",") === "19,20",
+    "trozos saca los dos huecos del pasaje en orden",
   );
 
   console.log("\nTodo bien.");

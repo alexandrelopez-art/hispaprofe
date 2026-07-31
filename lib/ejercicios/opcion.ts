@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
   comoLista,
+  marcasCuadran,
   type Correccion,
   type ItemCorregido,
   type Respuestas,
@@ -43,6 +44,19 @@ export const opcionSchema = z
      * formato que más lo necesita.
      */
     presentacion: z.enum(["botones", "desplegable"]).default("botones"),
+    /**
+     * Pasaje con marcas {{id}} donde va cada hueco. Con él, el desplegable se
+     * pinta dentro del texto y no en una lista debajo.
+     *
+     * Es lo que distingue un cloze de una batería de preguntas: en el cloze
+     * la pregunta *es* el hueco, y sacarla del texto la deja sin contexto.
+     *
+     * Con `texto`, el control es siempre el desplegable y `presentacion` no
+     * se mira: una fila de botones incrustada en mitad de un párrafo no es
+     * algo que nadie vaya a querer. No se rechaza la combinación, se ignora
+     * — el resultado de ignorarla es justo el que se buscaba.
+     */
+    texto: z.string().optional(),
     /** Cuántas veces se puede oír cada audio. Dos, como en el examen. */
     escuchas: z
       .number()
@@ -63,6 +77,15 @@ export const opcionSchema = z
         p.correctas.every((i) => i < (p.opciones ?? d.opcionesComunes ?? []).length),
       ),
     { message: "Alguna respuesta correcta apunta a una opción que no existe." },
+  )
+  .refine(
+    (d) => d.texto === undefined || marcasCuadran(d.texto, d.preguntas.map((p) => p.id)),
+    {
+      // Solo cuando hay pasaje: sin él no hay marcas que cuadrar. El porqué
+      // largo está en `marcasCuadran`.
+      message:
+        "Las marcas {{...}} del pasaje no coinciden con los ids de las preguntas.",
+    },
   );
 
 export type PreguntaOpcion = z.infer<typeof preguntaOpcionSchema>;
@@ -78,6 +101,8 @@ export type OpcionPublica = {
   multiple: boolean;
   presentacion: "botones" | "desplegable";
   escuchas: number;
+  /** El pasaje, si lo hay. Sin él la cara no puede pintar el cloze. */
+  texto?: string;
   preguntas: { id: string; enunciado: string; opciones: string[]; audio?: string }[];
 };
 
@@ -87,6 +112,7 @@ export function versionPublicaOpcion(datos: Opcion): OpcionPublica {
     multiple: datos.multiple,
     presentacion: datos.presentacion,
     escuchas: datos.escuchas,
+    texto: datos.texto,
     // Cada pregunta sale con su lista ya resuelta: al navegador le da igual
     // si venia de la pregunta o de la lista comun.
     preguntas: datos.preguntas.map((p) => ({
