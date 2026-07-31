@@ -9,6 +9,7 @@ import TextoRico from "@/components/texto-rico";
 import Ejercicio from "@/components/ejercicios/ejercicio";
 import { analizar, corregir, versionPublica } from "@/lib/ejercicios/registro";
 import type { Respuestas } from "@/lib/ejercicios/tipos";
+import SelectorEjercicio, { type Candidato } from "./selector-ejercicio";
 
 // Fuerza render dinámico: lee de la base en cada visita.
 export const dynamic = "force-dynamic";
@@ -235,6 +236,26 @@ export default async function PasoPage({
   const analizado = vinculo ? analizar(vinculo.ejercicio.datos) : null;
   const hayEjercicio = analizado !== null;
 
+  // Los publicados que se le pueden ofrecer a este paso. Se acotan al nivel
+  // del recorrido porque es lo que se busca el 99% de las veces; para salirse
+  // de ahí está la pantalla de Recursos. Solo para el profesor: el
+  // estudiante no debe ver ni la lista ni el selector.
+  const candidatos: Candidato[] = esProfe
+    ? await prisma.ejercicio.findMany({
+        where: { publicado: true, nivel: paso.recorrido.nivel },
+        orderBy: { titulo: "asc" },
+        select: { id: true, titulo: true, tipo: true, nivel: true },
+      })
+    : [];
+
+  const ejercicioActual =
+    vinculo && esProfe
+      ? await prisma.ejercicio.findUnique({
+          where: { id: vinculo.ejercicio.id },
+          select: { id: true, titulo: true },
+        })
+      : null;
+
   // La corrección solo se calcula —y por tanto solo viaja al navegador—
   // cuando el ejercicio ya está cerrado y no se puede reenviar.
   const correccion =
@@ -333,6 +354,14 @@ export default async function PasoPage({
       )}
 
       {esProfe && <EditorBloques pasoId={paso.id} />}
+
+      {esProfe && (
+        <SelectorEjercicio
+          pasoId={paso.id}
+          actual={ejercicioActual}
+          candidatos={candidatos}
+        />
+      )}
 
       {/*
         El ejercicio autocorregible. Al estudiante se le da interactivo y sin
