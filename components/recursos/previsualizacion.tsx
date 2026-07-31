@@ -48,25 +48,33 @@ export default function Previsualizacion({ datos }: { datos: unknown }) {
   useEffect(() => {
     let vigente = true;
 
-    versionParaPrevisualizar(datosJson).then((r) => {
-      if (!vigente) return;
-      setValor({});
-      setCorreccion(null);
-      if ("error" in r) {
-        setError(r.error);
-        setPublica(null);
-        setTipo(null);
-        setDatosJsonPublica(null);
-      } else {
-        setError(null);
-        setPublica(r.publica);
-        setTipo(r.tipo);
-        setDatosJsonPublica(datosJson);
-      }
-    });
+    // El efecto depende de `datosJson`, que cambia con cada tecla, y cada
+    // disparo es una ida y vuelta al servidor con su `auth()` de Clerk y su
+    // consulta a la base: un texto de 200 caracteres eran 200 peticiones. Se
+    // espera a que el profesor deje de escribir; medio segundo largo no se
+    // nota en una previsualización y quita casi todas.
+    const espera = setTimeout(() => {
+      versionParaPrevisualizar(datosJson).then((r) => {
+        if (!vigente) return;
+        setValor({});
+        setCorreccion(null);
+        if ("error" in r) {
+          setError(r.error);
+          setPublica(null);
+          setTipo(null);
+          setDatosJsonPublica(null);
+        } else {
+          setError(null);
+          setPublica(r.publica);
+          setTipo(r.tipo);
+          setDatosJsonPublica(datosJson);
+        }
+      });
+    }, 400);
 
     return () => {
       vigente = false;
+      clearTimeout(espera);
     };
   }, [datosJson]);
 
