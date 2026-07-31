@@ -47,3 +47,7 @@ next-env.d.ts
 
 # Cuaderno de trabajo de los agentes: notas de ejecución, no código.
 /.superpowers
+
+# Copias de trabajo aisladas. Solo el directorio de worktrees: lo demás de
+# .claude (ajustes, permisos) sí va al repo.
+/.claude/worktrees
