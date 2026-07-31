@@ -3,11 +3,13 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@/lib/generated/prisma/client";
 import { exigirProfesor } from "@/lib/profesor";
 import { CRITERIOS } from "@/lib/orales/criterios";
 import type { ClaveCriterio } from "@/lib/orales/criterios";
 import { HORA_PAUSA } from "@/lib/orales/formato";
 import type { Notas } from "@/lib/orales/formato";
+import { parsearHorario } from "@/lib/orales/horario";
 import {
   caparTiempo,
   notaDentroDelCriterio,
@@ -143,12 +145,23 @@ export async function borrarSujeto(formData: FormData) {
  *
  * Una línea por turno, con tabuladores o punto y coma:
  *   Mercredi 20/05 ; 08h00 ; 08h15 ; HERMITE ; Rose ; CDI
- * Una línea con solo `---` es una pausa.
+ * Una línea con solo `---`, o una fila de columnas con `---` en el hueco de
+ * la hora de paso, es una pausa. `parsearHorario` (lib/orales/horario.ts) se
+ * encarga de los siete campos, los dos separadores, los dos formatos de
+ * pausa y la herencia del día; aquí solo queda emparejar con estudiantes,
+ * aplicar las reglas y escribir.
  *
  * Los estudiantes se emparejan por correo si la línea trae uno; si no, por
  * apellido y nombre entre los miembros del grupo. Lo que no se empareja se
  * queda sin estudiante y sale en la pantalla como pendiente, en vez de
  * fallar la importación entera por una tilde.
+ *
+ * Las escrituras van en un `$transaction`: sin él, un fallo a mitad de
+ * camino (o el choque contra `@@unique([convocatoriaId, grupoId, orden])`
+ * de un doble clic en «Montar el horario») dejaba media agenda pegada y sin
+ * forma de completarla. Con la transacción, o se pega el horario entero, o
+ * no se pega nada y el profesor puede volver a intentarlo: el formulario de
+ * la página sigue disponible aunque ya haya turnos, precisamente para eso.
  */
 export async function pegarHorario(formData: FormData) {
   const convocatoriaId = String(formData.get("convocatoriaId") ?? "");
@@ -186,10 +199,7 @@ export async function pegarHorario(formData: FormData) {
     if (nombre) porNombre.set(nombre, estudiante.id);
   }
 
-  const lineas = String(formData.get("horario") ?? "")
-    .split("\n")
-    .map((l) => l.trim())
-    .filter(Boolean);
+  const lineas = parsearHorario(String(formData.get("horario") ?? ""));
 
   // El orden arranca donde acabó lo que ya hubiera, para poder pegar en dos
   // veces sin chocar con @@unique([convocatoriaId, grupoId, orden]).
@@ -199,47 +209,38 @@ export async function pegarHorario(formData: FormData) {
     select: { orden: true },
   });
   let orden = (ultimo?.orden ?? 0) + 1;
-  // El día que lleva la pausa cuando la línea es un `---` pelado: el de la
-  // última fila con día propio, para que la cabecera del horario no se
-  // repita en mitad del mismo día. Si la pausa es la primera línea de
-  // todas, no hay nada que heredar y se deja vacío.
-  let ultimoDia = "";
 
+  const filas: Prisma.TurnoUncheckedCreateInput[] = [];
   for (const linea of lineas) {
-    const campos = linea.split(/[\t;]/).map((c) => c.trim());
-    if (campos[0] === "---" || campos[3] === "---") {
-      const dia = campos[0] === "---" ? ultimoDia : campos[0];
-      if (dia) ultimoDia = dia;
-      await prisma.turno.create({
-        data: { convocatoriaId, grupoId, dia, hora: HORA_PAUSA, orden },
-      });
+    if (linea.pausa) {
+      filas.push({ convocatoriaId, grupoId, dia: linea.dia, hora: HORA_PAUSA, orden });
       orden += 1;
       continue;
     }
-    const [dia, preparacion, hora, apellido, nombre, sala, correo] = campos;
-    if (dia) ultimoDia = dia;
-    const clave = `${apellido ?? ""} ${nombre ?? ""}`.trim().toLowerCase();
+    const clave = `${linea.apellido} ${linea.nombre}`.trim().toLowerCase();
     const estudianteId =
-      (correo ? porCorreo.get(correo.toLowerCase()) : undefined) ??
+      (linea.correo ? porCorreo.get(linea.correo.toLowerCase()) : undefined) ??
       porNombre.get(clave) ??
       null;
 
     // Regla 3: aunque el emparejamiento acierte, una ficha suprimida no
     // recibe turno. Se deja el hueco sin estudiante, no se rompe el pegado.
     const motivo = await puedeExaminarse(estudianteId);
-    await prisma.turno.create({
-      data: {
-        convocatoriaId,
-        grupoId,
-        estudianteId: motivo ? null : estudianteId,
-        dia: dia ?? "",
-        preparacion: preparacion || null,
-        hora: hora ?? "",
-        sala: sala || null,
-        orden,
-      },
+    filas.push({
+      convocatoriaId,
+      grupoId,
+      estudianteId: motivo ? null : estudianteId,
+      dia: linea.dia,
+      preparacion: linea.preparacion,
+      hora: linea.hora,
+      sala: linea.sala,
+      orden,
     });
     orden += 1;
+  }
+
+  if (filas.length > 0) {
+    await prisma.$transaction(filas.map((data) => prisma.turno.create({ data })));
   }
   revalidatePath(`/profe/orales/${convocatoriaId}`);
 }
