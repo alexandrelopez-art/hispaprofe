@@ -1,6 +1,6 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { exigirProfesor } from "@/lib/profesor";
+import { getUsuarioActual } from "@/lib/usuario";
 import { borrarSujeto, crearSujeto } from "@/lib/acciones-orales";
 import SubirDocumento from "@/components/orales/subir-documento";
 
@@ -12,7 +12,13 @@ export default async function SujetsPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const usuario = await exigirProfesor();
+  // Mismo patrón que el resto de pantallas de profe: redirigir por el rol,
+  // no lanzar. `exigirProfesor()` está pensado para acciones de servidor,
+  // no para páginas: aquí no hay `error.tsx` que atrape el throw.
+  const usuario = await getUsuarioActual();
+  if (!usuario || (usuario.role !== "PROFESOR" && usuario.role !== "ADMIN")) {
+    redirect("/dashboard");
+  }
   const convocatoria = await prisma.convocatoria.findUnique({
     where: { id },
     select: { id: true, nombre: true, profesorId: true },

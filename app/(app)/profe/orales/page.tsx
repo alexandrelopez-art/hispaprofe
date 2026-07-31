@@ -1,12 +1,20 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { exigirProfesor } from "@/lib/profesor";
+import { getUsuarioActual } from "@/lib/usuario";
 import { archivarConvocatoria, crearConvocatoria } from "@/lib/acciones-orales";
 
 export const dynamic = "force-dynamic";
 
 export default async function OralesPage() {
-  const usuario = await exigirProfesor();
+  // Mismo patrón que el resto de pantallas de profe (ver clases/page.tsx):
+  // `redirect`, no un `exigirProfesor()` que lanza. No hay `error.tsx` en la
+  // app, así que un estudiante que teclee esta URL vería la pantalla de
+  // error cruda de Next en vez de que lo mandaran al dashboard.
+  const usuario = await getUsuarioActual();
+  if (!usuario || (usuario.role !== "PROFESOR" && usuario.role !== "ADMIN")) {
+    redirect("/dashboard");
+  }
   const convocatorias = await prisma.convocatoria.findMany({
     where: usuario.role === "ADMIN" ? {} : { profesorId: usuario.id },
     orderBy: [{ archivada: "asc" }, { createdAt: "desc" }],

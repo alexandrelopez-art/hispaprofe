@@ -10,7 +10,16 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const usuario = await exigirProfesor();
+  // `exigirProfesor()` lanza si no hay sesión de profe/admin. En una página
+  // eso lo arreglaría un `redirect`, pero esto es un manejador de ruta: sin
+  // capturarlo, el throw se convertía en un 500 genérico en vez de un 403
+  // limpio para quien pide el CSV sin permiso.
+  let usuario;
+  try {
+    usuario = await exigirProfesor();
+  } catch {
+    return new Response("Sin permiso", { status: 403 });
+  }
 
   const convocatoria = await prisma.convocatoria.findUnique({
     where: { id },
