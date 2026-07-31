@@ -269,27 +269,25 @@ Junto con Luciano Pavarotti y José Carreras, actuó en numerosas ocasiones en m
   // `huecos` porque no se escribe la palabra, se elige entre tres; y en
   // desplegable para que siete filas de botones no sean un muro.
   //
-  // Los huecos se marcan **(19)** y no __19__ porque el bloque se pinta en
-  // Markdown, donde los guiones bajos dobles son negrita y el número se
-  // quedaría sin marca visible.
+  // Los huecos se marcan {{19}}…{{25}} y el pasaje va en el ejercicio, no en
+  // un bloque: así el desplegable se pinta dentro del texto, en su sitio, y
+  // el ejercicio es autónomo — se puede reutilizar en otra secuencia sin
+  // arrastrar un bloque suelto que hay que acordarse de copiar.
   {
     titulo: "Tarea 4",
     tipoPaso: "ACTIVIDAD" as const,
-    bloque: `## Buscamos nuevos talentos
-
-Nunca **(19)** sabe dónde puede estar el próximo Juan Antonio Bayona. O el próximo Norman Foster, o David Delfín o Banksy… Si te gusta escribir, si tu **(20)** libre lo dedicas a diseñar, a componer canciones o cualquier forma de creación artística, este puede ser tu momento. No importa de dónde eres: **(21)** interesa descubrir tu talento y compartir tus creaciones. Porque muchas veces, las formas de creatividad están escondidas y es lo que buscamos **(22)** en nuestro concurso «Se busca talento».
-
-Queremos conocer a esos creadores, de cualquier disciplina, que tienen algo nuevo que **(23)** al mundo. Puede **(24)** un poema, una película corta, una canción, una fotografía… Cualquier muestra, de cualquier arte, será bienvenida. Buscamos creadores de literatura, cine, vídeos, música, arquitectura, pintura, moda, ilustración.
-
-Esta es la segunda edición de un concurso que empezó **(25)** doce meses. Ahora tú también puedes ser uno de ellos. Solo tienes que enviarnos una breve biografía tuya y tu muestra de talento por correo electrónico (talentos@lavida.es). Nosotros la valoraremos y, durante el verano, escogeremos las más interesantes, que tendrán su reflejo en la edición digital de EL PAÍS. Porque, quién sabe, quizá tu talento es uno de los que estamos buscando.
-
-*(Adaptado de cultura.elpais.com)*`,
+    bloque: undefined,
     esquema: opcionSchema,
     datos: {
       ejercicio: "opcion",
       consigna: "Lee el texto y rellena los huecos con la opción correcta.",
       multiple: false,
       presentacion: "desplegable",
+      texto: `Nunca {{19}} sabe dónde puede estar el próximo Juan Antonio Bayona. O el próximo Norman Foster, o David Delfín o Banksy… Si te gusta escribir, si tu {{20}} libre lo dedicas a diseñar, a componer canciones o cualquier forma de creación artística, este puede ser tu momento. No importa de dónde eres: {{21}} interesa descubrir tu talento y compartir tus creaciones. Porque muchas veces, las formas de creatividad están escondidas y es lo que buscamos {{22}} en nuestro concurso «Se busca talento».
+
+Queremos conocer a esos creadores, de cualquier disciplina, que tienen algo nuevo que {{23}} al mundo. Puede {{24}} un poema, una película corta, una canción, una fotografía… Cualquier muestra, de cualquier arte, será bienvenida. Buscamos creadores de literatura, cine, vídeos, música, arquitectura, pintura, moda, ilustración.
+
+Esta es la segunda edición de un concurso que empezó {{25}} doce meses. Ahora tú también puedes ser uno de ellos. Solo tienes que enviarnos una breve biografía tuya y tu muestra de talento por correo electrónico (talentos@lavida.es). Nosotros la valoraremos y, durante el verano, escogeremos las más interesantes, que tendrán su reflejo en la edición digital de EL PAÍS. Porque, quién sabe, quizá tu talento es uno de los que estamos buscando.`,
       preguntas: [
         { id: "19", enunciado: "19.", opciones: ["me", "se", "le"], correctas: [1] },
         { id: "20", enunciado: "20.", opciones: ["momento", "tiempo", "ocio"], correctas: [1] },
@@ -471,9 +469,13 @@ async function main() {
       },
       select: { id: true },
     });
-    await prisma.bloque.create({
-      data: { pasoId: paso.id, orden: 1, tipo: "TEXTO", texto: t.bloque },
-    });
+    // La Tarea 4 no lleva bloque: su texto vive dentro del ejercicio, con
+    // los huecos marcados, porque los desplegables se pintan encima.
+    if (t.bloque) {
+      await prisma.bloque.create({
+        data: { pasoId: paso.id, orden: 1, tipo: "TEXTO", texto: t.bloque },
+      });
+    }
     const ejercicio = await prisma.ejercicio.create({
       data: {
         tipo: TIPO_DE_EJERCICIO[t.datos.ejercicio as MarcaEjercicio],
