@@ -120,9 +120,10 @@ lista de «Bien ✓» sin decir de qué hueco —que es lo que `huecos` enseña 
 informa de nada.
 
 **La lista de veredictos de `huecos` se queda como está.** De `huecos` solo
-cambia de dónde importa `trozos`, que es una línea; su cara no se toca. Mejorar
-esa lista es una conversación aparte, y arreglarla de paso aquí mezclaría dos
-cambios que no tienen por qué caer juntos.
+cambia de dónde importa `trozos` —una línea en `huecos.ts` y otra en
+`huecos.tsx`—; lo que pinta no se toca. Mejorar esa lista es una conversación
+aparte, y arreglarla de paso aquí mezclaría dos cambios que no tienen por qué
+caer juntos.
 
 ### El progreso no cambia
 
