@@ -10,12 +10,14 @@ import { HORA_PAUSA } from "@/lib/orales/formato";
 import type { Notas } from "@/lib/orales/formato";
 import {
   caparTiempo,
-  grupoDeProfesor,
   notaDentroDelCriterio,
   origenDeSujetValido,
+} from "@/lib/orales/reglas";
+import {
+  grupoDeProfesor,
   puedeExaminarse,
   sujetoDeConvocatoria,
-} from "@/lib/orales/reglas";
+} from "@/lib/orales/reglas-servidor";
 
 /**
  * La convocatoria existe y es de quien pide, o es un administrador.

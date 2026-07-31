@@ -21,12 +21,14 @@ import type { Notas } from "@/lib/orales/formato";
 import {
   ajustarNota,
   caparTiempo,
-  grupoDeProfesor,
   notaDentroDelCriterio,
   origenDeSujetValido,
+} from "@/lib/orales/reglas";
+import {
+  grupoDeProfesor,
   puedeExaminarse,
   sujetoDeConvocatoria,
-} from "@/lib/orales/reglas";
+} from "@/lib/orales/reglas-servidor";
 
 function afirmar(condicion: boolean, mensaje: string) {
   if (!condicion) throw new Error(`FALLO: ${mensaje}`);
