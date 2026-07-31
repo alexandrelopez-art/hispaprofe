@@ -159,15 +159,29 @@ se elige. Cuando `opciones > items` hay sobrantes, y su número sale de la resta
 
 ### Los formatos y con qué se construyen
 
-| Formato | Qué es | Tipo del motor |
-|---|---|---|
-| `MC` | Opción múltiple de tres opciones | `opcion` |
-| `MATCH_TEXT` | Relacionar textos con enunciados, con sobrantes | `relacionar` |
-| `MATCH_PERSON` | Relacionar enunciados con personas | `relacionar` |
-| `MATCH_TOPIC` | Relacionar hablantes con temas, con sobrantes | `relacionar` |
-| `GAP_INSERT` | Insertar fragmentos en los huecos de un texto | `relacionar` con texto |
-| `ATTRIB` | Atribuir a hablante: A, B o ninguno | `opcion` con lista común |
-| `CLOZE` | Huecos con tres opciones | `opcion` |
+**La pregunta que decide el tipo del motor no es cómo se llama el formato, sino
+si una misma opción puede valer para más de un ítem.**
+
+Si cada opción se usa **una sola vez** —nueve textos para seis enunciados, y cada
+texto es de un enunciado— es `relacionar`, que es uno a uno y admite sobrantes.
+Si una opción **se repite** —tres textos para seis preguntas, así que cada texto
+contesta dos— es `opcion` con lista común, que es justo lo que distingue a ese
+tipo: «la misma opción puede valer en varias preguntas».
+
+Confundirlas se paga caro en las dos direcciones. Usar `relacionar` donde se
+repite es imposible: el esquema prohíbe dos derechas iguales. Usar `opcion` donde
+no se repite deja al estudiante marcar el mismo texto en dos enunciados, que el
+examen no permite.
+
+| Formato | Qué es | Tipo del motor | Por qué |
+|---|---|---|---|
+| `MC` | Opción múltiple de tres opciones | `opcion` | Cada pregunta tiene sus propias opciones. |
+| `MATCH_TEXT` | Relacionar textos con enunciados, con sobrantes | `relacionar` | Cada texto se usa una vez. |
+| `MATCH_TOPIC` | Relacionar hablantes con temas, con sobrantes | `relacionar` | Cada tema se usa una vez. |
+| `GAP_INSERT` | Insertar fragmentos en los huecos de un texto | `relacionar` con texto | Cada fragmento va en un hueco. |
+| `MATCH_PERSON` | Relacionar preguntas con personas o textos | `opcion` con lista común | **Se repiten**: tres o cuatro personas para seis preguntas. |
+| `ATTRIB` | Atribuir a hablante: A, B o ninguno | `opcion` con lista común | Se repiten: tres opciones para seis enunciados. |
+| `CLOZE` | Huecos con tres opciones | `opcion` | Cada hueco tiene sus propias opciones. |
 
 **`CLOZE` se construye con `opcion` y no con `huecos`.** Todos los huecos del DELE
 en las pruebas de comprensión dan tres opciones: no se escribe la palabra, se
@@ -247,8 +261,9 @@ reproductor. Eso cubre `MC`, `ATTRIB` y `CLOZE`, que son preguntas.
 
 **Pero dos formatos auditivos no son preguntas: son emparejamientos.**
 `MATCH_TOPIC` relaciona seis hablantes con diez temas, y `MATCH_TEXT` en su
-versión auditiva relaciona seis audios con enunciados de nueve. En los dos, **lo
-que suena está en la columna de la izquierda**. Así que `parejaSchema` gana su
+versión auditiva relaciona seis audios con enunciados de nueve. Los dos son uno a
+uno, así que van con `relacionar`, y en los dos **lo que suena está en la columna
+de la izquierda**. Así que `parejaSchema` gana su
 propio audio:
 
 ```ts
