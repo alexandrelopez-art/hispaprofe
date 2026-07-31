@@ -34,7 +34,11 @@ export const relacionarSchema = z
      */
     sobrantes: z.array(z.string()).default([]),
     /** Cuántas veces se puede oír cada audio. Dos, como en el examen. */
-    escuchas: z.number().int().min(1, { message: "Hay que poder oír el audio al menos una vez." }).default(2),
+    escuchas: z
+      .number()
+      .int({ message: "El número de escuchas tiene que ser un número entero." })
+      .min(1, { message: "Hay que poder oír el audio al menos una vez." })
+      .default(2),
   })
   .refine(
     (d) => new Set(d.parejas.map((p) => p.derecha)).size === d.parejas.length,

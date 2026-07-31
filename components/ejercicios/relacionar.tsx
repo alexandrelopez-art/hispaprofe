@@ -54,9 +54,18 @@ export default function CaraRelacionar({ publica, valor, alCambiar, correccion, 
                 >
                   <span className="text-sm font-semibold text-tinta">{izq.texto}</span>
                   {izq.audio && (
-                    <audio controls preload="none" src={izq.audio} className="max-w-[14rem]">
-                      Tu navegador no puede reproducir este audio.
-                    </audio>
+                    // El div de la fila escucha `onClick` para emparejar la pieza
+                    // cogida. Sin cortar aquí, un toque en los controles nativos
+                    // del audio —reescuchar antes de decidir, el gesto normal en
+                    // una tarea auditiva— burbujea y empareja algo que el
+                    // estudiante no eligió. Se corta en este envoltorio, no en el
+                    // propio `<audio>`, para que siga funcionando cuando la
+                    // Tarea 6 lo sustituya por el reproductor que cuenta escuchas.
+                    <div onClick={(e) => e.stopPropagation()}>
+                      <audio controls preload="none" src={izq.audio} className="max-w-[14rem]">
+                        Tu navegador no puede reproducir este audio.
+                      </audio>
+                    </div>
                   )}
                   <span className="ml-auto text-sm text-tinta-suave">
                     {elegida ? textoDe(elegida) : "—"}
