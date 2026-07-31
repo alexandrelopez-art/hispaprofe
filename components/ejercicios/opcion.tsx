@@ -1,7 +1,7 @@
 "use client";
 
 import type { OpcionPublica } from "@/lib/ejercicios/opcion";
-import { comoLista, type Respuestas } from "@/lib/ejercicios/tipos";
+import { comoLista, trozos, type Respuestas } from "@/lib/ejercicios/tipos";
 import type { Progreso, PropsCara } from "./ejercicio";
 import Reproductor from "./reproductor";
 
@@ -16,6 +16,21 @@ export default function CaraOpcion({
   puedeContar,
 }: PropsCara) {
   const datos = publica as OpcionPublica;
+
+  // Con pasaje es un cloze y se pinta dentro del texto. Sin él, la lista de
+  // siempre. Las preguntas con audio nunca llevan pasaje —son tareas
+  // distintas del examen—, así que el cloze no necesita reproductor.
+  if (datos.texto) {
+    return (
+      <CaraCloze
+        datos={datos}
+        valor={valor}
+        alCambiar={alCambiar}
+        correccion={correccion}
+        cerrado={cerrado}
+      />
+    );
+  }
 
   function alternar(preguntaId: string, indice: number) {
     if (!datos.multiple) {
@@ -60,26 +75,13 @@ export default function CaraOpcion({
               por pregunta sería un muro. El desplegable cabe.
             */}
             {datos.presentacion === "desplegable" ? (
-              <select
-                value={comoLista(valor[pregunta.id])[0] ?? ""}
-                disabled={cerrado}
-                onChange={(e) => alCambiar({ ...valor, [pregunta.id]: e.target.value })}
-                // El ejercicio se responde una sola vez, así que Enter no
-                // puede enviarlo: al elegir el último desplegable el botón se
-                // habilita, y un Enter por reflejo quemaría el único intento.
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") e.preventDefault();
-                }}
-                aria-label={pregunta.enunciado}
+              <Desplegable
+                pregunta={pregunta}
+                valor={comoLista(valor[pregunta.id])[0] ?? ""}
+                alElegir={(v) => alCambiar({ ...valor, [pregunta.id]: v })}
+                cerrado={cerrado}
                 className="mt-2 h-10 rounded-full border border-hp-200 bg-white px-4 text-sm text-tinta outline-none focus:border-hp-400 disabled:opacity-70"
-              >
-                <option value="">?</option>
-                {pregunta.opciones.map((opcion, indice) => (
-                  <option key={indice} value={String(indice)}>
-                    {opcion}
-                  </option>
-                ))}
-              </select>
+              />
             ) : (
             <div className="mt-3 grid gap-2 sm:grid-cols-2">
               {pregunta.opciones.map((opcion, indice) => {
@@ -145,5 +147,115 @@ export function Veredicto({ acertado, correcta }: { acertado: boolean; correcta:
     >
       {acertado ? "Bien ✓" : `No. La respuesta era: ${correcta}`}
     </p>
+  );
+}
+
+/**
+ * El desplegable de una pregunta. Lo usan la lista de siempre y el cloze:
+ * dos copias del mismo control acabarían separándose, y la de dentro del
+ * texto es la que menos se mira al cambiar algo.
+ */
+function Desplegable({
+  pregunta,
+  valor,
+  alElegir,
+  cerrado,
+  className,
+}: {
+  pregunta: OpcionPublica["preguntas"][number];
+  valor: string;
+  alElegir: (v: string) => void;
+  cerrado: boolean;
+  className: string;
+}) {
+  return (
+    <select
+      value={valor}
+      disabled={cerrado}
+      onChange={(e) => alElegir(e.target.value)}
+      // El ejercicio se responde una sola vez, así que Enter no puede
+      // enviarlo: al elegir el último desplegable el botón se habilita, y un
+      // Enter por reflejo quemaría el único intento.
+      onKeyDown={(e) => {
+        if (e.key === "Enter") e.preventDefault();
+      }}
+      aria-label={pregunta.enunciado}
+      className={className}
+    >
+      <option value="">?</option>
+      {pregunta.opciones.map((opcion, indice) => (
+        <option key={indice} value={String(indice)}>
+          {opcion}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+/**
+ * El pasaje con los desplegables en su hueco.
+ *
+ * Corregido, el desplegable se queda con lo que eligió el estudiante dentro
+ * —ya se ve lo que contestó, sin repetirlo— y solo se colorea. La respuesta
+ * buena aparece pegada al hueco cuando se falla: releyendo el texto se ve
+ * todo, que es justo lo que una lista de veredictos al final no da.
+ */
+function CaraCloze({
+  datos,
+  valor,
+  alCambiar,
+  correccion,
+  cerrado,
+}: {
+  datos: OpcionPublica;
+  valor: Respuestas;
+  alCambiar: (nuevo: Respuestas) => void;
+  correccion: PropsCara["correccion"];
+  cerrado: boolean;
+}) {
+  const porId = new Map(datos.preguntas.map((p) => [p.id, p]));
+
+  return (
+    <div>
+      {/* Interlineado holgado: los desplegables son más altos que la línea. */}
+      <p className="text-lg leading-loose text-tinta">
+        {trozos(datos.texto ?? "").map((parte, i) => {
+          if (parte.tipo === "texto") return <span key={i}>{parte.valor}</span>;
+
+          const pregunta = porId.get(parte.valor);
+          // El esquema ya impide que una marca no tenga pregunta, así que
+          // esto solo salta con datos escritos a mano saltándose el parseo.
+          if (!pregunta) return <span key={i}>{`{{${parte.valor}}}`}</span>;
+
+          const item = correccion?.items.find((x) => x.id === pregunta.id);
+          const borde = !item
+            ? "border-hp-200 focus:border-hp-400"
+            : item.acertado
+              ? "border-bloque2 bg-bloque2/20"
+              : "border-sol-400 bg-sol-100";
+
+          return (
+            <span key={i}>
+              <Desplegable
+                pregunta={pregunta}
+                valor={comoLista(valor[pregunta.id])[0] ?? ""}
+                alElegir={(v) => alCambiar({ ...valor, [pregunta.id]: v })}
+                cerrado={cerrado}
+                className={`mx-1 inline-block h-9 rounded-lg border-2 bg-white px-2 align-middle text-base text-tinta outline-none disabled:opacity-100 ${borde}`}
+              />
+              {item && !item.acertado && (
+                <strong className="mx-1 font-extrabold text-tinta">{item.correcta}</strong>
+              )}
+            </span>
+          );
+        })}
+      </p>
+
+      {correccion && (
+        <p className="mt-4 rounded-lg bg-hp-50 px-3 py-2 text-sm font-semibold text-tinta">
+          Aciertos: {correccion.aciertos} de {correccion.total}
+        </p>
+      )}
+    </div>
   );
 }
