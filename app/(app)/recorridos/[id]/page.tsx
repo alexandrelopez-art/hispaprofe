@@ -12,6 +12,7 @@ import BotonConfirmar from "@/components/boton-confirmar";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { servicioLabel } from "@/lib/servicios";
+import TareasSugeridas from "./tareas-sugeridas";
 
 export const dynamic = "force-dynamic";
 
@@ -349,6 +350,15 @@ export default async function RecorridoDetallePage({
             </section>
           );
         })}
+
+        {esProfe && recorrido.tipo === "PREPARACION_DELE" && recorrido.destreza && (
+          <TareasSugeridas
+            recorridoId={recorrido.id}
+            nivel={recorrido.nivel}
+            destreza={recorrido.destreza}
+            ordenesOcupados={recorrido.pasos.map((p) => p.orden)}
+          />
+        )}
 
         {esProfe && (
           <section className="mt-4 rounded-tarjeta border border-hp-100 bg-white p-5 shadow-suave">
