@@ -13,6 +13,7 @@ export default function CaraOpcion({
   cerrado,
   pasoId,
   escuchasUsadas,
+  puedeContar,
 }: PropsCara) {
   const datos = publica as OpcionPublica;
 
@@ -46,7 +47,10 @@ export default function CaraOpcion({
                   clave={pregunta.id}
                   maximo={datos.escuchas}
                   usadas={escuchasUsadas[pregunta.id] ?? 0}
-                  cerrado={cerrado || pasoId === ""}
+                  // `!puedeContar` también: sin asignación viva el servidor
+                  // no concede ninguna escucha, así que contar aquí solo
+                  // serviría para decir «Sin escuchas» sin haber sonado.
+                  cerrado={cerrado || pasoId === "" || !puedeContar}
                 />
               </div>
             )}

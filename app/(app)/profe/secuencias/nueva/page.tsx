@@ -34,37 +34,23 @@ export default async function NuevaSecuenciaPage() {
         action={crearSecuencia}
         className="mt-8 rounded-tarjeta border border-hp-100 bg-white p-5 shadow-suave"
       >
-        <EleccionDele tituloInicial="" />
-
-        <label className="mt-4 block text-sm font-semibold text-tinta">
-          Descripción
-          <input
-            type="text"
-            name="descripcion"
-            placeholder="Una línea sobre qué trabaja"
-            className={campo}
-          />
-        </label>
-
-        <label className="mt-5 flex items-start gap-2 text-sm text-tinta">
-          <input
-            type="checkbox"
-            name="plantilla"
-            defaultChecked
-            className="mt-0.5 h-4 w-4 accent-hp-400"
-          />
-          <span>
-            <span className="font-semibold">
-              Crear con la estructura recomendada
-            </span>
-            <br />
-            <span className="text-tinta-suave">
-              9 pasos en 2 ciclos: activación, actividades, andamiaje y micro
-              tarea; luego actividades, andamiaje y macro tarea. Los títulos
-              son provisionales y se cambian al entrar en cada paso.
-            </span>
-          </span>
-        </label>
+        {/*
+          La descripción va dentro de `EleccionDele` como ranura: la casilla
+          de la plantilla tiene que estar debajo y depende de la prueba
+          elegida, que es estado del cliente. Así el campo se sigue
+          renderizando en el servidor y el orden de la pantalla no cambia.
+        */}
+        <EleccionDele tituloInicial="">
+          <label className="mt-4 block text-sm font-semibold text-tinta">
+            Descripción
+            <input
+              type="text"
+              name="descripcion"
+              placeholder="Una línea sobre qué trabaja"
+              className={campo}
+            />
+          </label>
+        </EleccionDele>
 
         <button
           type="submit"

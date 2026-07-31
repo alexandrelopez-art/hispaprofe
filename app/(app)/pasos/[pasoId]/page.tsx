@@ -12,7 +12,7 @@ import type { Respuestas } from "@/lib/ejercicios/tipos";
 import SelectorEjercicio, { type Candidato } from "./selector-ejercicio";
 import Reproductor from "@/components/ejercicios/reproductor";
 import { esRacionado, escuchasDelPaso } from "@/lib/escuchas";
-import { tareaDe } from "@/lib/dele";
+import { numeroDeTarea, tareaDe } from "@/lib/dele";
 import { TIPO_DE_EJERCICIO } from "@/lib/recursos";
 
 // Fuerza render dinámico: lee de la base en cada visita.
@@ -127,7 +127,7 @@ function BloqueContenido({
           )}
           {racionado ? (
             // Una sola escucha, y no dos: el archivo oficial ya trae la
-            // repeticion dentro. Por eso el maximo es un literal y no una
+            // repetición dentro. Por eso el máximo es un literal y no una
             // columna del bloque — no hay nada que configurar.
             <Reproductor
               src={bloque.url ?? ""}
@@ -291,29 +291,16 @@ export default async function PasoPage({
   const analizado = vinculo ? analizar(vinculo.ejercicio.datos) : null;
   const hayEjercicio = analizado !== null;
 
-  // Qué tarea del examen es este paso. Se lee del título —«Tarea 3»— y solo
-  // si no lo lleva se cae al `orden`.
+  // Qué tarea del examen es este paso. La regla vive en `lib/dele` porque la
+  // comparte con el panel de tareas sugeridas, que necesita contar como
+  // ocupado exactamente lo que esta página da por puesto.
   //
-  // El título manda porque es lo que el profesor ve, y el `orden` no siempre
-  // coincide: las tareas sugeridas crean el paso con el título puesto, pero
-  // `crearPaso` le da `orden = max + 1`. Añadir primero la Tarea 3 la dejaba
-  // con orden 1, y esta página le enseñaba la ficha de la Tarea 1, le
-  // filtraba por el formato de la 1 y le montaba su estructura: contenido
-  // equivocado debajo de un rótulo correcto, que desorienta más que no tener
-  // mapa.
-  //
-  // La reserva importa tanto como la regla: un paso con título libre
-  // —«Calentamiento»— no casa con la expresión y sigue yendo por el `orden`,
-  // que es como se ha comportado siempre.
-  const enElTitulo = /^Tarea (\d+)$/.exec(paso.titulo);
-  const numeroDeTarea = enElTitulo ? Number(enElTitulo[1]) : paso.orden;
-
   // Si este paso es una tarea del mapa, el selector se acota a su formato.
   // Un número más allá de la última tarea oficial devuelve null y todo se
   // comporta como si no hubiera mapa.
   const tarea =
     paso.recorrido.tipo === "PREPARACION_DELE" && paso.recorrido.destreza
-      ? tareaDe(paso.recorrido.nivel, paso.recorrido.destreza, numeroDeTarea)
+      ? tareaDe(paso.recorrido.nivel, paso.recorrido.destreza, numeroDeTarea(paso))
       : null;
 
   // El `tipo` de la base que le toca al motor de esta tarea. La tabla vive
@@ -514,6 +501,11 @@ export default async function PasoPage({
           // comentario de `PropsEjercicio.respuestas`.
           respuestas={(registro?.respuestas as Respuestas | null) ?? null}
           escuchas={escuchasUsadas}
+          // Lo mismo que ya recibía el bloque `AUDIO`: con la asignación
+          // archivada, `pedirEscucha` no concede nada, así que un reproductor
+          // que cuenta solo serviría para enseñar "Sin escuchas" sobre un
+          // audio que nunca ha sonado. Ver `PropsEjercicio.puedeContar`.
+          puedeContar={puedeMarcar}
         />
       )}
 

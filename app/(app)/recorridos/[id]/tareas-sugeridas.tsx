@@ -1,5 +1,5 @@
 import { crearPaso } from "@/lib/acciones";
-import { pruebaDe, type TareaDele } from "@/lib/dele";
+import { numeroDeTarea, pruebaDe, type PasoSituable, type TareaDele } from "@/lib/dele";
 import type { Destreza, Nivel } from "@/lib/generated/prisma/enums";
 
 /**
@@ -13,18 +13,22 @@ export default function TareasSugeridas({
   recorridoId,
   nivel,
   destreza,
-  ordenesOcupados,
+  pasos,
 }: {
   recorridoId: string;
   nivel: Nivel;
   destreza: Destreza;
-  /** Los `orden` de los pasos que ya existen: esas tareas ya están puestas. */
-  ordenesOcupados: number[];
+  /** Los pasos que ya existen, para saber qué tareas están puestas. */
+  pasos: PasoSituable[];
 }) {
   const prueba = pruebaDe(nivel, destreza);
   if (!prueba) return null;
 
-  const ocupados = new Set(ordenesOcupados);
+  // La ocupación se cuenta con `numeroDeTarea`, la misma regla con la que la
+  // ficha del paso decide qué tarea enseñar: si aquí se contara de otra
+  // manera, esta lista escondería tareas que no están y ofrecería otras que
+  // sí, y pinchar dos veces crearía dos «Tarea 3».
+  const ocupados = new Set(pasos.map(numeroDeTarea));
   const faltan = prueba.tareas.filter((t) => !ocupados.has(t.numero));
   if (faltan.length === 0) return null;
 

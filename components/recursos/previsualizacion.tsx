@@ -109,6 +109,9 @@ export default function Previsualizacion({ datos }: { datos: unknown }) {
     // quiera mientras monta el ejercicio.
     pasoId: "",
     escuchasUsadas: {},
+    // Aquí no hay asignación ninguna: no se cuenta nada, igual que dice el
+    // `pasoId` vacío de arriba.
+    puedeContar: false,
   };
 
   const cara = (() => {

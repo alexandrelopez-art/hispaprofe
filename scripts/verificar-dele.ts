@@ -5,7 +5,15 @@
  */
 import "dotenv/config";
 import type { Destreza, Nivel } from "@/lib/generated/prisma/enums";
-import { PRUEBAS, pruebaDe, pruebasDe, sobrantesDe, tareaDe } from "@/lib/dele";
+import {
+  avisoDeItems,
+  numeroDeTarea,
+  PRUEBAS,
+  pruebaDe,
+  pruebasDe,
+  sobrantesDe,
+  tareaDe,
+} from "@/lib/dele";
 import { apuntarEscucha, escuchasDe, escuchasDelPaso, esRacionado, maximoDeEscucha } from "@/lib/escuchas";
 import { prisma } from "@/lib/prisma";
 
@@ -29,6 +37,12 @@ const usuarioIds: string[] = [];
 async function main() {
   // ─── El mapa consigo mismo ──────────────────────────────────────────
   const MOTORES = new Set(["opcion", "huecos", "relacionar", "ordenar"]);
+
+  // Los formatos que por definición dejan opciones fuera: relacionar seis
+  // enunciados con nueve textos, insertar seis fragmentos de ocho. Si uno de
+  // estos no tuviera más opciones que ítems, no sobraría nada y el ejercicio
+  // dejaría de ser el del examen.
+  const CON_SOBRANTES = new Set(["MATCH_TEXT", "MATCH_TOPIC", "GAP_INSERT"]);
 
   for (const prueba of PRUEBAS) {
     const donde = `${prueba.nivel} · ${prueba.prueba}`;
@@ -57,11 +71,18 @@ async function main() {
           `${cual} con relacionar tiene al menos una opción por ítem`,
         );
       }
-      // Solo `relacionar` reparte de una lista única y por tanto puede tener
-      // sobrantes. En `opcion`, `opciones` son las de cada ítem, así que la
-      // resta no significa nada y `sobrantesDe` tiene que dar cero.
-      if (tarea.motor !== "relacionar") {
-        afirmar(sobrantesDe(tarea) === 0, `${cual} no es de sobrantes`);
+      // La afirmación con dientes sobre los sobrantes. Preguntarle a
+      // `sobrantesDe` por una tarea que no es `relacionar` no comprueba
+      // nada: devuelve cero sin mirar, por definición. Lo que sí puede estar
+      // mal —y son 52 filas escritas a mano, que ya han tenido erratas— es
+      // que un formato de los que dejan opciones fuera se quede sin ellas
+      // porque alguien corrigió `items` y no `opciones`.
+      if (CON_SOBRANTES.has(tarea.formato)) {
+        afirmar(
+          tarea.opciones > tarea.items,
+          `${cual} · ${tarea.formato} tiene más opciones que ítems (${tarea.opciones} para ${tarea.items})`,
+        );
+        afirmar(sobrantesDe(tarea) > 0, `${cual} · ${tarea.formato} deja sobrantes de verdad`);
       }
     }
   }
@@ -105,6 +126,42 @@ async function main() {
   afirmar(tareaDe("B1", "CE", 99) === null, "una tarea que no existe devuelve null");
   afirmar(sobrantesDe(tareaDe("B1", "CE", 1)!) === 3, "B1 · CE · T1 tiene tres sobrantes");
   afirmar(sobrantesDe(tareaDe("B1", "CE", 2)!) === 0, "B1 · CE · T2 no tiene sobrantes");
+
+  // ─── La regla que comparten dos pantallas ───────────────────────────
+  // `numeroDeTarea` la usan la ficha del paso (qué tarea enseñar) y el panel
+  // de tareas sugeridas (qué tareas están puestas). Cuando eran dos copias,
+  // una iba por el título y la otra por el `orden`, y se contradecían.
+  afirmar(numeroDeTarea({ titulo: "Tarea 3", orden: 1 }) === 3, "el título manda sobre el orden");
+  afirmar(numeroDeTarea({ titulo: "Tarea 10", orden: 1 }) === 10, "un número de dos cifras también cuenta");
+  afirmar(numeroDeTarea({ titulo: "Calentamiento", orden: 2 }) === 2, "sin número en el título, manda el orden");
+  afirmar(
+    numeroDeTarea({ titulo: "Tarea 2: los conectores", orden: 4 }) === 4,
+    "un título que empieza por «Tarea 2» pero sigue no reclama la tarea 2",
+  );
+  afirmar(
+    numeroDeTarea({ titulo: "Actividad 1", orden: 2 }) === 2,
+    "un paso de la plantilla de nueve va por su orden y no por su número",
+  );
+
+  // ─── El aviso del número de ítems ───────────────────────────────────
+  // Avisa y no rechaza: aquí solo se comprueba que cuenta lo que toca en
+  // cada motor y que calla cuando el número es el del examen.
+  const lista = (n: number) => Array.from({ length: n }, () => ({}));
+  const t1 = tareaDe("B1", "CE", 1)!; // relacionar, seis ítems
+  const t2 = tareaDe("B1", "CE", 2)!; // opcion, seis ítems
+  afirmar(avisoDeItems(t1, { parejas: lista(6) }) === null, "seis parejas en una tarea de seis no avisan");
+  afirmar(avisoDeItems(t1, { parejas: lista(4) }) !== null, "cuatro parejas en una tarea de seis avisan");
+  afirmar(
+    avisoDeItems(t1, { parejas: lista(6), sobrantes: ["a", "b", "c"] }) === null,
+    "los sobrantes no son ítems: no cuentan para el aviso",
+  );
+  afirmar(avisoDeItems(t2, { preguntas: lista(6) }) === null, "seis preguntas en una tarea de seis no avisan");
+  afirmar(avisoDeItems(t2, { preguntas: lista(7) }) !== null, "siete preguntas en una tarea de seis avisan");
+  afirmar(
+    avisoDeItems(t1, { preguntas: lista(4) }) === null,
+    "unos datos que no encajan con el motor de la tarea no avisan de nada",
+  );
+  afirmar(avisoDeItems(t2, {}) === null, "sin nada que contar no se avisa");
 
   const estudiante = await prisma.user.create({
     data: { email: `alumno-${marca}@ejemplo.test`, role: "STUDENT" },
@@ -309,11 +366,16 @@ main()
       await intentar("usuarios", () => prisma.user.deleteMany({ where: { id: { in: usuarioIds } } }));
     }
 
+    // Cerrar la conexión también va por `intentar`: suelto era el único
+    // `await` del `finally` sin capturar, y un fallo suyo salía como un
+    // rechazo no capturado —ruido sin explicación— en vez de como una línea
+    // que dice qué pasó.
+    await intentar("desconectar", () => prisma.$disconnect());
+
     // Un rechazo sin capturar aquí sería silencioso: nadie lo ve y la
     // basura se descubre a mano, como pasó la vez que faltaba esto.
     if (fallos > 0) {
       console.error(`\nLa limpieza falló en ${fallos} paso(s): puede haber quedado basura de prueba en la base.`);
       process.exitCode = 1;
     }
-    await prisma.$disconnect();
   });

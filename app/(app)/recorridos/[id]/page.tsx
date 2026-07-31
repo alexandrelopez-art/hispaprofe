@@ -356,7 +356,7 @@ export default async function RecorridoDetallePage({
             recorridoId={recorrido.id}
             nivel={recorrido.nivel}
             destreza={recorrido.destreza}
-            ordenesOcupados={recorrido.pasos.map((p) => p.orden)}
+            pasos={recorrido.pasos.map((p) => ({ titulo: p.titulo, orden: p.orden }))}
           />
         )}
 

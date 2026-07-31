@@ -36,6 +36,14 @@ export type PropsEjercicio = {
    * "Puedes oírlo 2 veces" hasta el siguiente intento.
    */
   escuchas: Record<string, number>;
+  /**
+   * Quien mira tiene una asignación viva: solo así puede `pedirEscucha`
+   * concederle nada. Lo mismo que ya recibía el bloque `AUDIO` de la página
+   * del paso, que aquí faltaba: con la asignación archivada, el estudiante
+   * recibía el reproductor que cuenta y el servidor le negaba cada escucha,
+   * así que veía «Sin escuchas» sin que el audio hubiera sonado una vez.
+   */
+  puedeContar: boolean;
 };
 
 export type PropsCara = {
@@ -59,6 +67,13 @@ export type PropsCara = {
   pasoId: string;
   /** Ver el comentario de `PropsEjercicio.escuchas`. Vacío en la previsualización. */
   escuchasUsadas: Record<string, number>;
+  /**
+   * Ver el comentario de `PropsEjercicio.puedeContar`. Las caras que pintan
+   * audio lo suman a su `cerrado`: sin permiso para contar no hay nada que
+   * racionar, así que se cae en el audio corriente. `false` en la
+   * previsualización del profesor.
+   */
+  puedeContar: boolean;
 };
 
 /**
@@ -80,6 +95,7 @@ export default function Ejercicio({
   correccion,
   respuestas,
   escuchas,
+  puedeContar,
 }: PropsEjercicio) {
   const [valor, setValor] = useState<Respuestas>(respuestas ?? {});
   const [enviando, setEnviando] = useState(false);
@@ -97,6 +113,7 @@ export default function Ejercicio({
       cerrado: respondido,
       pasoId,
       escuchasUsadas: escuchas,
+      puedeContar,
     };
     switch (tipo) {
       case "opcion":

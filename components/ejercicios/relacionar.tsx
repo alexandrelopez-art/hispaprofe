@@ -15,6 +15,7 @@ export default function CaraRelacionar({
   cerrado,
   pasoId,
   escuchasUsadas,
+  puedeContar,
 }: PropsCara) {
   const datos = publica as RelacionarPublica;
   const [cogida, setCogida] = useState<string | null>(null);
@@ -80,7 +81,11 @@ export default function CaraRelacionar({
                         clave={izq.id}
                         maximo={datos.escuchas}
                         usadas={escuchasUsadas[izq.id] ?? 0}
-                        cerrado={cerrado || pasoId === ""}
+                        // `!puedeContar` también: sin asignación viva el
+                        // servidor no concede ninguna escucha, así que contar
+                        // aquí solo serviría para decir «Sin escuchas» sin que
+                        // el audio hubiera sonado ni una vez.
+                        cerrado={cerrado || pasoId === "" || !puedeContar}
                       />
                     </div>
                   )}
