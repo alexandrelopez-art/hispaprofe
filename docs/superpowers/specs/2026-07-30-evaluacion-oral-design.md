@@ -5,9 +5,11 @@ Fecha: 2026-07-30
 ## El problema
 
 Existe una herramienta de evaluación de exámenes orales **fuera de HispaProfe**:
-un HTML monolítico de 2,3 MB con su CSS, su JavaScript y sus imágenes en base64,
-escrito para examinar a 33 estudiantes del liceo Saint-Jean de Passy en mayo de
-2026. Funciona. Guarda en `localStorage` y vive en un archivo suelto.
+`evaluacion_oral.html`, un monolito de 2,8 MB —de los cuales 2,7 son dieciséis
+imágenes en base64— con su CSS y su JavaScript dentro. Se escribió para examinar
+a los 21 estudiantes de Terminale del liceo Saint-Jean de Passy los días 19 y 20
+de mayo de 2026, en el CDI. Funciona. Guarda en `localStorage` y vive en un
+archivo suelto.
 
 Eso significa que **las notas no son de nadie**. No cuelgan de una ficha, no se
 cruzan con las clases ni con el progreso, y desaparecen si se borra el
@@ -90,7 +92,7 @@ siguen siendo `User`, los grupos `Grupo`, y las imágenes y el audio van a
 `Archivo`. La convocatoria los apunta; no los copia.
 
 ```prisma
-/// Un examen con nombre y fecha: «Oral de Seconde, SJDP, mayo 2026».
+/// Un examen con nombre y fecha: «Oral de Terminale, SJDP, mayo 2026».
 /// Es lo que hace el examen repetible: en octubre se convoca otro sin
 /// pisar este.
 model Convocatoria {
@@ -107,23 +109,28 @@ model Convocatoria {
   @@index([profesorId, archivada])
 }
 
-/// Una fiche de sujet: dos documentos entre los que el estudiante elige.
-/// Va por grupo porque cada grupo tiene su propio juego (MORENO 19, SEQUEDA 7).
+/// Un sujet: UN documento, con su eje, su fuente y sus preguntas de
+/// interacción. El estudiante elige uno de los dieciséis, no uno de dos
+/// documentos dentro de un sujet. Son de la convocatoria entera y no de un
+/// grupo: en el examen real los dieciséis los comparte todo el mundo.
 model Sujeto {
   id             String       @id @default(cuid())
   convocatoria   Convocatoria @relation(fields: [convocatoriaId], references: [id], onDelete: Cascade)
   convocatoriaId String
-  grupo          Grupo        @relation(fields: [grupoId], references: [id])
-  grupoId        String
   numero         Int
-  eje            String
-  doc1Resumen    String
-  doc2Resumen    String
-  doc1ImagenId   String?      // -> Archivo, servido desde /api/archivos/[id]
-  doc2ImagenId   String?
+  eje            String       // «Arte y poder», «Diversidad e inclusión»
+  titulo         String
+  descripcion    String
+  fuente         String?      // «BBC Mundo»
+  url            String?      // el enlace a la fuente, que sale en pantalla
+  preguntas      String[]     // las sugeridas para la EOI; cinco en el original
+
+  // De dónde salió, y la copia congelada con la que se examinó.
+  imagenId       String?      // -> Archivo: la imagen subida
+  recursoId      String?      // -> Ejercicio: la tarea oral de Recursos
   evaluaciones   EvaluacionOral[]
 
-  @@unique([convocatoriaId, grupoId, numero])
+  @@unique([convocatoriaId, numero])
   @@index([convocatoriaId])
 }
 
@@ -138,8 +145,10 @@ model Turno {
   grupoId        String
   estudiante     User?        @relation("EstudianteTurno", fields: [estudianteId], references: [id])
   estudianteId   String?      // null = pausa
-  dia            String       // «Mercredi 6 mai», en francés: viene del liceo
-  hora           String       // «13:20»
+  dia            String       // «Mardi 19/05», en francés: viene del liceo
+  preparacion    String?      // «07h45»: cuándo entra a preparar
+  hora           String       // «08h00»: cuándo pasa
+  sala           String?      // «CDI»
   orden          Int
   evaluacion     EvaluacionOral?
 
@@ -154,7 +163,6 @@ model EvaluacionOral {
   turnoId    String  @unique
   sujeto     Sujeto? @relation(fields: [sujetoId], references: [id])
   sujetoId   String?
-  documento  String? // «d1» | «d2»
 
   // Segundos, capados a 300. Float y no Int: el cronómetro para donde para.
   segundosEoc Float?
@@ -164,6 +172,14 @@ model EvaluacionOral {
   // escriben siempre juntos, y así añadir un criterio no es una migración.
   notas       Json?
   comentarios Json?
+
+  // Las frases sugeridas que se activaron, por criterio: { lengua: [...] }.
+  // Aparte de `comentarios` porque el original las guarda aparte y hace falta
+  // saber cuáles siguen encendidas aunque el profesor reescriba el texto.
+  frases      Json?
+
+  // Los índices de las preguntas de la EOI ya hechas: [0, 3, 4].
+  preguntadas Int[]
 
   transcripcion TranscripcionOral?
   createdAt     DateTime @default(now())
@@ -187,11 +203,11 @@ model TranscripcionOral {
 
 **Los dos modelos que ya existen ganan sus relaciones inversas**, que Prisma
 exige: `User` recibe `convocatorias Convocatoria[]` y `turnosOrales Turno[]`;
-`Grupo` recibe `sujetos Sujeto[]` y `turnos Turno[]`. Ninguna columna nueva en
-ninguno de los dos.
+`Grupo` recibe `turnos Turno[]` —y no `sujetos`, porque los sujets son de la
+convocatoria—. Ninguna columna nueva en ninguno de los dos.
 
 **Las imágenes y el audio se referencian por id suelto**, sin clave foránea
-—`doc1ImagenId`, `audioId`—, siguiendo lo que ya hace `Bloque`, que guarda la
+—`imagenId`, `audioId`—, siguiendo lo que ya hace `Bloque`, que guarda la
 ruta `/api/archivos/[id]` en un campo de texto. Es deliberado: así borrar un
 `Archivo` huérfano no revienta contra una relación.
 
@@ -201,10 +217,42 @@ lo mismo —estructuras que solo se leen y escriben enteras—. Treinta segmento
 que siempre viajan juntos no son treinta filas.
 
 **Los cinco criterios no son tabla.** Van en `lib/orales/criterios.ts` como
-constante: `key`, título, descripción, máximo (4, 2, 5, 5, 4 = 20) y las frases
-sugeridas de cada uno. Son del examen del liceo francés, no de HispaProfe.
+constante: `key`, título, descripción, máximo (4, 2, 5, 5, 4 = 20), el paso
+—0,25 si el máximo es ≤ 2, si no 0,5— y las ocho o nueve frases sugeridas de
+cada uno. Son del examen del liceo francés, no de HispaProfe.
 Meterlos en la base obligaría a mantener una pantalla para editarlos que nadie
 va a usar.
+
+### El sujet puede venir de Recursos
+
+Subir un PDF no es la única forma de poner un tema encima de la mesa. **Un sujet
+también puede ser una tarea de expresión oral que ya viva en HispaProfe** —en
+continuo (EO) o en interacción (EOI)—, elegida de Recursos en vez de escaneada.
+El liceo manda dieciséis fotos de prensa; un examen de DELE no tiene por qué.
+
+Para eso hace falta una pieza que hoy no existe: **`TipoEjercicio.TAREA_ORAL`**,
+un recurso con consigna, eje, fuente opcional, imagen opcional y sus preguntas
+de interacción. `Destreza` ya distingue `EO` de `EOI`, así que el vocabulario
+está puesto; lo que falta es el tipo y su editor.
+
+**Y no se corrige sola.** Ahí está el coste honesto de esta decisión: los cuatro
+tipos de Recursos —`opcion`, `huecos`, `relacionar`, `ordenar`— comparten un
+motor que analiza, pinta y **corrige**. Una tarea oral la corrige una persona.
+Se parece más a `WIDGET`, que el diseño de Recursos dejó fuera precisamente por
+no tener `datos.ejercicio`. Meterla obliga a que el motor crezca una rama «esto
+no se puntúa»: `corregir` no aplica, `PasoCompletado` no guarda respuestas y los
+puntos del paso no se mueven. Es trabajo real, y no está en el plan de Recursos,
+que ya está escrito y con dos de sus ocho tareas cerradas.
+
+Se acepta porque lo que se gana es que el mismo tema sirva de deber, de paso de
+un recorrido y de sujet de examen sin teclearlo tres veces.
+
+**El sujet se congela al crearse.** `Sujeto` guarda `recursoId` para saber de
+dónde salió, pero copia el texto —eje, título, descripción, fuente, preguntas—
+en sus propias columnas. Si el recurso se edita en septiembre, el examen de mayo
+sigue diciendo lo que dijo. Es exactamente lo que ya hace `congelarImporte` con
+el precio de una clase, y por el mismo motivo: un dato que forma parte de algo
+ya ocurrido no puede cambiar por detrás.
 
 **Ojo con el `next dev` abierto.** Tras la migración hay que reiniciarlo
 (`npm run fresh`): `lib/prisma.ts` fija el cliente en `globalThis` y el proceso
@@ -224,10 +272,18 @@ columnas:
   la derecha —gris sin empezar, amarillo a medias, la nota sobre 20 en verde con
   los cinco criterios puestos—. Las pausas salen como separador, sin
   interacción. Pestañas arriba para cambiar de grupo.
-- *Derecha, el panel*: nombre y nota global; el selector de sujet y documento en
-  un solo `<select>` con `<optgroup>` por sujet, y debajo la vista previa de la
-  imagen elegida; los dos cronómetros; las cinco tarjetas de criterio; el
-  comentario general; y el sitio para subir el audio del examen.
+- *Derecha, el panel*: nombre, día, hora de preparación, hora de pasaje, sala y
+  nota global; los dos cronómetros; **la parrilla de sujets en viñetas** —una
+  imagen por sujet, clic para elegir, clic en la grande para ampliar—; debajo,
+  la ficha del sujet elegido con su eje, su título, su descripción y el enlace a
+  la fuente; **las preguntas sugeridas para la EOI**; las cinco tarjetas de
+  criterio; el comentario general; y el sitio para subir el audio del examen.
+
+**Las preguntas de la EOI se tachan al hacerlas.** Cada sujet trae las suyas
+—cinco en el original—, y durante la interacción se marcan con un clic: la
+pregunta se tacha y se pone en verde. No es adorno; es lo que evita repetir una
+pregunta o dejarse la mitad cuando quedan dos minutos. Se guarda en
+`EvaluacionOral.preguntadas`, así que sobrevive a cambiar de estudiante y volver.
 
 **`/profe/orales/evaluacion/[id]/transcripcion`** — el editor. Lista de líneas
 con hablante, botón ▶ por línea que reproduce solo ese fragmento, y el texto
@@ -238,7 +294,9 @@ cortes con una tecla.
 **`/profe/orales/evaluacion/[id]/ficha`** — el A4 de una página, en su propia
 dirección para poder guardarlo en PDF o enlazarlo. Cabecera con nombre y nota,
 tira de tiempos EOC/EOI, imagen del documento elegido, los cinco criterios con
-su color y su comentario en texto plano, y el comentario general.
+su color y su comentario en texto plano, y el comentario general. **Las
+preguntas de la EOI no salen**: en el original sí se imprimen, y en un A4 de una
+página se comen el sitio del comentario, que es lo que el alumno se lleva.
 
 **`/profe/alumnos/[id]`** — se le añade una sección con los exámenes orales de
 esa persona: convocatoria, nota y enlace al informe.
@@ -248,15 +306,16 @@ esa persona: convocatoria, nota y enlace al informe.
 El HTML de referencia es Plus Jakarta Sans sobre blanco con pasteles menta,
 lavanda y coral. **No se copia.** Se usa el sistema de HispaProfe —Nunito, el
 fondo `#f4f9fc`, `hp-400`, `rounded-tarjeta`, `shadow-suave`— y los colores de
-los cinco criterios se traducen a los que ya existen:
+los cinco criterios se traducen a los que ya existen. La columna del medio está
+leída del CSS del original (`.crit[data-key=…]`), no recordada:
 
 | Criterio | Color del HTML | Color aquí |
 |---|---|---|
 | I. Corrección de la lengua | lavender | `bloque1` |
-| II. Pronunciación y fluidez | cyan | `bloque2` |
-| III. Contenido | mint-bright | `verde-500` |
-| IV. Organización de las ideas | yellow | `bloque4` |
-| V. Cualidades oratorias | coral | `bloque3` |
+| II. Pronunciación y fluidez | teal | `bloque2` |
+| III. Contenido | amber | `bloque4` |
+| IV. Organización de las ideas | indigo | `hp-400` |
+| V. Cualidades oratorias | mint | `verde-500` |
 | Comentario general | peach | `sol-300` |
 
 Mismo código de color por criterio y misma lectura de un vistazo. Copiar la
@@ -296,11 +355,11 @@ toca.
   "evaluacionId": "clx7f2...",
   "instrucciones": "Añade la sección «transcripcion» con ...",
   "examen": {
-    "convocatoria": "Oral de Seconde · Saint-Jean de Passy · mayo 2026",
-    "estudiante": "MORENO Camille",
-    "dia": "Mercredi 6 mai", "hora": "13:20",
-    "sujet": 7, "eje": "Représentations",
-    "documento": "Documento 2: cartel de la Guerra Civil",
+    "convocatoria": "Oral de Terminale · Saint-Jean de Passy · mayo 2026",
+    "estudiante": "HERMITE Rose",
+    "dia": "Mercredi 20/05", "hora": "08h15",
+    "sujet": 7, "eje": "Arte y poder",
+    "documento": "Mafalda: la niña que desafía a los adultos",
     "tiempos": { "eoc": 287, "eoi": 300 }
   },
   "evaluacion": {
@@ -365,10 +424,21 @@ Iniciar uno detiene el otro y guarda su tiempo; cambiar de estudiante, de grupo
 o de sujet también. Al llegar a 300 segundos se detiene solo, guarda 300 exactos
 y suena. Nunca pasa de 300. «Reanudar» continúa desde lo guardado, no reinicia.
 
-**5. Una nota fuera de rango se avisa pero no se bloquea.** Un 5 en un criterio
-sobre 4 se pinta en rojo y se guarda igual. A veces hay una excepción
-justificada y el programa no es quién para impedirla. El CSV la exporta tal
-cual.
+Dos de esas cosas son **añadidos, no copias**: el original no para un cronómetro
+al arrancar el otro —solo al cambiar de estudiante— y no suena al llegar a
+5:00. Se añaden a propósito. El resto —los 300 segundos exactos, «Reanudar» en
+vez de reiniciar, el guardado al parar— es lo que ya hacía.
+
+**5. La nota no puede salirse del criterio.** Se sube y se baja con `+` y `−`,
+y los botones se apagan en los extremos: `−` en 0, `+` en el máximo. El paso es
+de **0,25 cuando el máximo es 2 o menos** —la fluidez, que si no solo tendría
+nueve valores— y de **0,5 en el resto**. Es lo que hace el original y se
+mantiene tal cual: un 5 sobre 4 en una parrilla oficial es un error de dedo, no
+una excepción justificada.
+
+**6. Un sujet tiene un origen y solo uno.** O una imagen subida (`imagenId`) o
+una tarea de Recursos (`recursoId`), nunca las dos ni ninguna. Los textos se
+copian al crearlo y ya no cambian; ver «El sujet puede venir de Recursos».
 
 ---
 
@@ -411,9 +481,11 @@ precedente: `npx tsc --noEmit`, `npm run lint` y un script `tsx` al estilo de
   bonito: JSON inválido, `version` desconocida, `evaluacionId` de otro examen,
   segmento sin `fin`, `notas` con una clave inventada. Es la parte con más
   probabilidad de fallar en uso real y la que más barato sale cubrir.
-- Las cinco reglas, cada una con su fila: un archivo ajeno rechazado; una ficha
+- Las seis reglas, cada una con su fila: un archivo ajeno rechazado; una ficha
   suprimida a la que se le niega el turno; un tiempo que no pasa de 300; una
-  nota fuera de rango que **sí** se guarda.
+  nota que **no** puede pasar del máximo del criterio ni bajar de 0, con paso de
+  0,25 en la fluidez y de 0,5 en los demás; un sujet con imagen y recurso a la
+  vez, rechazado.
 
 Idempotente y limpiando lo que crea, como los demás.
 
@@ -439,10 +511,12 @@ print`—.
 - **Que el examen sea configurable.** Los cinco criterios, sus máximos y el /20
   son del liceo francés y van en una constante. Otro colegio con otra parrilla es
   otro trabajo; el sitio donde tocar sería `lib/orales/criterios.ts`.
-- **Extraer los sujets de los PDF originales.** `MORENO_2.pdf` y
-  `SEQUEDA_DEF.pdf` no se han entregado. Cuando lleguen, un script recorta cada
-  página en dos por la posición del texto «Documento 2:» y sube los dos trozos a
-  `Archivo`. Mientras tanto los sujets se crean a mano desde la pantalla.
+- **Extraer los sujets de un PDF de varias páginas.** Cuando el liceo mande el
+  PDF entero, un script que lo trocee en una imagen por página ahorraría
+  dieciséis subidas. No hace falta para funcionar: los sujets se crean uno a uno
+  desde la pantalla, subiendo la imagen o eligiendo una tarea oral de Recursos.
+  Las dieciséis imágenes del HTML viejo sí se recuperan —van en `IMAGES`, con
+  miniatura y grande— y se pueden sembrar con un script.
 - **Importar el horario desde el `.xlsx`.** `ORALES_SJDP_6_MAI.xlsx` tampoco se
   ha entregado, y leer Excel es una dependencia nueva. El horario se teclea o se
   pega; 33 filas se hacen una vez.
@@ -455,11 +529,18 @@ print`—.
 
 ## Deuda conocida
 
-- **El archivo `evaluacion_oral.html` no se ha leído.** El prompt de partida
-  dice que ante cualquier duda manda el HTML, y no se ha entregado. Este diseño
-  se ha escrito desde la descripción y desde los dos HTML de la sesión de
-  franquismo. Si al implementarlo aparece el original y contradice algo de aquí,
-  **manda el HTML** y se anota la corrección.
+- **El HTML original ya se ha leído** (30/07, después de escribir la primera
+  versión de este diseño). Contradijo cuatro cosas y las cuatro están
+  corregidas aquí: el sujet era de un documento y no de dos; el turno tenía hora
+  de preparación y sala; las preguntas de la EOI y su marcado no existían en el
+  diseño; y tres de los cinco colores estaban mal apuntados. La convocatoria del
+  archivo es **Terminale, 21 estudiantes, 19 y 20 de mayo**, no la de Seconde
+  que decía la primera versión: eso venía de los HTML de la sesión de
+  franquismo, que son otro examen.
+- **El otro examen sigue sin mirarse de cerca.** Si el de Seconde de verdad
+  presenta dos documentos por sujet, el modelo de aquí no lo cubre: habría que
+  pasar `Sujeto` a una lista de documentos en vez de una imagen. Queda escrito
+  para que la decisión tenga fecha y no aparezca como sorpresa.
 - **Los tiempos se cortan a mano.** Es trabajo del profesor, unos minutos por
   examen. Se acepta porque ocurre mientras escucha, que es tiempo que iba a pasar
   escuchando igual. Si algún día hay servicio de voz a texto, los tiempos vienen
