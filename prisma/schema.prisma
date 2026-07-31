@@ -63,12 +63,12 @@ model User {
   // clerkId es opcional a proposito: el profesor puede crear la ficha del
   // estudiante desde una lista de correos antes de que exista la cuenta.
   // Se rellena la primera vez que esa persona entra, emparejando por email.
-  id             String   @id @default(cuid())
-  clerkId        String?  @unique
-  email          String   @unique
+  id             String  @id @default(cuid())
+  clerkId        String? @unique
+  email          String  @unique
   firstName      String?
   lastName       String?
-  role           Role     @default(STUDENT)
+  role           Role    @default(STUDENT)
   nivel          Nivel?
   // Tarifa por hora de este estudiante, en céntimos enteros. Los decimales
   // en coma flotante arrastran errores que al sumar un año se notan.
@@ -84,8 +84,8 @@ model User {
   /// excluyentes: quien está suprimido está bloqueado por definición.
   suprimidoEl DateTime?
 
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   asignacionesRecibidas Asignacion[]   @relation("AsignacionEstudiante")
   asignacionesCreadas   Asignacion[]   @relation("AsignacionProfesor")
@@ -208,6 +208,7 @@ model Asignacion {
 
   completados PasoCompletado[]
   escuchas    Escucha[]
+  citas       CitaOral[]
 
   @@unique([estudianteId, recorridoId])
   @@index([estudianteId, archivada])
@@ -232,10 +233,37 @@ model PasoCompletado {
   // Lo que respondió el estudiante, con la forma que define cada tipo de
   // ejercicio. Sostiene la corrección al recargar y deja ver al profesor
   // qué contestó, no solo cuánto sacó.
-  respuestas   Json?
+  respuestas Json?
+
+  /// Lo que escribió el alumno en una tarea de expresión escrita. Null en
+  /// todo lo demás, y en las orales, que no tienen entrega.
+  entrega String?
+
+  /// La rúbrica rellenada: `{ notas: { [criterioId]: number }, comentario }`.
+  /// La suma de las notas es lo que acaba en `puntos`.
+  valoracion Json?
 
   @@unique([asignacionId, pasoId])
   @@index([asignacionId])
+}
+
+/// En qué clase se examina un oral concreto de un alumno.
+///
+/// Tabla propia y no una columna en PasoCompletado: esa fila significa "el
+/// paso está hecho" y se crea cuando el alumno lo marca, así que citar ahí
+/// daría el paso por hecho por el mero hecho de ponerlo en la agenda. Es la
+/// misma trampa del contador de escuchas.
+model CitaOral {
+  id           String     @id @default(cuid())
+  asignacion   Asignacion @relation(fields: [asignacionId], references: [id], onDelete: Cascade)
+  asignacionId String
+  pasoId       String
+  clase        Clase      @relation(fields: [claseId], references: [id], onDelete: Cascade)
+  claseId      String
+  createdAt    DateTime   @default(now())
+
+  @@unique([asignacionId, pasoId])
+  @@index([claseId])
 }
 
 /// Cuántas veces ha oído un estudiante un audio concreto de un paso.
@@ -283,6 +311,7 @@ enum TipoEjercicio {
   HUECOS
   RELACIONAR
   ORDENAR
+  EXPRESION
 }
 
 model Ejercicio {
@@ -372,9 +401,10 @@ model Clase {
 
   googleEventoId String? // id del evento espejo en Google Calendar (tanda 2)
 
-  asignados Deber[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  asignados   Deber[]
+  citasOrales CitaOral[]
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
 
   @@index([profesorId, empiezaEl])
   @@index([estudianteId, empiezaEl])
@@ -419,8 +449,8 @@ model Convocatoria {
 /// documentos dentro de un sujet. Son de la convocatoria entera y no de un
 /// grupo: en el examen real los comparte todo el mundo.
 model Sujeto {
-  id             String           @id @default(cuid())
-  convocatoria   Convocatoria     @relation(fields: [convocatoriaId], references: [id], onDelete: Cascade)
+  id             String       @id @default(cuid())
+  convocatoria   Convocatoria @relation(fields: [convocatoriaId], references: [id], onDelete: Cascade)
   convocatoriaId String
   numero         Int
   eje            String
@@ -435,9 +465,9 @@ model Sujeto {
   /// `recursoId` apunta a un Ejercicio y hoy siempre es null: el tipo
   /// TAREA_ORAL llega en un plan aparte. La columna se crea ya para que
   /// aquella migración no tenga que tocar esta tabla.
-  imagenId       String?
-  recursoId      String?
-  evaluaciones   EvaluacionOral[]
+  imagenId     String?
+  recursoId    String?
+  evaluaciones EvaluacionOral[]
 
   @@unique([convocatoriaId, numero])
   @@index([convocatoriaId])
@@ -485,14 +515,14 @@ model EvaluacionOral {
   /// Las frases sugeridas encendidas, por criterio. Aparte de `comentarios`
   /// porque hace falta saber cuáles siguen activas aunque el profesor
   /// reescriba el texto a mano.
-  frases      Json?
+  frases Json?
 
   /// Los índices de las preguntas de la EOI ya hechas.
   preguntadas Int[]
 
   transcripcion TranscripcionOral?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
 }
 
 /// El audio, sus segmentos y el informe que devuelve la IA.

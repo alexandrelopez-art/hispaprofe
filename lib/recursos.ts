@@ -3,6 +3,7 @@ import type { TipoEjercicio } from "@/lib/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
 import { analizar } from "@/lib/ejercicios/registro";
 import type { MarcaEjercicio } from "@/lib/ejercicios/tipos";
+import { analizarExpresion } from "@/lib/expresion";
 
 // Solo de servidor: `analizar` arrastra `lib/ejercicios/registro.ts`, que
 // importa `node:crypto`. Ningún componente de cliente puede importar esto.
@@ -23,10 +24,17 @@ export const TIPO_DE_EJERCICIO: Record<MarcaEjercicio, TipoEjercicio> = {
   ordenar: "ORDENAR",
 };
 
-/** El `TipoEjercicio` que le toca a un `datos`, o null si no es válido. */
+/**
+ * El `TipoEjercicio` que le toca a un `datos`, o null si no es válido.
+ *
+ * Pregunta a los dos: primero al motor —sus cuatro tipos— y luego a la
+ * expresión, que es hermana y no miembro. Sigue habiendo un solo sitio donde
+ * la columna y el discriminante pueden discrepar.
+ */
 export function tipoDeEjercicio(datos: unknown): TipoEjercicio | null {
   const analizado = analizar(datos);
-  return analizado ? TIPO_DE_EJERCICIO[analizado.tipo] : null;
+  if (analizado) return TIPO_DE_EJERCICIO[analizado.tipo];
+  return analizarExpresion(datos) ? "EXPRESION" : null;
 }
 
 /**
