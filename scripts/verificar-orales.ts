@@ -7,6 +7,7 @@
 import "dotenv/config";
 import { prisma } from "@/lib/prisma";
 import { CRITERIOS } from "@/lib/orales/criterios";
+import { celda, construirCsv } from "@/lib/orales/csv";
 import {
   calcularTotal,
   esPausa,
@@ -110,6 +111,31 @@ function comprobarFormato() {
   );
 }
 
+function comprobarCsv() {
+  afirmar(celda("hola") === "hola", "un texto normal va sin comillas");
+  afirmar(celda('dijo "sí"') === '"dijo ""sí"""', "las comillas se duplican y la celda se entrecomilla");
+  afirmar(celda("uno, dos") === '"uno, dos"', "una coma obliga a entrecomillar");
+  afirmar(celda("uno\ndos") === '"uno\ndos"', "un salto de línea obliga a entrecomillar");
+  afirmar(celda(null) === "", "un vacío es una celda vacía, no «null»");
+
+  const csv = construirCsv([
+    {
+      dia: "Mercredi 20/05", hora: "08h15", apellido: "HERMITE", nombre: "Rose",
+      sala: "CDI", sujetNumero: 7, sujetTitulo: "Mafalda", eje: "Arte y poder",
+      segundosEoc: 287, segundosEoi: 300,
+      notas: { lengua: 3, fluidez: 1.5, contenido: 4, organizacion: 3.5, oratoria: 3 },
+      comentarios: { general: "Bien, con un «pero»" },
+    },
+  ]);
+
+  afirmar(csv.startsWith("﻿"), "el CSV empieza por el BOM, o Excel se come las tildes");
+  const lineas = csv.split("\r\n");
+  afirmar(lineas[0].split(",").length === 22, "la cabecera tiene veintidós columnas");
+  afirmar(lineas.length === 2, "una fila de datos por estudiante");
+  afirmar(lineas[1].includes("15,0") === false, "el total del CSV va con punto decimal, no con coma");
+  afirmar(lineas[1].includes('"Bien, con un «pero»"'), "el comentario con coma sale entrecomillado");
+}
+
 function comprobarReglasPuras() {
   // Regla 5: la nota no se sale del criterio.
   afirmar(ajustarNota(null, 1, 4) === 0.5, "el primer + sobre una nota vacía pone medio punto");
@@ -209,6 +235,7 @@ function comprobarReglasPuras() {
 
 async function main() {
   comprobarFormato();
+  comprobarCsv();
   comprobarReglasPuras();
   const profesor = await prisma.user.create({
     data: { email: `profe-${marca}@ejemplo.test`, role: "PROFESOR" },
@@ -406,6 +433,25 @@ async function main() {
     "un turno sin emparejar con su hora auténtica no es una pausa",
   );
   afirmar(esPausa(turno) === false, "un turno normal, con estudiante y hora, no es una pausa");
+
+  // El filtro que usa la ruta del CSV: fuera las pausas, dentro los turnos
+  // sin emparejar. Un `NOT: { estudianteId: null }` en Prisma se comería
+  // los dos a la vez porque comparten `estudianteId: null`; solo `esPausa`
+  // distingue uno del otro.
+  const paraElCsv = await prisma.turno.findMany({
+    where: { convocatoriaId: convocatoria.id },
+    orderBy: { orden: "asc" },
+    select: { id: true, estudianteId: true, hora: true },
+  });
+  const idsEnElCsv = paraElCsv.filter((t) => !esPausa(t)).map((t) => t.id);
+  afirmar(
+    idsEnElCsv.includes(pausa.id) === false,
+    "la pausa no aparece en las filas del CSV",
+  );
+  afirmar(
+    idsEnElCsv.includes(sinEmparejar.id) === true,
+    "el turno sin emparejar sí aparece en el CSV, con sus celdas vacías",
+  );
 
   // No se puede llamar a `pegarHorario` desde este script: exige una sesión
   // de Clerk que aquí no existe. Estos tres turnos se construyen a mano

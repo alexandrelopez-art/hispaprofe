@@ -102,6 +102,9 @@ export default async function ConvocatoriaPage({
         >
           Sujets
         </Link>
+        <a href={`/profe/orales/${id}/csv`} className="text-sm font-bold text-hp-400">
+          Exportar CSV
+        </a>
       </header>
 
       <div className="flex min-h-0 flex-1">
