@@ -6,6 +6,15 @@
  */
 import "dotenv/config";
 import { prisma } from "@/lib/prisma";
+import { CRITERIOS } from "@/lib/orales/criterios";
+import {
+  calcularTotal,
+  estadoDe,
+  fmtNota,
+  fmtTiempo,
+  fmtTotal,
+  pasoDe,
+} from "@/lib/orales/formato";
 
 function afirmar(condicion: boolean, mensaje: string) {
   if (!condicion) throw new Error(`FALLO: ${mensaje}`);
@@ -22,7 +31,68 @@ let estudianteId: string | undefined;
 let grupoId: string | undefined;
 let convocatoriaId: string | undefined;
 
+function comprobarFormato() {
+  // Los cinco criterios suman veinte y ni uno más.
+  const suma = CRITERIOS.reduce((t, c) => t + c.maximo, 0);
+  afirmar(suma === 20, "los cinco criterios suman 20");
+  afirmar(CRITERIOS.length === 5, "hay cinco criterios");
+  afirmar(
+    CRITERIOS.every((c) => c.frases.length >= 8),
+    "cada criterio trae al menos ocho frases sugeridas",
+  );
+
+  // El paso: 0,25 donde el máximo es pequeño, 0,5 en el resto.
+  afirmar(pasoDe(2) === 0.25, "un criterio sobre 2 se mueve de 0,25 en 0,25");
+  afirmar(pasoDe(4) === 0.5, "un criterio sobre 4 se mueve de 0,5 en 0,5");
+  afirmar(pasoDe(5) === 0.5, "un criterio sobre 5 se mueve de 0,5 en 0,5");
+
+  // El reloj, en los cuatro puntos que importan.
+  afirmar(fmtTiempo(0) === "00:00", "el cronómetro parado dice 00:00");
+  afirmar(fmtTiempo(59) === "00:59", "59 segundos son 00:59");
+  afirmar(fmtTiempo(60) === "01:00", "60 segundos son 01:00");
+  afirmar(fmtTiempo(300) === "05:00", "el tope son 05:00");
+  afirmar(fmtTiempo(287.5) === "04:47", "los decimales se truncan hacia abajo");
+
+  // Las notas: sin ceros de adorno en el criterio, con un decimal en el total.
+  afirmar(fmtNota(3) === "3", "un entero se escribe sin decimales");
+  afirmar(fmtNota(1.5) === "1,5", "el decimal va con coma, no con punto");
+  afirmar(fmtNota(1.25) === "1,25", "los cuartos de punto se escriben enteros");
+  afirmar(fmtTotal(15) === "15,0", "el total siempre lleva un decimal");
+
+  // El total con la parrilla a medias: lo que falta no resta.
+  afirmar(calcularTotal({}) === 0, "sin notas el total es 0");
+  afirmar(calcularTotal({ lengua: 3 }) === 3, "una sola nota es el total");
+  afirmar(
+    calcularTotal({ lengua: 3, fluidez: 1.5, contenido: 4, organizacion: 3.5, oratoria: 3 }) === 15,
+    "las cinco notas suman el total",
+  );
+  afirmar(
+    calcularTotal({ lengua: 0.25, fluidez: 0.25 }) === 0.5,
+    "sumar cuartos no arrastra error de coma flotante",
+  );
+
+  // El semáforo.
+  afirmar(estadoDe(null) === "vacio", "sin evaluación, gris");
+  afirmar(
+    estadoDe({ sujetoId: "s1", notas: { lengua: 3 } }) === "medias",
+    "con el sujet elegido y una nota, amarillo",
+  );
+  afirmar(
+    estadoDe({ sujetoId: null, notas: { lengua: 3, fluidez: 1, contenido: 1, organizacion: 1, oratoria: 1 } }) === "medias",
+    "las cinco notas sin sujet elegido siguen siendo amarillo",
+  );
+  afirmar(
+    estadoDe({ sujetoId: "s1", notas: { lengua: 3, fluidez: 1, contenido: 1, organizacion: 1, oratoria: 1 } }) === "hecho",
+    "sujet y cinco notas, verde",
+  );
+  afirmar(
+    estadoDe({ sujetoId: "s1", notas: { lengua: 0, fluidez: 0, contenido: 0, organizacion: 0, oratoria: 0 } }) === "hecho",
+    "un cero es una nota puesta, no una nota que falta",
+  );
+}
+
 async function main() {
+  comprobarFormato();
   const profesor = await prisma.user.create({
     data: { email: `profe-${marca}@ejemplo.test`, role: "PROFESOR" },
   });
