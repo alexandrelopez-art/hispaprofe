@@ -346,6 +346,14 @@ se ve igual que en la previsualización.
   se puede filtrar ni buscar por ellas. Es el sitio natural donde el diseño B
   colgará la tarea y el formato del DELE, y habrá que decidir allí si eso son
   etiquetas o una columna propia.
+- **Un ejercicio de `opcion` con los textos en blanco se puede publicar.** Un
+  enunciado vacío con dos opciones vacías y una marcada como correcta pasa
+  `opcionSchema`, porque los mínimos cuentan cuántos elementos hay y no si
+  dicen algo. En `ordenar` y en `huecos` esto se cerró —ahí el hueco vacío era
+  imposible de acertar y valía cero garantizado—, pero en `opcion` el
+  estudiante sí puede responder, así que el daño es menor y se dejó para
+  cuando estorbe. **La lección, por si vuelve a aparecer en B: un `.min(n)` de
+  zod sobre una lista no dice nada sobre el contenido de sus elementos.**
 - **Papelera y recuperación.** Un ejercicio suelto —sin ningún paso detrás— se
   borra de verdad y no se puede recuperar. Es deliberado: sirve para tirar los
   borradores que uno deja por el camino, y guardar una papelera para eso sería
