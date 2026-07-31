@@ -79,6 +79,10 @@ const HUECOS: Huecos = {
 const RELACIONAR: Relacionar = {
   ejercicio: "relacionar",
   consigna: "Une cada habitación con lo que hay dentro",
+  // Mismo motivo que en `UNICA`: `sobrantes` y `escuchas` llevan `.default()`,
+  // así que el tipo de salida los exige aunque este objeto no pase por parse.
+  sobrantes: [],
+  escuchas: 2,
   parejas: [
     { id: "p1", izquierda: "la cocina", derecha: "la nevera" },
     { id: "p2", izquierda: "el salón", derecha: "el sofá" },

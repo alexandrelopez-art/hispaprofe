@@ -15,6 +15,7 @@ import {
   tieneRespuestas,
 } from "@/lib/recursos";
 import { prisma } from "@/lib/prisma";
+import { corregirRelacionar, relacionarSchema, versionPublicaRelacionar } from "@/lib/ejercicios/relacionar";
 
 function afirmar(condicion: boolean, mensaje: string) {
   if (!condicion) throw new Error(`FALLO: ${mensaje}`);
@@ -200,6 +201,81 @@ async function main() {
   );
   afirmar((await puedeEditarse(copia.id)) === null, "la copia sí se edita");
   afirmar((await duplicar("noexiste")) === null, "duplicar algo que no existe devuelve null");
+
+  // ─── Sobrantes, texto y audio en relacionar ─────────────────────────
+  const CON_SOBRANTES = {
+    ejercicio: "relacionar",
+    consigna: "Relaciona cada enunciado con su texto.",
+    texto: "Un pasaje con dos huecos: {1} y {2}.",
+    parejas: [
+      { id: "r1", izquierda: "Hueco 1", derecha: "el primero", audio: "/api/archivos/uno" },
+      { id: "r2", izquierda: "Hueco 2", derecha: "el segundo" },
+    ],
+    sobrantes: ["el tercero", "el cuarto"],
+  };
+
+  const parseado = relacionarSchema.safeParse(CON_SOBRANTES);
+  afirmar(parseado.success, "un relacionar con sobrantes, texto y audio es válido");
+
+  const datos = parseado.success ? parseado.data : null;
+  afirmar(datos !== null, "el parseo devolvió datos");
+
+  const publica = versionPublicaRelacionar(datos!, "semilla-de-prueba");
+  afirmar(publica.derechas.length === 4, "las derechas públicas son las buenas más las sobrantes");
+  afirmar(publica.texto === CON_SOBRANTES.texto, "el texto viaja a la versión pública");
+  afirmar(
+    publica.izquierdas[0].audio === "/api/archivos/uno",
+    "el audio de la pareja viaja a su izquierda",
+  );
+  afirmar(publica.izquierdas[1].audio === undefined, "una pareja sin audio no lo inventa");
+  // Las claves tienen que ser indistinguibles: si una sobrante llevara otra
+  // forma, el ejercicio se resolvería mirando el código de la página.
+  afirmar(
+    publica.derechas.every((d) => /^d\d+$/.test(d.clave)),
+    "las claves de sobrantes y buenas tienen la misma forma",
+  );
+
+  // Un sobrante nunca puntúa, aunque el estudiante lo empareje.
+  const claveSobrante = publica.derechas.find((d) => d.texto === "el tercero")!.clave;
+  const claveBuena = publica.derechas.find((d) => d.texto === "el primero")!.clave;
+  const conSobrante = corregirRelacionar(
+    datos!,
+    { r1: claveSobrante, r2: claveBuena },
+    "semilla-de-prueba",
+  );
+  afirmar(conSobrante.aciertos === 0, "emparejar un sobrante no da ningún punto");
+  afirmar(conSobrante.total === 2, "el total sigue siendo el número de parejas, no de opciones");
+
+  // Y lo bueno sigue puntuando igual que antes.
+  const claveDos = publica.derechas.find((d) => d.texto === "el segundo")!.clave;
+  const bien = corregirRelacionar(
+    datos!,
+    { r1: claveBuena, r2: claveDos },
+    "semilla-de-prueba",
+  );
+  afirmar(bien.aciertos === 2, "las dos bien emparejadas dan dos puntos");
+
+  // La regla nueva: un sobrante no puede repetir una respuesta buena.
+  afirmar(
+    !relacionarSchema.safeParse({
+      ...CON_SOBRANTES,
+      sobrantes: ["el primero"],
+    }).success,
+    "un sobrante que repite una respuesta buena se rechaza",
+  );
+
+  // Sin sobrantes sigue funcionando como siempre.
+  afirmar(
+    relacionarSchema.safeParse({
+      ejercicio: "relacionar",
+      consigna: "c",
+      parejas: [
+        { id: "r1", izquierda: "a", derecha: "b" },
+        { id: "r2", izquierda: "c", derecha: "d" },
+      ],
+    }).success,
+    "un relacionar sin sobrantes sigue siendo válido",
+  );
 
   console.log("\nTodo bien.");
 }

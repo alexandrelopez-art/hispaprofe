@@ -28,6 +28,11 @@ export default function CaraRelacionar({ publica, valor, alCambiar, correccion, 
 
   return (
     <div>
+      {datos.texto && (
+        <p className="mb-6 whitespace-pre-wrap rounded-tarjeta border border-hp-100 bg-white p-5 text-sm leading-relaxed text-tinta">
+          {datos.texto}
+        </p>
+      )}
       <div className="grid gap-6 sm:grid-cols-2">
         <ul className="space-y-2">
           {datos.izquierdas.map((izq) => {
@@ -48,6 +53,11 @@ export default function CaraRelacionar({ publica, valor, alCambiar, correccion, 
                   }`}
                 >
                   <span className="text-sm font-semibold text-tinta">{izq.texto}</span>
+                  {izq.audio && (
+                    <audio controls preload="none" src={izq.audio} className="max-w-[14rem]">
+                      Tu navegador no puede reproducir este audio.
+                    </audio>
+                  )}
                   <span className="ml-auto text-sm text-tinta-suave">
                     {elegida ? textoDe(elegida) : "—"}
                   </span>
