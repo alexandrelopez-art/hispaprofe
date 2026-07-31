@@ -380,6 +380,15 @@ export async function crearSecuencia(formData: FormData) {
   ) as TipoRecorrido;
   if (!titulo || !nivel) return;
 
+  // La prueba del DELE, si la secuencia es de preparación. Se guarda en el
+  // recorrido y no solo en sus pasos porque una prueba recién creada aún no
+  // tiene ninguno, y al volver a abrirla hay que saber de cuál es.
+  const destrezaBruta = String(formData.get("destreza") ?? "");
+  const destreza =
+    tipo === "PREPARACION_DELE" && destrezaBruta
+      ? (destrezaBruta as Destreza)
+      : null;
+
   const ultimo = await prisma.recorrido.aggregate({
     where: { tipo },
     _max: { orden: true },
@@ -393,6 +402,7 @@ export async function crearSecuencia(formData: FormData) {
       descripcion,
       nivel,
       tipo,
+      destreza,
       orden: (ultimo._max.orden ?? 0) + 1,
       autorId: profesor.id,
     },

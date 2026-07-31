@@ -2,7 +2,7 @@ import { getUsuarioActual } from "@/lib/usuario";
 import { crearSecuencia } from "@/lib/acciones";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { servicioLabel } from "@/lib/servicios";
+import EleccionDele from "./eleccion-dele";
 
 const campo =
   "mt-1 h-10 w-full rounded-full border border-hp-200 bg-white px-4 text-sm font-normal text-tinta outline-none focus:border-hp-400";
@@ -34,16 +34,7 @@ export default async function NuevaSecuenciaPage() {
         action={crearSecuencia}
         className="mt-8 rounded-tarjeta border border-hp-100 bg-white p-5 shadow-suave"
       >
-        <label className="block text-sm font-semibold text-tinta">
-          Título
-          <input
-            type="text"
-            name="titulo"
-            required
-            placeholder="El barrio: describir dónde vivo"
-            className={campo}
-          />
-        </label>
+        <EleccionDele tituloInicial="" />
 
         <label className="mt-4 block text-sm font-semibold text-tinta">
           Descripción
@@ -54,39 +45,6 @@ export default async function NuevaSecuenciaPage() {
             className={campo}
           />
         </label>
-
-        <div className="mt-4 flex gap-3">
-          <label className="flex-1 text-sm font-semibold text-tinta">
-            Servicio
-            <select
-              name="tipo"
-              defaultValue="CLASES_PARTICULARES"
-              className={campo}
-            >
-              <option value="CLASES_PARTICULARES">
-                {servicioLabel.CLASES_PARTICULARES}
-              </option>
-              <option value="PREPARACION_DELE">
-                {servicioLabel.PREPARACION_DELE}
-              </option>
-            </select>
-          </label>
-
-          <label className="flex-1 text-sm font-semibold text-tinta">
-            Nivel
-            <select name="nivel" required defaultValue="" className={campo}>
-              <option value="" disabled>
-                Elige
-              </option>
-              <option value="A1">A1</option>
-              <option value="A2">A2</option>
-              <option value="B1">B1</option>
-              <option value="B2">B2</option>
-              <option value="C1">C1</option>
-              <option value="A2_B1_ESCOLAR">A2/B1 escolar</option>
-            </select>
-          </label>
-        </div>
 
         <label className="mt-5 flex items-start gap-2 text-sm text-tinta">
           <input
