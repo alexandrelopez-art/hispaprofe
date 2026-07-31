@@ -3,8 +3,16 @@
 import type { OpcionPublica } from "@/lib/ejercicios/opcion";
 import { comoLista, type Respuestas } from "@/lib/ejercicios/tipos";
 import type { Progreso, PropsCara } from "./ejercicio";
+import Reproductor from "./reproductor";
 
-export default function CaraOpcion({ publica, valor, alCambiar, correccion, cerrado }: PropsCara) {
+export default function CaraOpcion({
+  publica,
+  valor,
+  alCambiar,
+  correccion,
+  cerrado,
+  pasoId,
+}: PropsCara) {
   const datos = publica as OpcionPublica;
 
   function alternar(preguntaId: string, indice: number) {
@@ -30,9 +38,15 @@ export default function CaraOpcion({ publica, valor, alCambiar, correccion, cerr
               {i + 1}. {pregunta.enunciado}
             </p>
             {pregunta.audio && (
-              <audio controls preload="none" src={pregunta.audio} className="mt-3 w-full max-w-sm">
-                Tu navegador no puede reproducir este audio.
-              </audio>
+              <div className="mt-3">
+                <Reproductor
+                  src={pregunta.audio}
+                  pasoId={pasoId}
+                  clave={pregunta.id}
+                  maximo={datos.escuchas}
+                  cerrado={cerrado || pasoId === ""}
+                />
+              </div>
             )}
 
             {/*

@@ -10,6 +10,7 @@ import Ejercicio from "@/components/ejercicios/ejercicio";
 import { analizar, corregir, versionPublica } from "@/lib/ejercicios/registro";
 import type { Respuestas } from "@/lib/ejercicios/tipos";
 import SelectorEjercicio, { type Candidato } from "./selector-ejercicio";
+import Reproductor from "@/components/ejercicios/reproductor";
 
 // Fuerza render dinámico: lee de la base en cada visita.
 export const dynamic = "force-dynamic";
@@ -64,7 +65,20 @@ function esAudioDeDrive(url: string | null): boolean {
 }
 
 // Renderiza un bloque según su tipo.
-function BloqueContenido({ bloque }: { bloque: BloqueData }) {
+function BloqueContenido({
+  bloque,
+  pasoId,
+  racionado,
+}: {
+  bloque: BloqueData;
+  pasoId: string;
+  /**
+   * El paso es una tarea de examen de verdad: recorrido de preparación y con
+   * prueba elegida. Solo entonces se raciona el audio. Un audio de una clase
+   * particular se oye las veces que haga falta.
+   */
+  racionado: boolean;
+}) {
   switch (bloque.tipo) {
     case "TEXTO":
       return <TextoRico>{bloque.texto ?? ""}</TextoRico>;
@@ -94,11 +108,24 @@ function BloqueContenido({ bloque }: { bloque: BloqueData }) {
               {bloque.etiqueta}
             </p>
           )}
-          <audio controls preload="metadata" className="w-full" src={bloque.url ?? ""}>
-            <a href={bloque.url ?? "#"} target="_blank" rel="noopener noreferrer">
-              Abrir el audio
-            </a>
-          </audio>
+          {racionado ? (
+            // Una sola escucha, y no dos: el archivo oficial ya trae la
+            // repeticion dentro. Por eso el maximo es un literal y no una
+            // columna del bloque — no hay nada que configurar.
+            <Reproductor
+              src={bloque.url ?? ""}
+              pasoId={pasoId}
+              clave={bloque.id}
+              maximo={1}
+              cerrado={false}
+            />
+          ) : (
+            <audio controls preload="metadata" className="w-full" src={bloque.url ?? ""}>
+              <a href={bloque.url ?? "#"} target="_blank" rel="noopener noreferrer">
+                Abrir el audio
+              </a>
+            </audio>
+          )}
         </div>
       );
 
@@ -274,6 +301,9 @@ export default async function PasoPage({
       ? corregir(analizado, registro.respuestas as Respuestas, vinculo.ejercicio.id)
       : null;
 
+  const racionado =
+    paso.recorrido.tipo === "PREPARACION_DELE" && paso.recorrido.destreza !== null;
+
   return (
     <div className="mx-auto max-w-4xl px-6 py-12">
       <Link
@@ -325,10 +355,15 @@ export default async function PasoPage({
                 indice={i}
                 total={paso.bloques.length}
               >
-                <BloqueContenido bloque={bloque} />
+                <BloqueContenido bloque={bloque} pasoId={paso.id} racionado={racionado} />
               </BloqueEditable>
             ) : (
-              <BloqueContenido key={bloque.id} bloque={bloque} />
+              <BloqueContenido
+                key={bloque.id}
+                bloque={bloque}
+                pasoId={paso.id}
+                racionado={racionado}
+              />
             ),
           )}
         </div>

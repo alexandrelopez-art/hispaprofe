@@ -5,8 +5,16 @@ import type { RelacionarPublica } from "@/lib/ejercicios/relacionar";
 import { comoLista, type Respuestas } from "@/lib/ejercicios/tipos";
 import type { Progreso, PropsCara } from "./ejercicio";
 import { Veredicto } from "./opcion";
+import Reproductor from "./reproductor";
 
-export default function CaraRelacionar({ publica, valor, alCambiar, correccion, cerrado }: PropsCara) {
+export default function CaraRelacionar({
+  publica,
+  valor,
+  alCambiar,
+  correccion,
+  cerrado,
+  pasoId,
+}: PropsCara) {
   const datos = publica as RelacionarPublica;
   const [cogida, setCogida] = useState<string | null>(null);
 
@@ -62,9 +70,13 @@ export default function CaraRelacionar({ publica, valor, alCambiar, correccion, 
                     // propio `<audio>`, para que siga funcionando cuando la
                     // Tarea 6 lo sustituya por el reproductor que cuenta escuchas.
                     <div onClick={(e) => e.stopPropagation()}>
-                      <audio controls preload="none" src={izq.audio} className="max-w-[14rem]">
-                        Tu navegador no puede reproducir este audio.
-                      </audio>
+                      <Reproductor
+                        src={izq.audio}
+                        pasoId={pasoId}
+                        clave={izq.id}
+                        maximo={datos.escuchas}
+                        cerrado={cerrado || pasoId === ""}
+                      />
                     </div>
                   )}
                   <span className="ml-auto text-sm text-tinta-suave">

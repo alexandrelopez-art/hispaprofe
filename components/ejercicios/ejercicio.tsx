@@ -43,6 +43,12 @@ export type PropsCara = {
    * a cambiar.
    */
   cerrado: boolean;
+  /**
+   * El paso al que pertenece este ejercicio. Lo necesitan los audios para
+   * contar escuchas; el resto de las caras lo ignoran. Vacío en la
+   * previsualización del profesor, donde no se cuenta nada.
+   */
+  pasoId: string;
 };
 
 /**
@@ -78,6 +84,7 @@ export default function Ejercicio({
       // Cerrado en cuanto está respondido, tenga o no corrección calculada:
       // ver el comentario de `PropsCara.cerrado`.
       cerrado: respondido,
+      pasoId,
     };
     switch (tipo) {
       case "opcion":

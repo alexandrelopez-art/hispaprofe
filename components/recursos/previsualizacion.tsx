@@ -104,6 +104,10 @@ export default function Previsualizacion({ datos }: { datos: unknown }) {
     alCambiar: setValor,
     correccion,
     cerrado: correccion !== null,
+    // Vacío a propósito: sin paso al que apuntar, el reproductor cae en su
+    // rama de audio corriente y el profesor puede oírlo las veces que
+    // quiera mientras monta el ejercicio.
+    pasoId: "",
   };
 
   const cara = (() => {
