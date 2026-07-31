@@ -5,10 +5,12 @@ import { prisma } from "@/lib/prisma";
 /**
  * Si el oral se puede citar en esta clase, o el motivo del no.
  *
- * Dos negativas: la clase tiene que ser de ese alumno —suya directamente, o
- * de un grupo al que pertenezca— y no puede estar anulada. Citar un oral en
- * la clase de otro, o en una que se cayó, es un error que no debe llegar a
- * la base.
+ * Tres negativas: la clase tiene que ser de ese alumno —suya directamente, o
+ * de un grupo al que pertenezca—, no puede estar anulada, y no puede haber
+ * pasado ya. `claseId` llega tal cual del formulario, sin pasar por
+ * `clasesParaCitar`, así que aquí se revalidan las mismas tres cosas que esa
+ * función usó para decidir qué ofrecer: un tope que decide no puede confiar
+ * en lo que mandó el cliente.
  */
 export async function puedeCitarse(
   asignacionId: string,
@@ -22,10 +24,11 @@ export async function puedeCitarse(
 
   const clase = await prisma.clase.findUnique({
     where: { id: claseId },
-    select: { estado: true, estudianteId: true, grupoId: true },
+    select: { estado: true, estudianteId: true, grupoId: true, empiezaEl: true },
   });
   if (!clase) return "Esa clase no existe.";
   if (clase.estado === "ANULADA") return "Esa clase está anulada.";
+  if (clase.empiezaEl < new Date()) return "Esa clase ya pasó.";
 
   if (clase.estudianteId === asignacion.estudianteId) return null;
 

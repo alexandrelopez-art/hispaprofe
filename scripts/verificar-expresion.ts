@@ -27,6 +27,7 @@ let pasoId: string | null = null;
 let asignacionId: string | null = null;
 const usuarioIds: string[] = [];
 const claseIds: string[] = [];
+const grupoIds: string[] = [];
 
 const ESCRITA = {
   ejercicio: "expresion",
@@ -204,6 +205,27 @@ async function main() {
   });
   claseIds.push(anulada.id);
 
+  // Grupo del que el alumno es miembro: la clase se cita a través de él,
+  // no de un `estudianteId` directo.
+  const grupo = await prisma.grupo.create({
+    data: { nombre: `Grupo ${marca}`, profesorId: profesor.id },
+  });
+  grupoIds.push(grupo.id);
+  await prisma.miembroGrupo.create({
+    data: { grupoId: grupo.id, estudianteId: estudiante.id },
+  });
+  const deGrupo = await prisma.clase.create({
+    data: { profesorId: profesor.id, grupoId: grupo.id, empiezaEl: manana, minutos: 60 },
+  });
+  claseIds.push(deGrupo.id);
+
+  // Suya, no anulada, pero ya pasada: ni se cita ni se ofrece.
+  const ayer = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const pasada = await prisma.clase.create({
+    data: { profesorId: profesor.id, estudianteId: estudiante.id, empiezaEl: ayer, minutos: 60 },
+  });
+  claseIds.push(pasada.id);
+
   afirmar((await puedeCitarse(asignacion.id, suya.id)) === null, "se puede citar en una clase suya");
   afirmar(
     (await puedeCitarse(asignacion.id, ajena.id)) !== null,
@@ -217,6 +239,14 @@ async function main() {
     (await puedeCitarse(asignacion.id, "noexiste")) !== null,
     "no se puede citar en una clase que no existe",
   );
+  afirmar(
+    (await puedeCitarse(asignacion.id, deGrupo.id)) === null,
+    "se puede citar en la clase de un grupo del alumno",
+  );
+  afirmar(
+    (await puedeCitarse(asignacion.id, pasada.id)) !== null,
+    "no se puede citar en una clase que ya pasó",
+  );
 
   const ofrecidas = await clasesParaCitar(asignacion.id);
   afirmar(
@@ -224,8 +254,14 @@ async function main() {
     "la clase suya sale entre las que se ofrecen",
   );
   afirmar(
-    !ofrecidas.some((c) => c.id === ajena.id || c.id === anulada.id),
-    "ni la ajena ni la anulada salen entre las que se ofrecen",
+    ofrecidas.some((c) => c.id === deGrupo.id),
+    "la clase del grupo sale entre las que se ofrecen",
+  );
+  afirmar(
+    !ofrecidas.some(
+      (c) => c.id === ajena.id || c.id === anulada.id || c.id === pasada.id,
+    ),
+    "la ajena, la anulada y la pasada no salen entre las que se ofrecen",
   );
 
   console.log("\nTodo bien.");
@@ -267,6 +303,15 @@ main()
     if (claseIds.length) {
       // Antes que los usuarios: Clase.profesorId es RESTRICT.
       await intentar("clases", () => prisma.clase.deleteMany({ where: { id: { in: claseIds } } }));
+    }
+    if (grupoIds.length) {
+      // Después de las clases: Clase.grupoId apunta al grupo. Y los
+      // miembros antes que el grupo, aunque el borrado en cascada ya lo
+      // haría: mejor no depender de eso.
+      await intentar("miembros de grupo", () =>
+        prisma.miembroGrupo.deleteMany({ where: { grupoId: { in: grupoIds } } }),
+      );
+      await intentar("grupos", () => prisma.grupo.deleteMany({ where: { id: { in: grupoIds } } }));
     }
     if (usuarioIds.length) {
       await intentar("usuarios", () => prisma.user.deleteMany({ where: { id: { in: usuarioIds } } }));
