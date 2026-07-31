@@ -61,7 +61,17 @@ function estructuraDe(tarea: TareaDele): unknown {
     ejercicio: "opcion",
     consigna: "",
     multiple: false,
-    presentacion: tarea.listaComun && tarea.opciones > 4 ? "desplegable" : "botones",
+    // El muro lo hace el número de preguntas, no el de opciones: catorce
+    // huecos de tres opciones son catorce filas de botones. La regla de
+    // antes era `listaComun && opciones > 4`, y no la cumple ninguna tarea
+    // del mapa —con lista común el máximo de opciones es 4—, así que el
+    // desplegable era inalcanzable justo donde hace falta: B2 · CE · T4 son
+    // catorce huecos, y `CLOZE` ni siquiera usa lista común.
+    //
+    // Ocho es el corte: las tareas normales de seis o siete se leen mejor en
+    // botones. No es una decisión cerrada: «Cómo se enseña» está en el
+    // editor, fuera del bloque de lista común, y se cambia en un clic.
+    presentacion: tarea.items > 8 ? "desplegable" : "botones",
     ...(tarea.listaComun
       ? { opcionesComunes: Array.from({ length: tarea.opciones }, () => "") }
       : {}),
@@ -176,6 +186,9 @@ export default async function NuevoRecursoPage({
             marca={tareaDele.motor}
             bloqueado={null}
             partida={partida}
+            // Para el aviso del número de ítems, que compara lo escrito con
+            // lo que dice el mapa mientras se edita. Avisa y deja guardar.
+            tarea={tareaDele}
           />
         </div>
       ) : elegido ? (

@@ -36,10 +36,19 @@ export const opcionSchema = z
       .array(z.string())
       .min(2, { message: "La lista común necesita al menos dos opciones." })
       .optional(),
-    /** Con muchas preguntas y lista comun, once filas de botones son un muro. */
+    /**
+     * Cómo se pintan las opciones. Con muchas preguntas, una fila de botones
+     * por cada una es un muro: catorce huecos de tres opciones son catorce
+     * filas. No depende de que haya lista común — `CLOZE` no la usa y es el
+     * formato que más lo necesita.
+     */
     presentacion: z.enum(["botones", "desplegable"]).default("botones"),
     /** Cuántas veces se puede oír cada audio. Dos, como en el examen. */
-    escuchas: z.number().int().min(1, { message: "Hay que poder oír el audio al menos una vez." }).default(2),
+    escuchas: z
+      .number()
+      .int({ message: "El número de escuchas tiene que ser un número entero." })
+      .min(1, { message: "Hay que poder oír el audio al menos una vez." })
+      .default(2),
     preguntas: z
       .array(preguntaOpcionSchema)
       .min(1, { message: "El ejercicio necesita al menos una pregunta." }),

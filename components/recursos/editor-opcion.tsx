@@ -1,6 +1,13 @@
 "use client";
 
-import { area, botonSecundario, BotonQuitar, campo, CampoTexto } from "./campos";
+import {
+  area,
+  botonSecundario,
+  BotonQuitar,
+  campo,
+  CampoEscuchas,
+  CampoTexto,
+} from "./campos";
 import SubirAudio from "./subir-audio";
 
 type Pregunta = {
@@ -18,6 +25,8 @@ type DatosOpcion = {
   opcionesComunes?: string[];
   presentacion: "botones" | "desplegable";
   preguntas: Pregunta[];
+  /** Opcional, igual que en `relacionar`: una fila guardada antes de que el
+   *  campo existiera no lo trae. Ver `CampoEscuchas`. */
   escuchas?: number;
 };
 
@@ -26,6 +35,10 @@ export const OPCION_VACIA: DatosOpcion = {
   consigna: "",
   multiple: false,
   presentacion: "botones",
+  // Igual que `RELACIONAR_VACIO`: el punto de partida trae las dos escuchas
+  // del examen aunque todavía no haya ningún audio, para que los dos tipos
+  // empiecen diciendo lo mismo.
+  escuchas: 2,
   preguntas: [{ id: "p1", enunciado: "", opciones: ["", ""], correctas: [] }],
 };
 
@@ -148,12 +161,11 @@ export default function EditorOpcion({
                   })
                 : cambiar({
                     opcionesComunes: undefined,
-                    // "Cómo se enseña" solo se edita dentro de la lista
-                    // común: si no se resetea aquí, un "desplegable" elegido
-                    // antes de desmarcar sobrevive escondido en los datos y
-                    // el estudiante sigue viendo desplegables sin que nadie
-                    // pueda volver a cambiarlo desde este formulario.
-                    presentacion: "botones",
+                    // Sin reiniciar «Cómo se enseña»: ese control ya no vive
+                    // dentro de la lista común, así que un "desplegable"
+                    // elegido antes de desmarcar sigue a la vista y se puede
+                    // cambiar. Reiniciarlo aquí sería tirar una decisión del
+                    // profesor sin decírselo.
                     preguntas: d.preguntas.map((p) => ({
                       ...p,
                       opciones: ["", ""],
@@ -166,45 +178,42 @@ export default function EditorOpcion({
         </label>
       </div>
 
+      {/*
+        Fuera del bloque de lista común, que es donde estaba: `CLOZE` no usa
+        lista común y es justo el formato que más lo necesita —catorce huecos
+        de tres opciones son catorce filas de botones—, así que ahí dentro el
+        control no existía para quien más lo necesitaba.
+      */}
+      <label className="block w-56 text-sm font-semibold text-tinta">
+        Cómo se enseña
+        <select
+          value={d.presentacion}
+          onChange={(e) =>
+            cambiar({ presentacion: e.target.value as "botones" | "desplegable" })
+          }
+          className={campo}
+        >
+          <option value="botones">Botones</option>
+          <option value="desplegable">Desplegable</option>
+        </select>
+        <span className="mt-1 block text-xs font-normal text-tinta-suave">
+          Con muchas preguntas, «desplegable» evita un muro de botones.
+        </span>
+      </label>
+
       {d.preguntas.some((p) => p.audio) && (
-        <label className="block w-56 text-sm font-semibold text-tinta">
-          Escuchas por audio
-          <input
-            type="number"
-            min={1}
-            value={d.escuchas ?? 2}
-            onChange={(e) =>
-              cambiar({ escuchas: Math.max(1, Number(e.target.value) || 1) })
-            }
-            className={campo}
-          />
-          <span className="mt-1 block text-xs font-normal text-tinta-suave">
-            Dos es lo que da el examen. Sube el número para practicar.
-          </span>
-        </label>
+        <CampoEscuchas
+          valor={d.escuchas}
+          alCambiar={(escuchas) => cambiar({ escuchas })}
+        />
       )}
 
       {usaComunes && (
         <fieldset className="rounded-tarjeta border border-hp-100 p-4">
           <legend className="px-2 text-sm font-bold text-tinta">Lista común</legend>
           <p className="text-sm text-tinta-suave">
-            La misma opción puede valer en varias preguntas. Con muchas
-            opciones, elige «desplegable» para no dejar un muro de botones.
+            La misma opción puede valer en varias preguntas.
           </p>
-
-          <label className="mt-3 block text-sm font-semibold text-tinta">
-            Cómo se enseña
-            <select
-              value={d.presentacion}
-              onChange={(e) =>
-                cambiar({ presentacion: e.target.value as "botones" | "desplegable" })
-              }
-              className={campo}
-            >
-              <option value="botones">Botones</option>
-              <option value="desplegable">Desplegable</option>
-            </select>
-          </label>
 
           <div className="mt-4 space-y-2">
             {(d.opcionesComunes ?? []).map((o, i) => (

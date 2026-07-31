@@ -11,6 +11,7 @@ import {
   type EstadoRecurso,
 } from "@/lib/acciones-recursos";
 import type { MarcaEjercicio } from "@/lib/ejercicios/tipos";
+import { avisoDeItems, type TareaDele } from "@/lib/dele";
 import Previsualizacion from "./previsualizacion";
 import EditorOpcion, { OPCION_VACIA } from "./editor-opcion";
 import EditorHuecos, { HUECOS_VACIO } from "./editor-huecos";
@@ -78,6 +79,7 @@ export default function Editor({
   marca,
   bloqueado,
   partida,
+  tarea,
 }: {
   inicial: FilaEjercicio | null;
   marca: MarcaEjercicio;
@@ -92,6 +94,12 @@ export default function Editor({
    * el componente no lo actualizaría: quien lo pinta le pone un `key`.
    */
   partida?: { datos: unknown; nivel?: string; destreza?: string; titulo?: string };
+  /**
+   * La tarea del mapa por la que se llegó aquí, si se llegó por una. Solo
+   * sirve para el aviso del número de ítems: a diferencia de `partida`, se
+   * lee en cada render, porque el aviso tiene que seguir a lo que se escribe.
+   */
+  tarea?: TareaDele | null;
 }) {
   const router = useRouter();
 
@@ -214,6 +222,12 @@ export default function Editor({
         ? "Publicado, con cambios sin guardar."
         : "Sin guardar: guarda antes de publicar.";
 
+  /**
+   * Lo que dice el mapa sobre el número de ítems, si se llegó por una tarea.
+   * Se recalcula en cada render para que siga a lo que se escribe.
+   */
+  const aviso = tarea ? avisoDeItems(tarea, datos) : null;
+
   return (
     <div className="grid gap-8 lg:grid-cols-2">
       <form action={guardar} className="space-y-6">
@@ -331,6 +345,17 @@ export default function Editor({
             </p>
           )}
         </fieldset>
+
+        {/*
+          El único aviso del editor que no es un error: dice lo que lleva la
+          tarea en el examen y deja seguir. No apaga «Guardar» ni rechaza
+          nada — un ejercicio de práctica más corto es una decisión del
+          profesor. La cuenta vive en `lib/dele` porque no es la misma en
+          cada motor: parejas en `relacionar`, preguntas en `opcion`.
+        */}
+        {aviso && (
+          <p className="rounded-tarjeta bg-sol-100 px-4 py-3 text-sm text-tinta">{aviso}</p>
+        )}
 
         {mensajeError && (
           <p className="rounded-tarjeta bg-sol-100 px-4 py-3 text-sm text-tinta">{mensajeError}</p>

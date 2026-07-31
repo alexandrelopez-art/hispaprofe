@@ -1,6 +1,6 @@
 "use client";
 
-import { area, botonSecundario, BotonQuitar, campo } from "./campos";
+import { area, botonSecundario, BotonQuitar, campo, CampoEscuchas } from "./campos";
 import SubirAudio from "./subir-audio";
 
 type Pareja = { id: string; izquierda: string; derecha: string; audio?: string };
@@ -11,7 +11,9 @@ type DatosRelacionar = {
   texto?: string;
   parejas: Pareja[];
   sobrantes: string[];
-  escuchas: number;
+  /** Opcional, igual que en `opcion`: una fila guardada antes de que el
+   *  campo existiera no lo trae. Ver `CampoEscuchas`. */
+  escuchas?: number;
 };
 
 export const RELACIONAR_VACIO: DatosRelacionar = {
@@ -64,9 +66,16 @@ export default function EditorRelacionar({
   // nada, y ese mensaje no describe lo que pasa de verdad. Se avisa primero
   // de esto, con un mensaje propio, para que el profesor nunca llegue al de
   // duplicados por este camino.
-  const incompleta =
-    d.parejas.some((p) => !p.izquierda.trim() || !p.derecha.trim()) ||
-    d.sobrantes.some((s) => !s.trim());
+  //
+  // Se separan las dos causas porque el aviso saltaba también por un
+  // sobrante en blanco diciendo «Hay parejas sin rellenar»: el profesor
+  // repasaba las parejas, las veía completas y no encontraba de qué se
+  // quejaba la pantalla.
+  const parejasIncompletas = d.parejas.some(
+    (p) => !p.izquierda.trim() || !p.derecha.trim(),
+  );
+  const sobrantesEnBlanco = d.sobrantes.some((s) => !s.trim());
+  const incompleta = parejasIncompletas || sobrantesEnBlanco;
 
   // El esquema rechaza dos derechas iguales, y también un sobrante que
   // repita una respuesta buena o a otro sobrante: en los tres casos el
@@ -92,7 +101,11 @@ export default function EditorRelacionar({
 
       {incompleta && (
         <p className="rounded-tarjeta bg-sol-100 px-4 py-3 text-sm text-tinta">
-          Hay parejas sin rellenar: complétalas antes de guardar.
+          {parejasIncompletas && sobrantesEnBlanco
+            ? "Hay parejas sin rellenar y sobrantes en blanco: complétalos antes de guardar."
+            : parejasIncompletas
+              ? "Hay parejas sin rellenar: complétalas antes de guardar."
+              : "Hay sobrantes en blanco: rellénalos o quítalos antes de guardar."}
         </p>
       )}
 
@@ -201,21 +214,10 @@ export default function EditorRelacionar({
       </fieldset>
 
       {d.parejas.some((p) => p.audio) && (
-        <label className="block w-56 text-sm font-semibold text-tinta">
-          Escuchas por audio
-          <input
-            type="number"
-            min={1}
-            value={d.escuchas}
-            onChange={(e) =>
-              alCambiar({ ...d, escuchas: Math.max(1, Number(e.target.value) || 1) })
-            }
-            className={campo}
-          />
-          <span className="mt-1 block text-xs font-normal text-tinta-suave">
-            Dos es lo que da el examen. Sube el número para practicar.
-          </span>
-        </label>
+        <CampoEscuchas
+          valor={d.escuchas}
+          alCambiar={(escuchas) => alCambiar({ ...d, escuchas })}
+        />
       )}
 
       <button
