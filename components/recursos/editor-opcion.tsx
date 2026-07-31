@@ -1,12 +1,14 @@
 "use client";
 
 import { area, botonSecundario, BotonQuitar, campo, CampoTexto } from "./campos";
+import SubirAudio from "./subir-audio";
 
 type Pregunta = {
   id: string;
   enunciado: string;
   opciones?: string[];
   correctas: number[];
+  audio?: string;
 };
 
 type DatosOpcion = {
@@ -16,6 +18,7 @@ type DatosOpcion = {
   opcionesComunes?: string[];
   presentacion: "botones" | "desplegable";
   preguntas: Pregunta[];
+  escuchas?: number;
 };
 
 export const OPCION_VACIA: DatosOpcion = {
@@ -163,6 +166,24 @@ export default function EditorOpcion({
         </label>
       </div>
 
+      {d.preguntas.some((p) => p.audio) && (
+        <label className="block w-56 text-sm font-semibold text-tinta">
+          Escuchas por audio
+          <input
+            type="number"
+            min={1}
+            value={d.escuchas ?? 2}
+            onChange={(e) =>
+              cambiar({ escuchas: Math.max(1, Number(e.target.value) || 1) })
+            }
+            className={campo}
+          />
+          <span className="mt-1 block text-xs font-normal text-tinta-suave">
+            Dos es lo que da el examen. Sube el número para practicar.
+          </span>
+        </label>
+      )}
+
       {usaComunes && (
         <fieldset className="rounded-tarjeta border border-hp-100 p-4">
           <legend className="px-2 text-sm font-bold text-tinta">Lista común</legend>
@@ -245,6 +266,18 @@ export default function EditorOpcion({
               className={area}
             />
           </label>
+
+          <div className="mt-4">
+            <span className="block text-sm font-semibold text-tinta">
+              Audio de esta pregunta (opcional)
+            </span>
+            <div className="mt-1">
+              <SubirAudio
+                valor={p.audio}
+                alCambiar={(url) => cambiarPregunta(i, { audio: url })}
+              />
+            </div>
+          </div>
 
           <div className="mt-4 space-y-2">
             {opcionesDe(p).map((o, j) => (

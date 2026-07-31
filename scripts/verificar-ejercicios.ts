@@ -33,6 +33,7 @@ const UNICA: Opcion = {
   // es obligatoria ahi aunque el propio parse la rellene. Como este
   // objeto no pasa por `.parse()`, hay que escribir el valor por defecto.
   presentacion: "botones",
+  escuchas: 2,
   preguntas: [
     { id: "a", enunciado: "1", opciones: ["si", "no"], correctas: [0] },
     { id: "b", enunciado: "2", opciones: ["si", "no"], correctas: [1] },
@@ -44,6 +45,7 @@ const MULTIPLE: Opcion = {
   consigna: "Marca todas",
   multiple: true,
   presentacion: "botones",
+  escuchas: 2,
   preguntas: [
     { id: "m", enunciado: "¿Cuáles son habitaciones?", opciones: ["la cocina", "el balcón", "el perro"], correctas: [0, 1] },
   ],

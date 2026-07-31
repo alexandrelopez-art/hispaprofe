@@ -1,6 +1,7 @@
 "use client";
 
 import { area, botonSecundario, BotonQuitar, campo } from "./campos";
+import SubirAudio from "./subir-audio";
 
 type Pareja = { id: string; izquierda: string; derecha: string; audio?: string };
 
@@ -139,16 +140,17 @@ export default function EditorRelacionar({
                 className={campo}
               />
             </label>
-            <label className="block w-full text-sm font-semibold text-tinta">
-              Audio de esta fila (opcional)
-              <input
-                type="text"
-                value={p.audio ?? ""}
-                onChange={(e) => cambiarPareja(i, { audio: e.target.value || undefined })}
-                placeholder="Dirección del audio"
-                className={campo}
-              />
-            </label>
+            <div className="w-full">
+              <span className="block text-sm font-semibold text-tinta">
+                Audio de esta fila (opcional)
+              </span>
+              <div className="mt-1">
+                <SubirAudio
+                  valor={p.audio}
+                  alCambiar={(url) => cambiarPareja(i, { audio: url })}
+                />
+              </div>
+            </div>
             {d.parejas.length > 2 && (
               <BotonQuitar onClick={() => alCambiar({ ...d, parejas: d.parejas.filter((_, j) => j !== i) })}>
                 Quitar

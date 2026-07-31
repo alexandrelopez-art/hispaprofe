@@ -38,6 +38,8 @@ export const opcionSchema = z
       .optional(),
     /** Con muchas preguntas y lista comun, once filas de botones son un muro. */
     presentacion: z.enum(["botones", "desplegable"]).default("botones"),
+    /** Cuántas veces se puede oír cada audio. Dos, como en el examen. */
+    escuchas: z.number().int().min(1, { message: "Hay que poder oír el audio al menos una vez." }).default(2),
     preguntas: z
       .array(preguntaOpcionSchema)
       .min(1, { message: "El ejercicio necesita al menos una pregunta." }),
@@ -66,6 +68,7 @@ export type OpcionPublica = {
   consigna: string;
   multiple: boolean;
   presentacion: "botones" | "desplegable";
+  escuchas: number;
   preguntas: { id: string; enunciado: string; opciones: string[]; audio?: string }[];
 };
 
@@ -74,6 +77,7 @@ export function versionPublicaOpcion(datos: Opcion): OpcionPublica {
     consigna: datos.consigna,
     multiple: datos.multiple,
     presentacion: datos.presentacion,
+    escuchas: datos.escuchas,
     // Cada pregunta sale con su lista ya resuelta: al navegador le da igual
     // si venia de la pregunta o de la lista comun.
     preguntas: datos.preguntas.map((p) => ({
