@@ -47,3 +47,13 @@ body {
   background: var(--color-fondo);
   color: var(--color-tinta);
 }
+
+/* La ficha del examen oral en A4. Aquí no se esconde ningún bloque de
+   contenido: en el HTML original la tira de tiempos desaparecía al
+   imprimir porque entraba en la misma lista de `display:none` que la
+   barra de herramientas. */
+@media print {
+  body { background: #fff; }
+  .ficha { max-width: none; padding: 0; }
+  .ficha section, .ficha div { break-inside: avoid; }
+}

@@ -63,6 +63,7 @@ export default async function ConvocatoriaPage({
           estudiante: { select: { firstName: true, lastName: true, email: true } },
           evaluacion: {
             select: {
+              id: true,
               sujetoId: true,
               notas: true,
               comentarios: true,
@@ -111,40 +112,51 @@ export default async function ConvocatoriaPage({
         <Horario turnos={turnos} activoId={turnoActivo} convocatoriaId={id} />
         <section className="flex-1 overflow-y-auto p-6">
           {activo && activo.estudiante ? (
-            <Panel
-              // La `key` es lo que resetea el panel al cambiar de
-              // estudiante: al cambiar, React desmonta y vuelve a montar el
-              // árbol entero, así que su estado interno solo parte de
-              // `inicial` una vez por turno. Sin esta `key`, una repintada
-              // de esta página por cualquier otro motivo (p. ej. borrar un
-              // turno, que llama a `revalidatePath` sobre esta misma ruta)
-              // pasaría un `inicial` con la misma pinta pero de referencia
-              // nueva, y un panel que reaccionara a eso pisaría lo que el
-              // profesor esté escribiendo en ese momento.
-              key={activo.id}
-              turnoId={activo.id}
-              nombre={
-                [activo.estudiante.lastName, activo.estudiante.firstName]
-                  .filter(Boolean)
-                  .join(" ") || activo.estudiante.email
-              }
-              meta={[
-                activo.dia,
-                activo.preparacion ? `Prép. ${activo.preparacion}` : "",
-                `Pasaje ${activo.hora}`,
-                activo.sala ?? "",
-              ].filter(Boolean)}
-              sujetos={sujetos}
-              inicial={{
-                sujetoId: activo.evaluacion?.sujetoId ?? null,
-                notas: (activo.evaluacion?.notas as Notas) ?? {},
-                comentarios: (activo.evaluacion?.comentarios as Record<string, string>) ?? {},
-                frases: (activo.evaluacion?.frases as Record<string, string[]>) ?? {},
-                preguntadas: activo.evaluacion?.preguntadas ?? [],
-                segundosEoc: activo.evaluacion?.segundosEoc ?? 0,
-                segundosEoi: activo.evaluacion?.segundosEoi ?? 0,
-              }}
-            />
+            <>
+              {activo.evaluacion && (
+                <a
+                  href={`/profe/orales/evaluacion/${activo.evaluacion.id}/ficha`}
+                  target="_blank"
+                  className="mb-3 inline-block text-sm font-bold text-hp-400"
+                >
+                  Ver la ficha ↗
+                </a>
+              )}
+              <Panel
+                // La `key` es lo que resetea el panel al cambiar de
+                // estudiante: al cambiar, React desmonta y vuelve a montar el
+                // árbol entero, así que su estado interno solo parte de
+                // `inicial` una vez por turno. Sin esta `key`, una repintada
+                // de esta página por cualquier otro motivo (p. ej. borrar un
+                // turno, que llama a `revalidatePath` sobre esta misma ruta)
+                // pasaría un `inicial` con la misma pinta pero de referencia
+                // nueva, y un panel que reaccionara a eso pisaría lo que el
+                // profesor esté escribiendo en ese momento.
+                key={activo.id}
+                turnoId={activo.id}
+                nombre={
+                  [activo.estudiante.lastName, activo.estudiante.firstName]
+                    .filter(Boolean)
+                    .join(" ") || activo.estudiante.email
+                }
+                meta={[
+                  activo.dia,
+                  activo.preparacion ? `Prép. ${activo.preparacion}` : "",
+                  `Pasaje ${activo.hora}`,
+                  activo.sala ?? "",
+                ].filter(Boolean)}
+                sujetos={sujetos}
+                inicial={{
+                  sujetoId: activo.evaluacion?.sujetoId ?? null,
+                  notas: (activo.evaluacion?.notas as Notas) ?? {},
+                  comentarios: (activo.evaluacion?.comentarios as Record<string, string>) ?? {},
+                  frases: (activo.evaluacion?.frases as Record<string, string[]>) ?? {},
+                  preguntadas: activo.evaluacion?.preguntadas ?? [],
+                  segundosEoc: activo.evaluacion?.segundosEoc ?? 0,
+                  segundosEoi: activo.evaluacion?.segundosEoi ?? 0,
+                }}
+              />
+            </>
           ) : turnos.length === 0 ? (
             <form
               action={pegarHorario}
