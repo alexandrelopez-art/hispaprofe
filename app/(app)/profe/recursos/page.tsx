@@ -3,7 +3,7 @@ import { getUsuarioActual } from "@/lib/usuario";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import type { Prisma } from "@/lib/generated/prisma/client";
-import { Nivel } from "@/lib/generated/prisma/enums";
+import { Destreza, Nivel } from "@/lib/generated/prisma/enums";
 
 export const dynamic = "force-dynamic";
 
@@ -18,17 +18,34 @@ const tipoLabel: Record<string, string> = {
   ORDENAR: "Ordenar",
 };
 
+// Solo para pintar el desplegable: los valores válidos salen del enum
+// generado, no de esta tabla.
+const destrezaLabel: Record<string, string> = {
+  CE: "Comprensión escrita",
+  CO: "Comprensión oral",
+  EE: "Expresión escrita",
+  EO: "Expresión oral",
+  EEI: "Interacción escrita",
+  EOI: "Interacción oral",
+};
+
 export default async function RecursosPage({
   searchParams,
 }: {
-  searchParams: Promise<{ nivel?: string; tipo?: string; estado?: string; q?: string }>;
+  searchParams: Promise<{
+    nivel?: string;
+    destreza?: string;
+    tipo?: string;
+    estado?: string;
+    q?: string;
+  }>;
 }) {
   const usuario = await getUsuarioActual();
   if (!usuario || (usuario.role !== "PROFESOR" && usuario.role !== "ADMIN")) {
     redirect("/dashboard");
   }
 
-  const { nivel, tipo, estado, q } = await searchParams;
+  const { nivel, destreza, tipo, estado, q } = await searchParams;
 
   // Los filtros vienen de la URL, no de un <select> que el servidor
   // controle: alguien puede teclear cualquier cosa. Un valor que no exista
@@ -37,6 +54,8 @@ export default async function RecursosPage({
   // propio enum, igual que ya hace `guardarEjercicio` en
   // `lib/acciones-recursos.ts`.
   const nivelValido = nivel && Object.hasOwn(Nivel, nivel) ? nivel : undefined;
+  const destrezaValida =
+    destreza && Object.hasOwn(Destreza, destreza) ? destreza : undefined;
   const tipoValido = tipo && Object.hasOwn(tipoLabel, tipo) ? tipo : undefined;
 
   const where: Prisma.EjercicioWhereInput = {
@@ -47,6 +66,10 @@ export default async function RecursosPage({
       ? (tipoValido as Prisma.EnumTipoEjercicioFilter["equals"])
       : { not: "WIDGET" },
     ...(nivelValido ? { nivel: nivelValido as Prisma.EnumNivelFilter["equals"] } : {}),
+    // `destreza` es opcional en la tabla, así que su filtro es el «nullable»:
+    // pedir una destreza deja fuera los que no tienen ninguna, que es lo que
+    // se espera al elegirla en el desplegable.
+    ...(destrezaValida ? { destreza: destrezaValida as Destreza } : {}),
     ...(estado === "publicado" ? { publicado: true } : {}),
     ...(estado === "borrador" ? { publicado: false } : {}),
     ...(q ? { titulo: { contains: q, mode: "insensitive" as const } } : {}),
@@ -91,6 +114,14 @@ export default async function RecursosPage({
           {["A1", "A2", "B1", "B2", "C1", "A2_B1_ESCOLAR"].map((n) => (
             <option key={n} value={n}>
               {n === "A2_B1_ESCOLAR" ? "A2/B1 escolar" : n}
+            </option>
+          ))}
+        </select>
+        <select name="destreza" defaultValue={destreza ?? ""} className="h-10 rounded-full border border-hp-200 px-4 text-sm">
+          <option value="">Todas las destrezas</option>
+          {Object.entries(destrezaLabel).map(([k, v]) => (
+            <option key={k} value={k}>
+              {v}
             </option>
           ))}
         </select>

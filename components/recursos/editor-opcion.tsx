@@ -134,9 +134,13 @@ export default function EditorOpcion({
                     // Las opciones propias desaparecen y la lista común
                     // arranca con dos vacías: cualquier `correctas` que
                     // apuntara más allá de la posición 1 queda huérfana.
-                    preguntas: d.preguntas.map(({ opciones: _, ...resto }) => ({
-                      ...resto,
-                      correctas: sanearCorrectas(resto.correctas, 2, d.multiple),
+                    // `opciones: undefined` la quita del objeto igual que
+                    // desestructurarla, y sin dejar una variable sin usar:
+                    // `JSON.stringify` no serializa las claves indefinidas.
+                    preguntas: d.preguntas.map((p) => ({
+                      ...p,
+                      opciones: undefined,
+                      correctas: sanearCorrectas(p.correctas, 2, d.multiple),
                     })),
                   })
                 : cambiar({

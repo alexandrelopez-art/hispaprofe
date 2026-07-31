@@ -5,14 +5,17 @@ import { analizar, corregir, versionPublica } from "@/lib/ejercicios/registro";
 import type { Correccion, MarcaEjercicio, Respuestas } from "@/lib/ejercicios/tipos";
 
 /**
- * La semilla del barajado de `relacionar` y `ordenar`.
- *
- * `semillaDe` mezcla el id del ejercicio con ENCRYPTION_KEY para que un
- * estudiante no pueda rehacer el reparto desde el payload que recibe. Un
- * borrador todavía no tiene id, así que aquí va una constante: no se pierde
- * nada, porque quien mira es quien acaba de escribir las soluciones.
+ * El id de ejercicio que se le pasa al motor mientras se previsualiza. No es
+ * la semilla del barajado: `versionPublica` y `corregir` reciben un
+ * `ejercicioId` y derivan la semilla por dentro con `semillaDe`, que lo
+ * mezcla con ENCRYPTION_KEY para que un estudiante no pueda rehacer el
+ * reparto desde el payload que recibe. Un borrador todavía no tiene id, así
+ * que aquí va una constante: no se pierde nada, porque quien mira es quien
+ * acaba de escribir las soluciones. Lo que no hay que hacer es pasar aquí una
+ * semilla ya derivada: se derivaría dos veces y el barajado que se ve dejaría
+ * de ser el que se corrige.
  */
-const SEMILLA = "previsualizacion";
+const ID_PREVISUALIZACION = "previsualizacion";
 
 export type ResultadoPrevisualizacion =
   | { publica: unknown; tipo: MarcaEjercicio; correccion: Correccion }
@@ -42,9 +45,9 @@ export async function previsualizar(
   }
 
   return {
-    publica: versionPublica(analizado, SEMILLA),
+    publica: versionPublica(analizado, ID_PREVISUALIZACION),
     tipo: analizado.tipo,
-    correccion: corregir(analizado, respuestas, SEMILLA),
+    correccion: corregir(analizado, respuestas, ID_PREVISUALIZACION),
   };
 }
 
@@ -64,5 +67,5 @@ export async function versionParaPrevisualizar(
   const analizado = analizar(datos);
   if (!analizado) return { error: "El ejercicio todavía no está completo." };
 
-  return { publica: versionPublica(analizado, SEMILLA), tipo: analizado.tipo };
+  return { publica: versionPublica(analizado, ID_PREVISUALIZACION), tipo: analizado.tipo };
 }
