@@ -91,8 +91,13 @@ export function trozos(
  * activa nunca, y desde fuera parece que la aplicación está rota.
  */
 export function marcasCuadran(texto: string, ids: string[]): boolean {
+  // Sobre `trozos` y no con su propio `matchAll`: dos copias de la misma
+  // expresión regular se separan en cuanto alguien toque una. Lo que cuenta
+  // como marca lo decide `trozos`, y esto solo compara conjuntos.
   const marcas = new Set(
-    [...texto.matchAll(/\{\{([^}]+)\}\}/g)].map((m) => m[1]),
+    trozos(texto)
+      .filter((t) => t.tipo === "hueco")
+      .map((t) => t.valor),
   );
   const esperados = new Set(ids);
   return (
@@ -571,7 +576,13 @@ El bucle de `main` crea un bloque siempre. Ahora la Tarea 4 no tiene. Sustituye 
     }
 ```
 
-Y declara `bloque` como opcional en la tarea: como la lista `TAREAS` no lleva anotación de tipo, basta con que la entrada de la Tarea 4 no tenga la propiedad para que TypeScript la infiera opcional en la unión. Si protestara, añade `bloque: undefined` a esa entrada.
+Y en la entrada de la Tarea 4, en vez de quitar `bloque` a secas, ponla explícitamente indefinida:
+
+```ts
+    bloque: undefined,
+```
+
+**No la borres sin más.** `TAREAS` no lleva anotación de tipo, así que TypeScript infiere el tipo de sus elementos como la unión de los cuatro literales; si a uno le falta `bloque`, leer `t.bloque` en el bucle deja de compilar («Property 'bloque' does not exist on type…»). Es exactamente lo que ya pasó en este archivo con `parejas`, y por lo que existe `itemsDe`. Con `bloque: undefined` los cuatro literales tienen la propiedad, el tipo inferido la hace opcional, y el `if (t.bloque)` compila y hace lo que dice.
 
 - [ ] **Step 3: Sembrar y ver que la clave sigue dando 25/25**
 
