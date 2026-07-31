@@ -13,6 +13,7 @@ import {
 import type { MarcaEjercicio } from "@/lib/ejercicios/tipos";
 import Previsualizacion from "./previsualizacion";
 import EditorOpcion, { OPCION_VACIA } from "./editor-opcion";
+import EditorHuecos, { HUECOS_VACIO } from "./editor-huecos";
 import { campo } from "./campos";
 
 const NIVELES = ["A1", "A2", "B1", "B2", "C1", "A2_B1_ESCOLAR"] as const;
@@ -31,6 +32,7 @@ const DESTREZAS: Record<string, string> = {
  */
 export const VACIO: Partial<Record<MarcaEjercicio, unknown>> = {
   opcion: OPCION_VACIA,
+  huecos: HUECOS_VACIO,
 };
 
 export type FilaEjercicio = {
@@ -191,9 +193,9 @@ export default function Editor({
         </label>
 
         <fieldset disabled={Boolean(bloqueado)}>
-          {marca === "opcion" ? (
-            <EditorOpcion datos={datos} alCambiar={setDatos} />
-          ) : (
+          {marca === "opcion" && <EditorOpcion datos={datos} alCambiar={setDatos} />}
+          {marca === "huecos" && <EditorHuecos datos={datos} alCambiar={setDatos} />}
+          {marca !== "opcion" && marca !== "huecos" && (
             <p className="rounded-tarjeta border border-dashed border-hp-200 p-6 text-center text-sm text-tinta-suave">
               Este tipo de ejercicio todavía no tiene editor. Puedes cambiar
               el título, el nivel, la destreza y las etiquetas, pero no su
