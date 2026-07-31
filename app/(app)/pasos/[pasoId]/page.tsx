@@ -12,6 +12,8 @@ import type { Respuestas } from "@/lib/ejercicios/tipos";
 import SelectorEjercicio, { type Candidato } from "./selector-ejercicio";
 import Reproductor from "@/components/ejercicios/reproductor";
 import { esRacionado, escuchasDelPaso } from "@/lib/escuchas";
+import { tareaDe } from "@/lib/dele";
+import { TIPO_DE_EJERCICIO } from "@/lib/recursos";
 
 // Fuerza render dinámico: lee de la base en cada visita.
 export const dynamic = "force-dynamic";
@@ -208,12 +210,16 @@ export default async function PasoPage({
   searchParams,
 }: {
   params: Promise<{ pasoId: string }>;
-  /** `?todos=1` ensancha la lista de candidatos a todos los niveles. */
-  searchParams: Promise<{ todos?: string }>;
+  /**
+   * `?todos=1` ensancha la lista de candidatos a todos los niveles.
+   * `?formato=todos` la ensancha a todos los formatos, cuando el paso es una
+   * tarea del mapa y la lista viene acotada al suyo.
+   */
+  searchParams: Promise<{ todos?: string; formato?: string }>;
 }) {
   const { pasoId } = await params;
-  const { todos } = await searchParams;
-  const todosLosNiveles = todos === "1";
+  const parametros = await searchParams;
+  const todosLosNiveles = parametros.todos === "1";
 
   const paso = await prisma.paso.findUnique({
     where: { id: pasoId },
@@ -285,18 +291,37 @@ export default async function PasoPage({
   const analizado = vinculo ? analizar(vinculo.ejercicio.datos) : null;
   const hayEjercicio = analizado !== null;
 
+  // Si este paso es una tarea del mapa, el selector se acota a su formato.
+  // El número de tarea es el orden del paso: un paso más allá de la última
+  // tarea oficial devuelve null y todo se comporta como si no hubiera mapa.
+  const tarea =
+    paso.recorrido.tipo === "PREPARACION_DELE" && paso.recorrido.destreza
+      ? tareaDe(paso.recorrido.nivel, paso.recorrido.destreza, paso.orden)
+      : null;
+
+  // El `tipo` de la base que le toca al motor de esta tarea. La tabla vive
+  // en lib/recursos.ts para que solo haya un sitio donde puedan discrepar.
+  const tipoDeLaTarea = tarea ? TIPO_DE_EJERCICIO[tarea.motor] : null;
+  const verTodos = todosLosNiveles || parametros.formato === "todos";
+
   // Los publicados que se le pueden ofrecer a este paso. Se acotan al nivel
   // del recorrido porque es lo que se busca el 99% de las veces, pero con
   // puerta de salida (`?todos=1`): el editor de Recursos arranca en B1 y el
   // recorrido puede ser de otro nivel, así que sin ella un ejercicio recién
   // publicado podía no aparecer y la pantalla decía que no había ninguno.
+  // Igual con el formato de la tarea: se acota, y `?formato=todos` lo suelta.
+  // `WIDGET` no entra nunca: no lo entiende `analizar`, así que enganchado a
+  // un paso no se pinta y el estudiante no ve nada — es el mismo motivo por
+  // el que la lista de Recursos ya lo excluye.
   // Solo para el profesor: el estudiante no debe ver ni la lista ni el
   // selector.
   const candidatos: Candidato[] = esProfe
     ? await prisma.ejercicio.findMany({
         where: {
           publicado: true,
+          tipo: { not: "WIDGET" },
           ...(todosLosNiveles ? {} : { nivel: paso.recorrido.nivel }),
+          ...(tipoDeLaTarea && !verTodos ? { tipo: tipoDeLaTarea } : {}),
         },
         orderBy: { titulo: "asc" },
         select: { id: true, titulo: true, tipo: true, nivel: true },
@@ -438,6 +463,17 @@ export default async function PasoPage({
           candidatos={candidatos}
           nivel={paso.recorrido.nivel}
           todosLosNiveles={todosLosNiveles}
+          prueba={paso.recorrido.destreza}
+          tarea={
+            tarea
+              ? {
+                  numero: tarea.numero,
+                  pide: tarea.pide,
+                  verificado: tarea.verificado,
+                  filtrado: !verTodos,
+                }
+              : null
+          }
         />
       )}
 

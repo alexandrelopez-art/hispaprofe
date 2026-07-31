@@ -77,19 +77,28 @@ export default function Editor({
   inicial,
   marca,
   bloqueado,
+  partida,
 }: {
   inicial: FilaEjercicio | null;
   marca: MarcaEjercicio;
   /** El motivo por el que no se puede editar, si lo hay. */
   bloqueado: string | null;
+  /**
+   * Punto de partida para un ejercicio nuevo, cuando se crea desde una
+   * tarea del DELE: la estructura ya montada y lo que el mapa sabe del
+   * nivel. Se ignora al editar uno que ya existe.
+   */
+  partida?: { datos: unknown; nivel?: string; titulo?: string };
 }) {
   const router = useRouter();
 
-  const [titulo, setTitulo] = useState(inicial?.titulo ?? "");
-  const [nivel, setNivel] = useState(inicial?.nivel ?? "B1");
+  const [titulo, setTitulo] = useState(inicial?.titulo ?? partida?.titulo ?? "");
+  const [nivel, setNivel] = useState(inicial?.nivel ?? partida?.nivel ?? "B1");
   const [destreza, setDestreza] = useState(inicial?.destreza ?? "");
   const [etiquetas, setEtiquetas] = useState((inicial?.etiquetas ?? []).join(", "));
-  const [datos, setDatos] = useState<unknown>(inicial?.datos ?? VACIO[marca]);
+  const [datos, setDatos] = useState<unknown>(
+    inicial?.datos ?? partida?.datos ?? VACIO[marca],
+  );
 
   const [estado, guardar, guardando] = useActionState<EstadoRecurso, FormData>(
     guardarEjercicio,
