@@ -89,10 +89,22 @@ export default function EditorOrdenar({
               }
               className={`${campo} flex-1`}
             />
-            <button type="button" onClick={() => mover(i, -1)} className={botonSecundario} aria-label="Subir">
+            <button
+              type="button"
+              onClick={() => mover(i, -1)}
+              disabled={i === 0}
+              className={`${botonSecundario} disabled:opacity-40`}
+              aria-label="Subir"
+            >
               ↑
             </button>
-            <button type="button" onClick={() => mover(i, 1)} className={botonSecundario} aria-label="Bajar">
+            <button
+              type="button"
+              onClick={() => mover(i, 1)}
+              disabled={i === d.piezas.length - 1}
+              className={`${botonSecundario} disabled:opacity-40`}
+              aria-label="Bajar"
+            >
               ↓
             </button>
             {d.piezas.length > 2 && (

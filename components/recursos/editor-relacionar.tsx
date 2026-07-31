@@ -51,13 +51,24 @@ export default function EditorRelacionar({
   const cambiarPareja = (i: number, parcial: Partial<Pareja>) =>
     alCambiar({ ...d, parejas: d.parejas.map((p, j) => (j === i ? { ...p, ...parcial } : p)) });
 
+  // Mientras haya una pareja sin rellenar, el `refine` del esquema compara
+  // igual sus derechas vacías entre sí y las cuenta como duplicado: al
+  // pulsar "Guardar" con `RELACIONAR_VACIO` sin tocar (dos derechas ""),
+  // saldría el mensaje de duplicados sin que aquí se haya avisado nunca de
+  // nada, y ese mensaje no describe lo que pasa de verdad. Se avisa primero
+  // de esto, con un mensaje propio, para que el profesor nunca llegue al de
+  // duplicados por este camino.
+  const incompleta = d.parejas.some((p) => !p.izquierda.trim() || !p.derecha.trim());
+
   // El esquema rechaza dos derechas iguales: el estudiante vería dos celdas
   // idénticas y una de las dos filas quedaría mal contada pase lo que pase.
   // Se avisa aquí para no descubrirlo al guardar. `filter(Boolean)` deja
   // fuera las vacías: mientras el profesor está rellenando, tener dos
-  // celdas todavía en blanco no es una repetición real.
+  // celdas todavía en blanco no es una repetición real. Se calcula solo si
+  // no hay parejas incompletas: con parejas a medias, lo que hay que decir
+  // es que falta rellenar, no que algo esté repetido.
   const derechas = d.parejas.map((p) => p.derecha.trim()).filter(Boolean);
-  const repetida = derechas.find((v, i) => derechas.indexOf(v) !== i);
+  const repetida = !incompleta && derechas.find((v, i) => derechas.indexOf(v) !== i);
 
   return (
     <div className="space-y-6">
@@ -70,6 +81,12 @@ export default function EditorRelacionar({
           className={area}
         />
       </label>
+
+      {incompleta && (
+        <p className="rounded-tarjeta bg-sol-100 px-4 py-3 text-sm text-tinta">
+          Hay parejas sin rellenar: complétalas antes de guardar.
+        </p>
+      )}
 
       {repetida && (
         <p className="rounded-tarjeta bg-sol-100 px-4 py-3 text-sm text-tinta">
