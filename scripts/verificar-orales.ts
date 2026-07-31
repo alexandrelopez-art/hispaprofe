@@ -284,6 +284,26 @@ async function main() {
   afirmar(sujeto.preguntas.length === 2, "el sujet guarda sus preguntas de la EOI");
   afirmar(sujeto.recursoId === null, "un sujet con imagen no apunta a ningún recurso");
 
+  // Regla 6 contra la base: un sujet que ya se usó no se borra, y el
+  // @@unique impide dos sujets con el mismo número en la convocatoria.
+  let repetido = false;
+  try {
+    await prisma.sujeto.create({
+      data: {
+        convocatoriaId: convocatoria.id,
+        numero: 7,
+        eje: "Otro",
+        titulo: "Repetido",
+        descripcion: "",
+        preguntas: [],
+        imagenId: "otra",
+      },
+    });
+  } catch {
+    repetido = true;
+  }
+  afirmar(repetido, "dos sujets con el mismo número en la misma convocatoria chocan");
+
   // El semáforo con una fila real, no con un objeto inventado.
   const conEvaluacion = await prisma.turno.findUniqueOrThrow({
     where: { id: turno.id },
