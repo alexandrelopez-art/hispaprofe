@@ -12,8 +12,22 @@ import {
 
 export const huecoSchema = z.object({
   id: z.string(),
-  /** Todas las formas que se dan por buenas en este hueco. */
-  acepta: z.array(z.string()).min(1, { message: "Cada hueco necesita al menos una respuesta aceptada." }),
+  /**
+   * Todas las formas que se dan por buenas en este hueco.
+   *
+   * El `min(1)` cuenta elementos, no contenido: `acepta: [""]` lo pasaba, y
+   * un hueco cuya única forma buena es la cadena vacía no lo acierta nadie
+   * —el estudiante no puede enviar el hueco en blanco—, así que valía cero
+   * puntos garantizados sin que nada avisara. De ahí el mínimo por forma.
+   */
+  acepta: z
+    .array(
+      z.string().refine((f) => f.trim().length > 0, {
+        message:
+          "Una forma aceptada no puede estar vacía: nadie podría acertar ese hueco. Escríbela o quítala.",
+      }),
+    )
+    .min(1, { message: "Cada hueco necesita al menos una respuesta aceptada." }),
 });
 
 export const huecosSchema = z

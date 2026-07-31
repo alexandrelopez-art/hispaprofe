@@ -9,7 +9,17 @@ import {
 
 export const piezaSchema = z.object({
   id: z.string(),
-  texto: z.string(),
+  /**
+   * Sin este mínimo, dos piezas en blanco pasaban el esquema y se guardaban
+   * y publicaban tal cual: el estudiante veía dos huecos que arrastrar sin
+   * nada escrito dentro. Se comprueba sobre el texto recortado, y no con
+   * `.trim()`, para no cambiar de paso lo que se guarda.
+   */
+  texto: z
+    .string()
+    .refine((t) => t.trim().length > 0, {
+      message: "Cada pieza necesita un texto. Escríbelo o quita la pieza.",
+    }),
 });
 
 export const ordenarSchema = z.object({

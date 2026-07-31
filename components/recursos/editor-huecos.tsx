@@ -58,6 +58,12 @@ export default function EditorHuecos({
   const cambiarHueco = (id: string, acepta: string[]) =>
     alCambiar({ ...d, huecos: d.huecos.map((h) => (h.id === id ? { ...h, acepta } : h)) });
 
+  // Un hueco nace con `acepta: [""]`, y una forma vacía no la puede acertar
+  // nadie: el estudiante no envía huecos en blanco, así que ese hueco valdría
+  // cero puntos siempre. El esquema ya la rechaza; se avisa aquí para que el
+  // profesor lo vea antes de darle a guardar, como en `editor-relacionar.tsx`.
+  const incompleta = d.huecos.some((h) => h.acepta.some((a) => !a.trim()));
+
   return (
     <div className="space-y-6">
       <label className="block text-sm font-semibold text-tinta">
@@ -84,6 +90,13 @@ export default function EditorHuecos({
           de abajo se crean solos con lo que escribas aquí.
         </span>
       </label>
+
+      {incompleta && (
+        <p className="rounded-tarjeta bg-sol-100 px-4 py-3 text-sm text-tinta">
+          Hay huecos sin respuesta: escribe al menos una forma válida en cada
+          uno antes de guardar.
+        </p>
+      )}
 
       {marcas.length === 0 ? (
         <p className="rounded-tarjeta border border-dashed border-hp-200 p-6 text-center text-sm text-tinta-suave">

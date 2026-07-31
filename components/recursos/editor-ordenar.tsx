@@ -48,6 +48,12 @@ export default function EditorOrdenar({
 }) {
   const d = datos as DatosOrdenar;
 
+  // `ORDENAR_VACIO` son dos piezas con el texto en blanco, y el esquema las
+  // rechaza. Sin este aviso, "Guardar" sobre un ejercicio recién creado
+  // devolvía el mensaje del esquema sin que aquí se hubiera dicho nunca nada,
+  // igual que ya avisa `editor-relacionar.tsx` de sus parejas a medias.
+  const incompleta = d.piezas.some((p) => !p.texto.trim());
+
   const mover = (i: number, salto: number) => {
     const j = i + salto;
     if (j < 0 || j >= d.piezas.length) return;
@@ -67,6 +73,12 @@ export default function EditorOrdenar({
           className={area}
         />
       </label>
+
+      {incompleta && (
+        <p className="rounded-tarjeta bg-sol-100 px-4 py-3 text-sm text-tinta">
+          Hay piezas sin texto: escríbelas o quítalas antes de guardar.
+        </p>
+      )}
 
       <p className="text-sm text-tinta-suave">
         Escríbelas <strong>en su orden correcto</strong>. Al estudiante le

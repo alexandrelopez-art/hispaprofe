@@ -30,6 +30,22 @@ export function tipoDeEjercicio(datos: unknown): TipoEjercicio | null {
 }
 
 /**
+ * Si la fila sigue estando.
+ *
+ * Las reglas que terminan en un `update` o un `delete` la consultan antes:
+ * sin esto, actuar sobre un ejercicio que otra pestaña acaba de borrar
+ * llegaba a Prisma y reventaba con un P2025 sin capturar. Un motivo escrito
+ * en castellano es lo que el editor sabe enseñar; una excepción, no.
+ */
+async function existe(ejercicioId: string): Promise<boolean> {
+  const fila = await prisma.ejercicio.findUnique({
+    where: { id: ejercicioId },
+    select: { id: true },
+  });
+  return fila !== null;
+}
+
+/**
  * Si alguien ya respondió el ejercicio de este paso.
  *
  * `respuestas` es `Json?`, y en Prisma eso tiene dos nulos distintos:
@@ -95,6 +111,8 @@ export async function puedeDesengancharse(pasoId: string): Promise<string | null
  * una clave foránea. Mejor decirlo que dejar que explote.
  */
 export async function puedeBorrarse(ejercicioId: string): Promise<string | null> {
+  if (!(await existe(ejercicioId))) return "Ese ejercicio no existe.";
+
   const cuantos = await prisma.pasoEjercicio.count({ where: { ejercicioId } });
   if (cuantos > 0) {
     return `Cuelga de ${cuantos} paso${cuantos !== 1 ? "s" : ""}. Despublícalo en vez de borrarlo.`;
@@ -110,6 +128,8 @@ export async function puedeBorrarse(ejercicioId: string): Promise<string | null>
  * ejercicio que la aplicación considera a medio escribir.
  */
 export async function puedeDespublicarse(ejercicioId: string): Promise<string | null> {
+  if (!(await existe(ejercicioId))) return "Ese ejercicio no existe.";
+
   const cuantos = await prisma.pasoEjercicio.count({ where: { ejercicioId } });
   if (cuantos > 0) {
     return "Cuelga de un paso. Quítalo de ahí antes de volverlo a borrador.";
@@ -126,6 +146,8 @@ export async function puedeDespublicarse(ejercicioId: string): Promise<string | 
  * existen. Estar enganchado sin responder no rompe nada.
  */
 export async function puedeEditarse(ejercicioId: string): Promise<string | null> {
+  if (!(await existe(ejercicioId))) return "Ese ejercicio no existe.";
+
   const vinculos = await prisma.pasoEjercicio.findMany({
     where: { ejercicioId },
     select: { pasoId: true },

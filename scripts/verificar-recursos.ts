@@ -79,6 +79,28 @@ async function main() {
   afirmar(tipoDeEjercicio({ ejercicio: "opcion" }) === null, "un datos roto no tiene tipo");
   afirmar(tipoDeEjercicio(null) === null, "null no tiene tipo");
 
+  // 1b. Un ejercicio vacío no es un ejercicio. `ordenar` nace con dos piezas
+  // en blanco y `huecos` crea cada hueco con `acepta: [""]`: los dos pasaban
+  // el esquema, se guardaban y se publicaban. El segundo es el peor de los
+  // dos, porque parece terminado y vale cero puntos garantizados: el
+  // estudiante no puede enviar un hueco en blanco.
+  afirmar(
+    tipoDeEjercicio({ ejercicio: "ordenar", consigna: "c", piezas: [{ id: "1", texto: "" }, { id: "2", texto: "b" }] }) === null,
+    "una pieza sin texto invalida el ejercicio de ordenar",
+  );
+  afirmar(
+    tipoDeEjercicio({ ejercicio: "ordenar", consigna: "c", piezas: [{ id: "1", texto: "   " }, { id: "2", texto: "b" }] }) === null,
+    "una pieza con solo espacios tampoco cuenta como texto",
+  );
+  afirmar(
+    tipoDeEjercicio({ ejercicio: "huecos", consigna: "c", texto: "un {{a}}", huecos: [{ id: "a", acepta: [""] }] }) === null,
+    "un hueco cuya única forma aceptada está vacía invalida el ejercicio",
+  );
+  afirmar(
+    tipoDeEjercicio({ ejercicio: "huecos", consigna: "c", texto: "un {{a}}", huecos: [{ id: "a", acepta: ["x", ""] }] }) === null,
+    "una forma aceptada vacía entre otras buenas también lo invalida",
+  );
+
   // El andamio: un recorrido con un paso, y dos ejercicios.
   const recorrido = await prisma.recorrido.create({
     data: { titulo: `Recorrido ${marca}`, nivel: "B1", orden: 1 },
@@ -127,6 +149,14 @@ async function main() {
   // porque el paso ya tenía a `publicado`.
   afirmar((await puedeDespublicarse(publicado.id)) !== null, "un enganchado no se despublica");
   afirmar((await puedeDespublicarse(otro.id)) === null, "uno suelto sí se despublica");
+
+  // 4c. Las tres reglas que terminan en un `update` o un `delete` dicen que
+  // no cuando la fila ya no está. Se alcanza con dos pestañas abiertas: se
+  // borra en una y se pulsa en la otra. Sin esto, la acción pasaba la regla y
+  // reventaba contra Prisma con un P2025 sin capturar.
+  afirmar((await puedeBorrarse("noexiste")) !== null, "no se borra lo que no existe");
+  afirmar((await puedeDespublicarse("noexiste")) !== null, "no se despublica lo que no existe");
+  afirmar((await puedeEditarse("noexiste")) !== null, "no se edita lo que no existe");
 
   // 5. Sin respuestas, se desengancha y se edita con normalidad. Esta fila
   //    es la que discrimina: sin ella, una implementación que prohibiera por
