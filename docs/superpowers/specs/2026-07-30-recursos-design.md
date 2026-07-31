@@ -337,6 +337,15 @@ se ve igual que en la previsualización.
 - **Compartir Recursos entre profesores.** Hoy hay un solo profesor. `autorId`
   ya está en la tabla para cuando deje de serlo.
 - **Importar ejercicios desde un Genially.** Otro asunto, con su propio diseño.
+- **Elegir el ejercicio de un paso por algo que no sea el nivel.** La lista de
+  candidatos del selector se acota al nivel del recorrido, con `?todos=1` como
+  única puerta de salida: no hay filtro por destreza, por tipo ni por título
+  ahí dentro. Con el DELE hará falta más, porque un ejercicio de otro nivel
+  puede ser justo el que toca.
+- **`Ejercicio.etiquetas` está sin usar** más allá de guardarse y pintarse. No
+  se puede filtrar ni buscar por ellas. Es el sitio natural donde el diseño B
+  colgará la tarea y el formato del DELE, y habrá que decidir allí si eso son
+  etiquetas o una columna propia.
 - **Papelera y recuperación.** Un ejercicio suelto —sin ningún paso detrás— se
   borra de verdad y no se puede recuperar. Es deliberado: sirve para tirar los
   borradores que uno deja por el camino, y guardar una papelera para eso sería
