@@ -64,6 +64,10 @@ export function ajustarNota(
 /**
  * La misma regla, del lado del servidor: lo que llega por una acción no
  * pasó necesariamente por los botones.
+ *
+ * Incluye la rejilla del paso (`pasoDe`): los botones `+`/`−` de
+ * `ajustarNota` nunca se salen de ella, pero eso no dice nada de lo que
+ * llegue directamente a `guardarEvaluacion` sin pasar por un botón.
  */
 export function notaDentroDelCriterio(
   key: ClaveCriterio,
@@ -75,6 +79,11 @@ export function notaDentroDelCriterio(
   if (valor < 0) return "Una nota no puede ser negativa.";
   if (valor > criterio.maximo) {
     return `${criterio.titulo} va sobre ${fmtNota(criterio.maximo)}; ${fmtNota(valor)} se sale.`;
+  }
+  const paso = pasoDe(criterio.maximo);
+  const pasos = valor / paso;
+  if (Math.abs(pasos - Math.round(pasos)) > 1e-9) {
+    return `${criterio.titulo} se mueve de ${fmtNota(paso)} en ${fmtNota(paso)}; ${fmtNota(valor)} no cae en la rejilla.`;
   }
   return null;
 }
