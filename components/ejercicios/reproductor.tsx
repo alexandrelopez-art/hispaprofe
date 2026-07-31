@@ -139,6 +139,18 @@ export default function Reproductor({
     setPidiendo(true);
     setError(null);
 
+    // Una escucha empieza siempre por el principio —igual que en el
+    // examen—, nunca donde se cortó la anterior: sin este reinicio, una
+    // escucha abortada a mitad (un error reintentable, o la negativa del
+    // servidor) dejaba que la siguiente reanudara desde ese punto — o se
+    // pagaba una escucha entera por oír solo la cola del audio, o, en el
+    // caso reintentable, se avanzaba el audio a trozos sin pagar ninguna.
+    // `setTiempo(0)` es solo para que la etiqueta no arrastre el valor
+    // final de la escucha anterior hasta que llegue el primer
+    // `timeupdate`.
+    el.currentTime = 0;
+    setTiempo(0);
+
     try {
       await reproducirYConfirmar(el);
     } catch {
@@ -184,6 +196,13 @@ export default function Reproductor({
       return;
     }
     setQuedan(r.quedan);
+    // "Era la última" no basta: si no se cierra aquí, un alumno que gasta
+    // su última escucha sin recargar la página ve un botón habilitado que
+    // invita a «Escuchar otra vez», y al pulsarlo el audio llega a arrancar
+    // —por el orden de `sonar()`— y se corta solo cuando el servidor lo
+    // niega. Con esto, el botón pasa a «Sin escuchas» en el mismo render
+    // que confirma que ya no quedaba ninguna, sin esperar a un clic más.
+    if (r.quedan === 0) setAgotado(true);
   }
 
   // Pausar y reanudar no llaman al servidor ni pasan por `sonar()`: es la
