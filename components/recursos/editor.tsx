@@ -224,10 +224,14 @@ export default function Editor({
               perder. Apagarlo ahí solo serviría para dejar sin salida al
               único camino que tiene un ejercicio ya respondido.
             */}
+            {/*
+              Sin `name`/`value`: el `id` ya viaja en el campo oculto de
+              arriba, y React necesita el `name` del botón para codificar
+              qué acción se invoca. Ponerlo lo sobrescribe y avisa por
+              consola.
+            */}
             <button
               formAction={duplicarAccion}
-              name="id"
-              value={inicial?.id ?? ""}
               onClick={() => setUltima("duplicar")}
               className="font-bold underline"
             >
@@ -336,8 +340,6 @@ export default function Editor({
           {inicial && (
             <button
               formAction={publicar}
-              name="id"
-              value={inicial.id}
               onClick={() => setUltima("publicar")}
               // Volver a borrador no mira `datos`, así que unos cambios sin
               // guardar no le hacen prometer nada falso: solo se apaga en el
@@ -359,8 +361,6 @@ export default function Editor({
           {inicial && (
             <button
               formAction={borrar}
-              name="id"
-              value={inicial.id}
               onClick={() => setUltima("borrar")}
               className="text-sm font-semibold text-tinta-suave underline hover:text-hp-500"
             >
