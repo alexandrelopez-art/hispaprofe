@@ -15,6 +15,13 @@ import {
   fmtTotal,
   pasoDe,
 } from "@/lib/orales/formato";
+import {
+  ajustarNota,
+  caparTiempo,
+  notaDentroDelCriterio,
+  origenDeSujetValido,
+  puedeExaminarse,
+} from "@/lib/orales/reglas";
 
 function afirmar(condicion: boolean, mensaje: string) {
   if (!condicion) throw new Error(`FALLO: ${mensaje}`);
@@ -91,8 +98,43 @@ function comprobarFormato() {
   );
 }
 
+function comprobarReglasPuras() {
+  // Regla 5: la nota no se sale del criterio.
+  afirmar(ajustarNota(null, 1, 4) === 0.5, "el primer + sobre una nota vacía pone medio punto");
+  afirmar(ajustarNota(null, -1, 4) === 0, "el primer − sobre una nota vacía la deja en cero");
+  afirmar(ajustarNota(4, 1, 4) === 4, "el + no pasa del máximo del criterio");
+  afirmar(ajustarNota(0, -1, 4) === 0, "el − no baja de cero");
+  afirmar(ajustarNota(1.5, 1, 2) === 1.75, "sobre 2 el + sube de cuarto en cuarto");
+  afirmar(ajustarNota(2, 1, 2) === 2, "sobre 2 el + tampoco pasa del máximo");
+  afirmar(ajustarNota(0.25, -1, 2) === 0, "restar un cuarto desde un cuarto da cero pelado");
+  afirmar(ajustarNota(1.1, 1, 4) === 1.6, "una nota que no cae en la rejilla se redondea al moverla");
+
+  afirmar(notaDentroDelCriterio("fluidez", 2) === null, "un 2 sobre 2 es válido");
+  afirmar(notaDentroDelCriterio("fluidez", 2.5) !== null, "un 2,5 sobre 2 se rechaza");
+  afirmar(notaDentroDelCriterio("lengua", -1) !== null, "una nota negativa se rechaza");
+  afirmar(
+    (notaDentroDelCriterio("fluidez", 2.5) ?? "").includes("2"),
+    "el rechazo dice cuál es el máximo, no un error genérico",
+  );
+
+  // Regla 4: el cronómetro no pasa de cinco minutos.
+  afirmar(caparTiempo(287.5) === 287.5, "un tiempo normal se guarda tal cual");
+  afirmar(caparTiempo(1000) === 300, "un tiempo pasado de rosca se capa en 300");
+  afirmar(caparTiempo(-5) === 0, "un tiempo negativo se guarda como cero");
+
+  // Regla 6: un sujet tiene un origen y solo uno.
+  afirmar(origenDeSujetValido({ imagenId: "a1" }) === null, "un sujet con imagen vale");
+  afirmar(origenDeSujetValido({ recursoId: "e1" }) === null, "un sujet con recurso vale");
+  afirmar(origenDeSujetValido({}) !== null, "un sujet sin origen se rechaza");
+  afirmar(
+    origenDeSujetValido({ imagenId: "a1", recursoId: "e1" }) !== null,
+    "un sujet con imagen y recurso a la vez se rechaza",
+  );
+}
+
 async function main() {
   comprobarFormato();
+  comprobarReglasPuras();
   const profesor = await prisma.user.create({
     data: { email: `profe-${marca}@ejemplo.test`, role: "PROFESOR" },
   });
@@ -138,6 +180,26 @@ async function main() {
       sala: "CDI",
       orden: 1,
     },
+  });
+
+  // Regla 3: a una ficha suprimida no se le crea un examen.
+  afirmar(
+    (await puedeExaminarse(estudiante.id)) === null,
+    "a un estudiante vivo se le puede dar turno",
+  );
+  await prisma.user.update({
+    where: { id: estudiante.id },
+    data: { suprimidoEl: new Date(), bloqueadoEl: new Date() },
+  });
+  const negativa = await puedeExaminarse(estudiante.id);
+  afirmar(negativa !== null, "a una ficha suprimida se le niega el turno");
+  afirmar(
+    (await puedeExaminarse(null)) === null,
+    "una pausa no tiene a quién comprobar, así que pasa",
+  );
+  await prisma.user.update({
+    where: { id: estudiante.id },
+    data: { suprimidoEl: null, bloqueadoEl: null },
   });
 
   const evaluacion = await prisma.evaluacionOral.create({
