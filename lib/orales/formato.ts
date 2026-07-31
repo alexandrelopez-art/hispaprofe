@@ -70,3 +70,19 @@ export function estadoDe(
   if (puestas > 0 || evaluacion.sujetoId) return "medias";
   return "vacio";
 }
+
+/**
+ * La hora que `pegarHorario` guarda en las pausas. No es una hora real: es
+ * la marca de que el hueco no tiene a nadie citado, ni lo tendrá.
+ */
+export const HORA_PAUSA = "—";
+
+/**
+ * Una pausa y un turno cuyo estudiante no se emparejó llegan los dos con
+ * `estudianteId: null`; solo la hora los distingue. Vive aquí, no en
+ * `pegarHorario` ni en `horario.tsx`, para que los dos usen la misma regla
+ * y el script de verificación pueda comprobarla contra filas reales.
+ */
+export function esPausa(turno: { estudianteId: string | null; hora: string }): boolean {
+  return turno.estudianteId === null && turno.hora === HORA_PAUSA;
+}

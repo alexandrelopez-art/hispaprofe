@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { calcularTotal, estadoDe, fmtTotal } from "@/lib/orales/formato";
+import { calcularTotal, esPausa, estadoDe, fmtTotal } from "@/lib/orales/formato";
 import type { Notas } from "@/lib/orales/formato";
 
 export type TurnoDeLista = {
@@ -38,8 +38,12 @@ export default function Horario({
         // Cabecera solo en el primer turno de cada día: sin variable mutable,
         // que el linter del proyecto rechaza reasignar dentro del render.
         const cabecera = i === 0 || t.dia !== turnos[i - 1].dia ? t.dia : null;
-        // Una pausa es un turno sin estudiante: separador, sin interacción.
-        const esPausa = t.estudiante === null;
+        // Una pausa y un turno que no se emparejó llegan los dos con
+        // `estudiante: null`; solo la hora los distingue (ver esPausa).
+        const pausa = esPausa({ estudianteId: t.estudiante?.id ?? null, hora: t.hora });
+        // Sin emparejar pero no es una pausa: sigue siendo una fila que hay
+        // que arreglar, y por eso no puede desaparecer del horario.
+        const sinAsignar = !pausa && t.estudiante === null;
         const estado = estadoDe(
           t.evaluacion
             ? { sujetoId: t.evaluacion.sujetoId, notas: t.evaluacion.notas as Notas | null }
@@ -59,7 +63,7 @@ export default function Horario({
                 {cabecera}
               </div>
             )}
-            {esPausa ? (
+            {pausa ? (
               <div className="px-5 py-3 text-center text-[10px] font-bold uppercase tracking-[0.22em] text-tinta-suave">
                 · · · pausa · · ·
               </div>
@@ -76,18 +80,39 @@ export default function Horario({
                   {t.hora}
                 </span>
                 <span className="min-w-0">
-                  <span className="block truncate text-[10px] font-bold uppercase tracking-wide text-tinta-suave">
-                    {t.estudiante?.lastName ?? t.estudiante?.email}
-                  </span>
-                  <span className="block truncate font-bold text-tinta">
-                    {t.estudiante?.firstName ?? ""}
-                  </span>
+                  {sinAsignar ? (
+                    <>
+                      <span className="block truncate text-[10px] font-bold uppercase tracking-wide text-tinta-suave">
+                        Sin emparejar
+                      </span>
+                      <span className="block truncate text-xs text-tinta-suave">
+                        {t.sala ?? "sin sala"}
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="block truncate text-[10px] font-bold uppercase tracking-wide text-tinta-suave">
+                        {t.estudiante?.lastName ?? t.estudiante?.email}
+                      </span>
+                      <span className="block truncate font-bold text-tinta">
+                        {t.estudiante?.firstName ?? ""}
+                      </span>
+                    </>
+                  )}
                 </span>
-                <span
-                  className={`min-w-[28px] rounded-full px-2 py-0.5 text-center text-xs font-bold tabular-nums ${semaforo[estado]}`}
-                >
-                  {nota}
-                </span>
+                {sinAsignar ? (
+                  // No hay a quién ponerle semáforo: el aviso es que hace
+                  // falta arreglar el emparejamiento antes del examen.
+                  <span className="min-w-[28px] rounded-full bg-sol-300/40 px-2 py-0.5 text-center text-[10px] font-bold uppercase text-tinta">
+                    sin asignar
+                  </span>
+                ) : (
+                  <span
+                    className={`min-w-[28px] rounded-full px-2 py-0.5 text-center text-xs font-bold tabular-nums ${semaforo[estado]}`}
+                  >
+                    {nota}
+                  </span>
+                )}
               </Link>
             )}
           </div>

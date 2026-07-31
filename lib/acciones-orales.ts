@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { exigirProfesor } from "@/lib/profesor";
 import { CRITERIOS } from "@/lib/orales/criterios";
 import type { ClaveCriterio } from "@/lib/orales/criterios";
+import { HORA_PAUSA } from "@/lib/orales/formato";
 import type { Notas } from "@/lib/orales/formato";
 import {
   caparTiempo,
@@ -196,17 +197,25 @@ export async function pegarHorario(formData: FormData) {
     select: { orden: true },
   });
   let orden = (ultimo?.orden ?? 0) + 1;
+  // El día que lleva la pausa cuando la línea es un `---` pelado: el de la
+  // última fila con día propio, para que la cabecera del horario no se
+  // repita en mitad del mismo día. Si la pausa es la primera línea de
+  // todas, no hay nada que heredar y se deja vacío.
+  let ultimoDia = "";
 
   for (const linea of lineas) {
     const campos = linea.split(/[\t;]/).map((c) => c.trim());
     if (campos[0] === "---" || campos[3] === "---") {
+      const dia = campos[0] === "---" ? ultimoDia : campos[0];
+      if (dia) ultimoDia = dia;
       await prisma.turno.create({
-        data: { convocatoriaId, grupoId, dia: campos[0] === "---" ? "" : campos[0], hora: "—", orden },
+        data: { convocatoriaId, grupoId, dia, hora: HORA_PAUSA, orden },
       });
       orden += 1;
       continue;
     }
     const [dia, preparacion, hora, apellido, nombre, sala, correo] = campos;
+    if (dia) ultimoDia = dia;
     const clave = `${apellido ?? ""} ${nombre ?? ""}`.trim().toLowerCase();
     const estudianteId =
       (correo ? porCorreo.get(correo.toLowerCase()) : undefined) ??

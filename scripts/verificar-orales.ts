@@ -9,10 +9,12 @@ import { prisma } from "@/lib/prisma";
 import { CRITERIOS } from "@/lib/orales/criterios";
 import {
   calcularTotal,
+  esPausa,
   estadoDe,
   fmtNota,
   fmtTiempo,
   fmtTotal,
+  HORA_PAUSA,
   pasoDe,
 } from "@/lib/orales/formato";
 import type { Notas } from "@/lib/orales/formato";
@@ -298,9 +300,44 @@ async function main() {
 
   // Una pausa es un turno sin estudiante.
   const pausa = await prisma.turno.create({
-    data: { convocatoriaId: convocatoria.id, grupoId: grupo.id, dia: "Mercredi 20/05", hora: "—", orden: 2 },
+    data: { convocatoriaId: convocatoria.id, grupoId: grupo.id, dia: "Mercredi 20/05", hora: HORA_PAUSA, orden: 2 },
   });
   afirmar(pausa.estudianteId === null, "una pausa es un turno sin estudiante");
+
+  // Una pausa y un turno sin emparejar llegan los dos con estudianteId nulo:
+  // solo la hora los distingue. Este turno imita lo que deja `pegarHorario`
+  // cuando una línea no encuentra a nadie del grupo: se guarda con su hora
+  // auténtica y sin estudiante, no como una pausa.
+  const sinEmparejar = await prisma.turno.create({
+    data: { convocatoriaId: convocatoria.id, grupoId: grupo.id, dia: "Mercredi 20/05", hora: "09h00", orden: 3 },
+  });
+  afirmar(sinEmparejar.estudianteId === null, "el turno sin emparejar también queda sin estudiante");
+
+  // esPausa contra filas reales, no contra objetos inventados.
+  afirmar(esPausa(pausa) === true, "una pausa de verdad da esPausa true");
+  afirmar(
+    esPausa(sinEmparejar) === false,
+    "un turno sin emparejar con su hora auténtica no es una pausa",
+  );
+  afirmar(esPausa(turno) === false, "un turno normal, con estudiante y hora, no es una pausa");
+
+  // No se puede llamar a `pegarHorario` desde este script: exige una sesión
+  // de Clerk que aquí no existe. Estos tres turnos se construyen a mano
+  // imitando lo que la acción (ya corregida) deja en la base al pegar
+  // «Mercredi 20/05 · 08h15» / «---» / «Mercredi 20/05 · 09h00»: la pausa
+  // hereda el día de la fila anterior en vez de quedarse en "". Lo que se
+  // comprueba es que, leídos en orden, ningún turno después de la pausa
+  // repite la cabecera del día —la misma regla de agrupación que usa
+  // `components/orales/horario.tsx`—.
+  const delDia = await prisma.turno.findMany({
+    where: { convocatoriaId: convocatoria.id },
+    orderBy: { orden: "asc" },
+    select: { dia: true },
+  });
+  afirmar(
+    delDia.every((t, i) => i === 0 || t.dia === delDia[i - 1].dia),
+    "tras una pausa en medio, los turnos siguientes conservan el día",
+  );
 
   // Borrar la convocatoria se lleva sujets, turnos y evaluaciones por cascada.
   await prisma.convocatoria.delete({ where: { id: convocatoria.id } });
