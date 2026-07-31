@@ -134,6 +134,66 @@ function comprobarCsv() {
   afirmar(lineas.length === 2, "una fila de datos por estudiante");
   afirmar(lineas[1].includes("15,0") === false, "el total del CSV va con punto decimal, no con coma");
   afirmar(lineas[1].includes('"Bien, con un «pero»"'), "el comentario con coma sale entrecomillado");
+
+  // Un turno sin evaluación: día, hora, apellido, nombre y sala se ven —es
+  // justo lo que el profesor necesita para saber que le falta—, pero todo
+  // lo que saldría de una evaluación (tiempos, notas, comentarios, total)
+  // va vacío. Ninguno de estos valores lleva coma ni comillas, así que
+  // partir por "," basta para mirar columna a columna.
+  const csvSinEvaluar = construirCsv([
+    {
+      dia: "Mercredi 20/05", hora: "09h00", apellido: "", nombre: "", sala: "CDI",
+      sujetNumero: null, sujetTitulo: "", eje: "",
+      segundosEoc: null, segundosEoi: null,
+      notas: {}, comentarios: {},
+    },
+  ]);
+  const colsSinEvaluar = csvSinEvaluar.split("\r\n")[1].split(",");
+  afirmar(
+    colsSinEvaluar[0] === "Mercredi 20/05" && colsSinEvaluar[4] === "CDI",
+    "un turno sin evaluación conserva día, hora, apellido, nombre y sala",
+  );
+  afirmar(
+    colsSinEvaluar[8] === "" && colsSinEvaluar[9] === "",
+    "sin evaluación, los tiempos de EOC y EOI van vacíos, no en cero",
+  );
+  afirmar(
+    [10, 12, 14, 16, 18].every((i) => colsSinEvaluar[i] === ""),
+    "sin evaluación, las cinco notas van vacías",
+  );
+  afirmar(colsSinEvaluar[20] === "", "sin evaluación, el total va vacío, no 0.0");
+
+  // Hay evaluación (con sus tiempos cronometrados) pero el profesor todavía
+  // no ha puesto ninguna nota: el total no puede salir en 0,0 porque eso se
+  // leería como una nota real.
+  const csvSinNotas = construirCsv([
+    {
+      dia: "Mercredi 20/05", hora: "09h15", apellido: "DUPONT", nombre: "Léa", sala: "CDI",
+      sujetNumero: 3, sujetTitulo: "Un sujet", eje: "Un eje",
+      segundosEoc: 120, segundosEoi: 90,
+      notas: {}, comentarios: {},
+    },
+  ]);
+  const colsSinNotas = csvSinNotas.split("\r\n")[1].split(",");
+  afirmar(
+    colsSinNotas[8] === "120" && colsSinNotas[9] === "90",
+    "con evaluación, los tiempos sí salen aunque falten las notas",
+  );
+  afirmar(colsSinNotas[20] === "", "con evaluación pero sin ninguna nota puesta, el total también va vacío");
+
+  // Un cero puesto a mano es una nota de verdad, no una nota que falta: la
+  // misma distinción que ya hace `estadoDe`.
+  const csvConCero = construirCsv([
+    {
+      dia: "Mercredi 20/05", hora: "09h30", apellido: "MARTIN", nombre: "Léo", sala: "CDI",
+      sujetNumero: 1, sujetTitulo: "Otro sujet", eje: "Otro eje",
+      segundosEoc: 200, segundosEoi: 150,
+      notas: { lengua: 0 }, comentarios: {},
+    },
+  ]);
+  const colsConCero = csvConCero.split("\r\n")[1].split(",");
+  afirmar(colsConCero[10] === "0", "un cero puesto a mano en un criterio se escribe 0, no vacío");
+  afirmar(colsConCero[20] === "0.0", "con al menos una nota puesta, aunque sea un cero, el total sí se calcula");
 }
 
 function comprobarReglasPuras() {

@@ -11,8 +11,9 @@ export type FilaCsv = {
   sujetNumero: number | null;
   sujetTitulo: string;
   eje: string;
-  segundosEoc: number;
-  segundosEoi: number;
+  // `null` y no `0`: un examen que no se cronometró no duró cero segundos.
+  segundosEoc: number | null;
+  segundosEoi: number | null;
   notas: Notas;
   comentarios: Record<string, string>;
 };
@@ -22,6 +23,16 @@ export function celda(valor: unknown): string {
   const texto = valor === null || valor === undefined ? "" : String(valor);
   if (/[",\r\n;]/.test(texto)) return `"${texto.replace(/"/g, '""')}"`;
   return texto;
+}
+
+/**
+ * Si hay al menos una nota puesta, aunque sea un cero. La misma distinción
+ * que hace `estadoDe` en `lib/orales/formato.ts`: comparar contra
+ * `undefined`/`null` y no por veracidad, porque `if (nota)` daría «falta»
+ * ante un cero de verdad.
+ */
+function hayNotaPuesta(notas: Notas): boolean {
+  return CRITERIOS.some((c) => notas[c.key] !== undefined && notas[c.key] !== null);
 }
 
 /**
@@ -45,14 +56,17 @@ export function construirCsv(filas: FilaCsv[]): string {
   const cuerpo = filas.map((f) => [
     f.dia, f.hora, f.apellido, f.nombre, f.sala,
     f.sujetNumero ?? "", f.sujetTitulo, f.eje,
-    Math.round(f.segundosEoc), Math.round(f.segundosEoi),
+    f.segundosEoc === null ? "" : Math.round(f.segundosEoc),
+    f.segundosEoi === null ? "" : Math.round(f.segundosEoi),
     ...CRITERIOS.flatMap((c) => [
       f.notas[c.key] ?? "",
       f.comentarios[c.key] ?? "",
     ]),
     // Punto decimal a propósito: una coma decimal en un CSV separado por
-    // comas parte la celda en dos en cuanto alguien lo abre.
-    calcularTotal(f.notas).toFixed(1),
+    // comas parte la celda en dos en cuanto alguien lo abre. Y vacío, no
+    // «0.0», cuando no hay ni una nota puesta: un cero ahí se leería como
+    // una nota real y no lo es.
+    hayNotaPuesta(f.notas) ? calcularTotal(f.notas).toFixed(1) : "",
     f.comentarios.general ?? "",
   ]);
 

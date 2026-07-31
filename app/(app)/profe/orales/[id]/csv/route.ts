@@ -55,8 +55,11 @@ export async function GET(
       sujetNumero: t.evaluacion?.sujeto?.numero ?? null,
       sujetTitulo: t.evaluacion?.sujeto?.titulo ?? "",
       eje: t.evaluacion?.sujeto?.eje ?? "",
-      segundosEoc: t.evaluacion?.segundosEoc ?? 0,
-      segundosEoi: t.evaluacion?.segundosEoi ?? 0,
+      // `null` y no `0`: sin evaluación, o con evaluación pero sin
+      // cronometrar, el examen no ha durado cero segundos, es que no se
+      // sabe cuánto ha durado.
+      segundosEoc: t.evaluacion?.segundosEoc ?? null,
+      segundosEoi: t.evaluacion?.segundosEoi ?? null,
       notas: (t.evaluacion?.notas as Notas) ?? {},
       comentarios: (t.evaluacion?.comentarios as Record<string, string>) ?? {},
     }));
