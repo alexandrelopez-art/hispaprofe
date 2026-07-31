@@ -1,8 +1,8 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { exigirProfesor } from "@/lib/profesor";
+import { getUsuarioActual } from "@/lib/usuario";
 import { CRITERIOS } from "@/lib/orales/criterios";
-import { calcularTotal, fmtNota, fmtTiempo, fmtTotal, hayNotaPuesta } from "@/lib/orales/formato";
+import { calcularTotal, fmtNota, fmtTiempo, fmtTotal, hayNotaPuesta, notaDe } from "@/lib/orales/formato";
 import type { Notas } from "@/lib/orales/formato";
 
 export const dynamic = "force-dynamic";
@@ -27,7 +27,13 @@ export default async function FichaPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const usuario = await exigirProfesor();
+  // Mismo patrón que el resto de pantallas de profe: redirigir por el rol,
+  // no lanzar. `exigirProfesor()` está pensado para acciones de servidor;
+  // aquí no hay `error.tsx` que atrape el throw.
+  const usuario = await getUsuarioActual();
+  if (!usuario || (usuario.role !== "PROFESOR" && usuario.role !== "ADMIN")) {
+    redirect("/dashboard");
+  }
 
   const evaluacion = await prisma.evaluacionOral.findUnique({
     where: { id },
@@ -111,24 +117,26 @@ export default async function FichaPage({
       )}
 
       <section className="mt-4 space-y-2">
-        {CRITERIOS.map((c) => (
-          <div
-            key={c.key}
-            className="break-inside-avoid border-l-4 border-hp-100 pl-3"
-            style={{ borderLeftColor: `var(--color-${c.color})` }}
-          >
-            <p className="text-sm font-bold">
-              {c.romano} {c.titulo}{" "}
-              <span className="tabular-nums">
-                {notas[c.key] !== undefined ? fmtNota(notas[c.key] as number) : "—"} /{" "}
-                {fmtNota(c.maximo)}
-              </span>
-            </p>
-            {comentarios[c.key] && (
-              <p className="text-xs text-tinta-suave">{comentarios[c.key]}</p>
-            )}
-          </div>
-        ))}
+        {CRITERIOS.map((c) => {
+          const valor = notaDe(notas, c.key);
+          return (
+            <div
+              key={c.key}
+              className="break-inside-avoid border-l-4 border-hp-100 pl-3"
+              style={{ borderLeftColor: `var(--color-${c.color})` }}
+            >
+              <p className="text-sm font-bold">
+                {c.romano} {c.titulo}{" "}
+                <span className="tabular-nums">
+                  {valor !== null ? fmtNota(valor) : "—"} / {fmtNota(c.maximo)}
+                </span>
+              </p>
+              {comentarios[c.key] && (
+                <p className="text-xs text-tinta-suave">{comentarios[c.key]}</p>
+              )}
+            </div>
+          );
+        })}
       </section>
 
       {comentarios.general && (
