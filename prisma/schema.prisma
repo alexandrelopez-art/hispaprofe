@@ -98,6 +98,8 @@ model User {
   clasesImpartidas      Clase[]        @relation("ProfesorClase")
   clasesRecibidas       Clase[]        @relation("EstudianteClase")
   deberes               Deber[]        @relation("EstudianteDeber")
+  convocatorias         Convocatoria[] @relation("ProfesorConvocatoria")
+  turnosOrales          Turno[]        @relation("EstudianteTurno")
 }
 
 model Recorrido {
@@ -161,6 +163,7 @@ model Grupo {
   archivado        Boolean        @default(false)
   miembros         MiembroGrupo[]
   clases           Clase[]
+  turnosOrales     Turno[]
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
   // Vinculo opcional con un curso de Google Classroom. Los grupos de
@@ -365,4 +368,116 @@ model Deber {
 
   @@unique([claseId, estudianteId])
   @@index([estudianteId, cerradoEl])
+}
+
+/// Un examen con nombre y fecha: «Oral de Terminale, SJDP, mayo 2026».
+/// Es lo que hace el examen repetible: en octubre se convoca otro sin
+/// pisar este.
+model Convocatoria {
+  id         String   @id @default(cuid())
+  nombre     String
+  profesor   User     @relation("ProfesorConvocatoria", fields: [profesorId], references: [id])
+  profesorId String
+  archivada  Boolean  @default(false)
+  sujetos    Sujeto[]
+  turnos     Turno[]
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([profesorId, archivada])
+}
+
+/// Un sujet: UN documento, con su eje, su fuente y sus preguntas de
+/// interacción. El estudiante elige uno de los dieciséis, no uno de dos
+/// documentos dentro de un sujet. Son de la convocatoria entera y no de un
+/// grupo: en el examen real los comparte todo el mundo.
+model Sujeto {
+  id             String           @id @default(cuid())
+  convocatoria   Convocatoria     @relation(fields: [convocatoriaId], references: [id], onDelete: Cascade)
+  convocatoriaId String
+  numero         Int
+  eje            String
+  titulo         String
+  descripcion    String
+  fuente         String?
+  url            String?
+  preguntas      String[]
+
+  /// De dónde salió. Uno de los dos y solo uno; lo vigila
+  /// `origenDeSujetValido` en lib/orales/reglas.ts.
+  /// `recursoId` apunta a un Ejercicio y hoy siempre es null: el tipo
+  /// TAREA_ORAL llega en un plan aparte. La columna se crea ya para que
+  /// aquella migración no tenga que tocar esta tabla.
+  imagenId       String?
+  recursoId      String?
+  evaluaciones   EvaluacionOral[]
+
+  @@unique([convocatoriaId, numero])
+  @@index([convocatoriaId])
+}
+
+/// Un hueco del horario. Con estudiante, o una pausa (estudiante nulo).
+/// El día y la hora viven aquí y no en `User` porque son del examen,
+/// no de la persona: la misma persona puede examinarse dos veces.
+model Turno {
+  id             String          @id @default(cuid())
+  convocatoria   Convocatoria    @relation(fields: [convocatoriaId], references: [id], onDelete: Cascade)
+  convocatoriaId String
+  grupo          Grupo           @relation(fields: [grupoId], references: [id])
+  grupoId        String
+  estudiante     User?           @relation("EstudianteTurno", fields: [estudianteId], references: [id])
+  estudianteId   String?
+  dia            String
+  preparacion    String?
+  hora           String
+  sala           String?
+  orden          Int
+  evaluacion     EvaluacionOral?
+
+  @@unique([convocatoriaId, grupoId, orden])
+  @@index([estudianteId])
+}
+
+/// Lo que el profesor rellena. Una por turno.
+model EvaluacionOral {
+  id       String  @id @default(cuid())
+  turno    Turno   @relation(fields: [turnoId], references: [id], onDelete: Cascade)
+  turnoId  String  @unique
+  sujeto   Sujeto? @relation(fields: [sujetoId], references: [id])
+  sujetoId String?
+
+  /// Segundos, capados a 300. Float y no Int: el cronómetro para donde para.
+  segundosEoc Float?
+  segundosEoi Float?
+
+  /// Las cinco notas y los seis comentarios, en un solo Json. Se leen y se
+  /// escriben siempre juntos, y así añadir un criterio no es una migración.
+  notas       Json?
+  comentarios Json?
+
+  /// Las frases sugeridas encendidas, por criterio. Aparte de `comentarios`
+  /// porque hace falta saber cuáles siguen activas aunque el profesor
+  /// reescriba el texto a mano.
+  frases      Json?
+
+  /// Los índices de las preguntas de la EOI ya hechas.
+  preguntadas Int[]
+
+  transcripcion TranscripcionOral?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+/// El audio, sus segmentos y el informe que devuelve la IA.
+/// Aparte de EvaluacionOral porque nace después y a menudo no nace: se
+/// puede calificar un examen sin transcribirlo nunca. Se rellena en tanda 2.
+model TranscripcionOral {
+  id           String         @id @default(cuid())
+  evaluacion   EvaluacionOral @relation(fields: [evaluacionId], references: [id], onDelete: Cascade)
+  evaluacionId String         @unique
+  audioId      String?
+  segmentos    Json?
+  informe      Json?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
 }

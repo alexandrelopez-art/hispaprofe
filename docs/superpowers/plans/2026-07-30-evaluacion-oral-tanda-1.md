@@ -649,8 +649,10 @@ export function pasoDe(maximo: number): number {
 /**
  * La suma de lo que haya. Lo que falta no resta.
  *
- * El redondeo final no es cosmético: 0,25 + 0,25 en coma flotante da
- * 0,5000000000000001, y esa cifra acabaría en el CSV que ve el liceo.
+ * El redondeo final no es por la coma flotante: los pasos de esta parrilla
+ * son 0,25 y 0,5, potencias de dos, y se suman exactos. Está para lo que
+ * entre de fuera con más decimales, que si no acabaría tal cual en el CSV
+ * que ve el liceo.
  */
 export function calcularTotal(notas: Notas | null | undefined): number {
   if (!notas) return 0;
@@ -740,7 +742,8 @@ function comprobarReglasPuras() {
   afirmar(ajustarNota(0, -1, 4) === 0, "el − no baja de cero");
   afirmar(ajustarNota(1.5, 1, 2) === 1.75, "sobre 2 el + sube de cuarto en cuarto");
   afirmar(ajustarNota(2, 1, 2) === 2, "sobre 2 el + tampoco pasa del máximo");
-  afirmar(ajustarNota(0.25, -1, 2) === 0, "restar cuartos no deja 2,7755e-17");
+  afirmar(ajustarNota(0.25, -1, 2) === 0, "restar un cuarto desde un cuarto da cero pelado");
+  afirmar(ajustarNota(1.1, 1, 4) === 1.6, "una nota que no cae en la rejilla se redondea al moverla");
 
   afirmar(notaDentroDelCriterio("fluidez", 2) === null, "un 2 sobre 2 es válido");
   afirmar(notaDentroDelCriterio("fluidez", 2.5) !== null, "un 2,5 sobre 2 se rechaza");
@@ -853,9 +856,14 @@ export function origenDeSujetValido(origen: {
 /**
  * Regla 5: la nota no puede salirse del criterio.
  *
- * Devuelve la nota ya movida, capada arriba y abajo. El redondeo a dos
- * decimales es imprescindible con el paso de 0,25: sin él, 0,25 − 0,25 da
- * 2,7755e-17 y la ficha enseñaría un cero que no lo es.
+ * Devuelve la nota ya movida, capada arriba y abajo.
+ *
+ * El redondeo a dos decimales no es por la coma flotante: 0,25 y 0,5 son
+ * potencias de dos y se suman exactas, así que dentro de esta rejilla nunca
+ * aparece un 2,7755e-17. Está por lo que entra de fuera —una nota con más
+ * decimales, del archivo de la tanda 2 o de un criterio al que algún día se
+ * le cambie el paso—: sale de aquí encajada en la rejilla en vez de
+ * arrastrar decimales que la ficha no sabría enseñar.
  */
 export function ajustarNota(
   actual: number | null,
