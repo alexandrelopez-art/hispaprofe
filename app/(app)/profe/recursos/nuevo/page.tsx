@@ -23,6 +23,11 @@ const TODOS_LOS_TIPOS: { marca: MarcaEjercicio; nombre: string; explica: string 
 // infería `marca` como `string` y no como `MarcaEjercicio`.
 const TIPOS = TODOS_LOS_TIPOS.filter((t) => VACIO[t.marca] !== undefined);
 
+/** El nombre del nivel tal y como se escribe en pantalla. */
+function nombreNivel(nivel: string): string {
+  return nivel === "A2_B1_ESCOLAR" ? "A2/B1 escolar" : nivel;
+}
+
 /**
  * El punto de partida de un ejercicio para esta tarea: tantos ítems y tantas
  * opciones como dice el mapa, y los sobrantes ya separados.
@@ -108,6 +113,29 @@ export default async function NuevoRecursoPage({
     ? TIPOS.find((t) => t.marca === tareaDele.motor)
     : elegido;
 
+  // `tareaDele` ya implica los otros dos, pero repetirlos aquí es lo que
+  // convence a TypeScript de que no son `undefined`.
+  const partida =
+    tareaDele && nivelBruto && prueba
+      ? {
+          datos: estructuraDe(tareaDele),
+          // El nivel no es un detalle: el editor arranca en B1, y un
+          // ejercicio creado para una prueba de A1 que se quedara en B1 no
+          // volvería a aparecer en el selector de su propio paso, que se
+          // acota al nivel del recorrido.
+          nivel: nivelBruto,
+          // La destreza se sabe —es la prueba— y `Ejercicio` la tiene: no
+          // ponerla dejaba el recurso peor catalogado que si se hubiera
+          // creado a mano, y la lista de Recursos filtra por ella.
+          destreza: prueba,
+          // Recursos es una biblioteca global y el desplegable del paso
+          // pinta «título · nivel»: dos «Tarea 1 · B1» de pruebas distintas
+          // salían indistinguibles. El nivel se escribe como se lee, que
+          // nadie quiere encontrarse un «A2_B1_ESCOLAR» en la lista.
+          titulo: `${nombreNivel(nivelBruto)} · ${prueba} · Tarea ${tareaDele.numero}`,
+        }
+      : null;
+
   return (
     <div className="mx-auto max-w-5xl px-6 py-12">
       <Link href="/profe/recursos" className="text-sm font-semibold text-tinta-suave hover:text-hp-500">
@@ -132,26 +160,31 @@ export default async function NuevoRecursoPage({
         </div>
       )}
 
-      {tareaDele ? (
+      {tareaDele && partida ? (
         <div className="mt-8">
+          {/*
+            El `key` remonta el editor al cambiar de tarea. `partida` solo se
+            lee en el estado inicial de `useState`: sin él, navegar del
+            cliente entre dos tareas distintas reutilizaría el mismo `Editor`
+            con los datos de la anterior, y un `relacionar` dentro de
+            `EditorOpcion` revienta en `d.preguntas.map`. Hoy no hay ningún
+            enlace que haga esa navegación; el `key` la cierra igualmente.
+          */}
           <Editor
+            key={tareaDele.numero}
             inicial={null}
             marca={tareaDele.motor}
             bloqueado={null}
-            partida={{
-              datos: estructuraDe(tareaDele),
-              // El nivel no es un detalle: el editor arranca en B1, y un
-              // ejercicio creado para una prueba de A1 que se quedara en B1
-              // no volvería a aparecer en el selector de su propio paso,
-              // que se acota al nivel del recorrido.
-              nivel: nivelBruto,
-              titulo: `Tarea ${tareaDele.numero}`,
-            }}
+            partida={partida}
           />
         </div>
       ) : elegido ? (
         <div className="mt-8">
-          <Editor inicial={null} marca={elegido.marca} bloqueado={null} />
+          {/* Misma razón que el de arriba: el editor de `?tipo=` ocupa la
+              misma posición del árbol, así que también se remonta al
+              cambiar de tipo. Las dos claves no se pisan: una es un número
+              y la otra una marca. */}
+          <Editor key={elegido.marca} inicial={null} marca={elegido.marca} bloqueado={null} />
         </div>
       ) : (
         <ul className="mt-8 grid gap-3 sm:grid-cols-2">

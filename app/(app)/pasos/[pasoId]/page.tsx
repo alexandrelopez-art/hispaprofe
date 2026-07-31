@@ -291,12 +291,29 @@ export default async function PasoPage({
   const analizado = vinculo ? analizar(vinculo.ejercicio.datos) : null;
   const hayEjercicio = analizado !== null;
 
+  // Qué tarea del examen es este paso. Se lee del título —«Tarea 3»— y solo
+  // si no lo lleva se cae al `orden`.
+  //
+  // El título manda porque es lo que el profesor ve, y el `orden` no siempre
+  // coincide: las tareas sugeridas crean el paso con el título puesto, pero
+  // `crearPaso` le da `orden = max + 1`. Añadir primero la Tarea 3 la dejaba
+  // con orden 1, y esta página le enseñaba la ficha de la Tarea 1, le
+  // filtraba por el formato de la 1 y le montaba su estructura: contenido
+  // equivocado debajo de un rótulo correcto, que desorienta más que no tener
+  // mapa.
+  //
+  // La reserva importa tanto como la regla: un paso con título libre
+  // —«Calentamiento»— no casa con la expresión y sigue yendo por el `orden`,
+  // que es como se ha comportado siempre.
+  const enElTitulo = /^Tarea (\d+)$/.exec(paso.titulo);
+  const numeroDeTarea = enElTitulo ? Number(enElTitulo[1]) : paso.orden;
+
   // Si este paso es una tarea del mapa, el selector se acota a su formato.
-  // El número de tarea es el orden del paso: un paso más allá de la última
-  // tarea oficial devuelve null y todo se comporta como si no hubiera mapa.
+  // Un número más allá de la última tarea oficial devuelve null y todo se
+  // comporta como si no hubiera mapa.
   const tarea =
     paso.recorrido.tipo === "PREPARACION_DELE" && paso.recorrido.destreza
-      ? tareaDe(paso.recorrido.nivel, paso.recorrido.destreza, paso.orden)
+      ? tareaDe(paso.recorrido.nivel, paso.recorrido.destreza, numeroDeTarea)
       : null;
 
   // El `tipo` de la base que le toca al motor de esta tarea. La tabla vive
