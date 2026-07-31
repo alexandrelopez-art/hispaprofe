@@ -161,10 +161,15 @@ function BloqueContenido({ bloque }: { bloque: BloqueData }) {
 
 export default async function PasoPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ pasoId: string }>;
+  /** `?todos=1` ensancha la lista de candidatos a todos los niveles. */
+  searchParams: Promise<{ todos?: string }>;
 }) {
   const { pasoId } = await params;
+  const { todos } = await searchParams;
+  const todosLosNiveles = todos === "1";
 
   const paso = await prisma.paso.findUnique({
     where: { id: pasoId },
@@ -237,12 +242,18 @@ export default async function PasoPage({
   const hayEjercicio = analizado !== null;
 
   // Los publicados que se le pueden ofrecer a este paso. Se acotan al nivel
-  // del recorrido porque es lo que se busca el 99% de las veces; para salirse
-  // de ahí está la pantalla de Recursos. Solo para el profesor: el
-  // estudiante no debe ver ni la lista ni el selector.
+  // del recorrido porque es lo que se busca el 99% de las veces, pero con
+  // puerta de salida (`?todos=1`): el editor de Recursos arranca en B1 y el
+  // recorrido puede ser de otro nivel, así que sin ella un ejercicio recién
+  // publicado podía no aparecer y la pantalla decía que no había ninguno.
+  // Solo para el profesor: el estudiante no debe ver ni la lista ni el
+  // selector.
   const candidatos: Candidato[] = esProfe
     ? await prisma.ejercicio.findMany({
-        where: { publicado: true, nivel: paso.recorrido.nivel },
+        where: {
+          publicado: true,
+          ...(todosLosNiveles ? {} : { nivel: paso.recorrido.nivel }),
+        },
         orderBy: { titulo: "asc" },
         select: { id: true, titulo: true, tipo: true, nivel: true },
       })
@@ -360,6 +371,8 @@ export default async function PasoPage({
           pasoId={paso.id}
           actual={ejercicioActual}
           candidatos={candidatos}
+          nivel={paso.recorrido.nivel}
+          todosLosNiveles={todosLosNiveles}
         />
       )}
 
