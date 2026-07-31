@@ -39,8 +39,10 @@ export function pasoDe(maximo: number): number {
 /**
  * La suma de lo que haya. Lo que falta no resta.
  *
- * El redondeo final no es cosmético: 0,25 + 0,25 en coma flotante da
- * 0,5000000000000001, y esa cifra acabaría en el CSV que ve el liceo.
+ * El redondeo final no es por la coma flotante: los pasos de esta parrilla
+ * son 0,25 y 0,5, potencias de dos, y se suman exactos. Está para lo que
+ * entra de fuera con más decimales, que si no acabaría tal cual en el CSV
+ * que ve el liceo.
  */
 export function calcularTotal(notas: Notas | null | undefined): number {
   if (!notas) return 0;
@@ -49,9 +51,23 @@ export function calcularTotal(notas: Notas | null | undefined): number {
 }
 
 /**
+ * La nota de un criterio si está puesta, o `null` si falta. Comparar contra
+ * `undefined` y `null` y no por veracidad: `if (nota)` daría «falta» ante un
+ * cero puesto de verdad.
+ *
+ * Antes de esto había cuatro maneras de hacer la misma pregunta —¿hay nota
+ * aquí?— repartidas entre `estadoDe`, la ficha impresa y el CSV, y una
+ * comparaba solo contra `undefined`. Esta es la única que hace falta:
+ * `estadoDe`, `lib/orales/csv.ts` y la ficha la usan las tres.
+ */
+export function notaDe(notas: Notas, key: ClaveCriterio): number | null {
+  const valor = notas[key];
+  return valor === undefined || valor === null ? null : valor;
+}
+
+/**
  * Si hay al menos una nota puesta, aunque sea un cero. La misma distinción
- * que hace `estadoDe` más abajo: comparar contra `undefined`/`null` y no
- * por veracidad, porque `if (nota)` daría «falta» ante un cero de verdad.
+ * que `notaDe`, pero para la parrilla entera.
  *
  * Vive aquí y no en `csv.ts` porque la ficha impresa necesita la misma
  * regla: sin ella, una evaluación recién creada (con el `sujetoId` ya
@@ -59,7 +75,7 @@ export function calcularTotal(notas: Notas | null | undefined): number {
  * «0,0 / 20» como si fuera la nota final del alumno.
  */
 export function hayNotaPuesta(notas: Notas): boolean {
-  return CRITERIOS.some((c) => notas[c.key] !== undefined && notas[c.key] !== null);
+  return CRITERIOS.some((c) => notaDe(notas, c.key) !== null);
 }
 
 /** El semáforo del horario. */
@@ -76,10 +92,8 @@ export function estadoDe(
   evaluacion: { sujetoId: string | null; notas: Notas | null } | null,
 ): EstadoTurno {
   if (!evaluacion) return "vacio";
-  const puestas = CRITERIOS.filter((c) => {
-    const v = evaluacion.notas?.[c.key];
-    return v !== undefined && v !== null;
-  }).length;
+  const notas = evaluacion.notas ?? {};
+  const puestas = CRITERIOS.filter((c) => notaDe(notas, c.key) !== null).length;
   if (puestas === CRITERIOS.length && evaluacion.sujetoId) return "hecho";
   if (puestas > 0 || evaluacion.sujetoId) return "medias";
   return "vacio";

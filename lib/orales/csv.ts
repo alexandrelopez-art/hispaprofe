@@ -1,5 +1,5 @@
 import { CRITERIOS } from "@/lib/orales/criterios";
-import { calcularTotal, hayNotaPuesta } from "@/lib/orales/formato";
+import { calcularTotal, hayNotaPuesta, notaDe } from "@/lib/orales/formato";
 import type { Notas } from "@/lib/orales/formato";
 
 export type FilaCsv = {
@@ -49,7 +49,7 @@ export function construirCsv(filas: FilaCsv[]): string {
     f.segundosEoc === null ? "" : Math.round(f.segundosEoc),
     f.segundosEoi === null ? "" : Math.round(f.segundosEoi),
     ...CRITERIOS.flatMap((c) => [
-      f.notas[c.key] ?? "",
+      notaDe(f.notas, c.key) ?? "",
       f.comentarios[c.key] ?? "",
     ]),
     // Punto decimal a propósito: una coma decimal en un CSV separado por
