@@ -14,6 +14,8 @@ import type { MarcaEjercicio } from "@/lib/ejercicios/tipos";
 import Previsualizacion from "./previsualizacion";
 import EditorOpcion, { OPCION_VACIA } from "./editor-opcion";
 import EditorHuecos, { HUECOS_VACIO } from "./editor-huecos";
+import EditorRelacionar, { RELACIONAR_VACIO } from "./editor-relacionar";
+import EditorOrdenar, { ORDENAR_VACIO } from "./editor-ordenar";
 import { campo } from "./campos";
 
 const NIVELES = ["A1", "A2", "B1", "B2", "C1", "A2_B1_ESCOLAR"] as const;
@@ -28,11 +30,15 @@ const DESTREZAS: Record<string, string> = {
 
 /**
  * El punto de partida de cada tipo. Parcial a propósito: un tipo entra aquí
- * cuando tiene editor, y `nuevo/page.tsx` solo ofrece los que están.
+ * cuando tiene editor, y `nuevo/page.tsx` solo ofrece los que están. Ya
+ * están los cuatro, así que `Partial` no tapa nada ahora mismo: se deja
+ * porque un tipo futuro volverá a entrar por aquí antes de tener editor.
  */
 export const VACIO: Partial<Record<MarcaEjercicio, unknown>> = {
   opcion: OPCION_VACIA,
   huecos: HUECOS_VACIO,
+  relacionar: RELACIONAR_VACIO,
+  ordenar: ORDENAR_VACIO,
 };
 
 export type FilaEjercicio = {
@@ -195,7 +201,17 @@ export default function Editor({
         <fieldset disabled={Boolean(bloqueado)}>
           {marca === "opcion" && <EditorOpcion datos={datos} alCambiar={setDatos} />}
           {marca === "huecos" && <EditorHuecos datos={datos} alCambiar={setDatos} />}
-          {marca !== "opcion" && marca !== "huecos" && (
+          {marca === "relacionar" && <EditorRelacionar datos={datos} alCambiar={setDatos} />}
+          {marca === "ordenar" && <EditorOrdenar datos={datos} alCambiar={setDatos} />}
+          {/*
+            No es una lista de negaciones (una por marca) porque eso se
+            desincroniza en cuanto se añade un tipo nuevo: se comprueba
+            contra `VACIO`, la misma fuente que ya usa `nuevo/page.tsx` para
+            decidir qué tipos ofrecer. Con los cuatro tipos actuales nunca
+            se pinta; queda listo para cuando `MarcaEjercicio` crezca antes
+            de que su editor exista.
+          */}
+          {VACIO[marca] === undefined && (
             <p className="rounded-tarjeta border border-dashed border-hp-200 p-6 text-center text-sm text-tinta-suave">
               Este tipo de ejercicio todavía no tiene editor. Puedes cambiar
               el título, el nivel, la destreza y las etiquetas, pero no su
