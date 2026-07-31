@@ -5,10 +5,11 @@
  */
 import "dotenv/config";
 import { corregirOpcion, opcionSchema, versionPublicaOpcion, type Opcion } from "@/lib/ejercicios/opcion";
-import { corregirHuecos, huecosSchema, trozos, versionPublicaHuecos, type Huecos } from "@/lib/ejercicios/huecos";
+import { corregirHuecos, huecosSchema, versionPublicaHuecos, type Huecos } from "@/lib/ejercicios/huecos";
 import { corregirRelacionar, relacionarSchema, versionPublicaRelacionar, type Relacionar } from "@/lib/ejercicios/relacionar";
 import { corregirOrdenar, ordenarSchema, versionPublicaOrdenar, type Ordenar } from "@/lib/ejercicios/ordenar";
 import { analizar, corregir, versionPublica } from "@/lib/ejercicios/registro";
+import { trozos } from "@/lib/ejercicios/tipos";
 import { progresoOpcion } from "@/components/ejercicios/opcion";
 import { progresoHuecos } from "@/components/ejercicios/huecos";
 import { progresoRelacionar } from "@/components/ejercicios/relacionar";

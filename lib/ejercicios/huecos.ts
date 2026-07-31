@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
   comoLista,
+  marcasCuadran,
   normalizar,
   type Correccion,
   type ItemCorregido,
@@ -38,24 +39,12 @@ export const huecosSchema = z
     huecos: z.array(huecoSchema).min(1, { message: "El ejercicio necesita al menos un hueco." }),
   })
   .refine(
-    (d) => {
-      const marcas = new Set(
-        [...d.texto.matchAll(/\{\{([^}]+)\}\}/g)].map((m) => m[1]),
-      );
-      const ids = new Set(d.huecos.map((h) => h.id));
-      return (
-        marcas.size === ids.size && [...marcas].every((m) => ids.has(m))
-      );
-    },
+    (d) => marcasCuadran(d.texto, d.huecos.map((h) => h.id)),
     {
       // Nada obliga a que las marcas {{id}} del texto y los ids de `huecos`
       // coincidan: se escriben a mano en dos sitios distintos del script de
-      // siembra, sin editor que los enlace. Con un id que no cuadra, la cara
-      // dibuja un recuadro por marca y `progresoHuecos` cuenta sobre
-      // `huecos`, así que el estudiante puede rellenar todo lo que ve y el
-      // contador nunca llega al total: el botón de enviar no se activa
-      // nunca. Mejor rechazarlo al sembrar que descubrirlo con un estudiante
-      // atascado.
+      // siembra, sin editor que los enlace. El porqué largo está en
+      // `marcasCuadran`.
       message:
         "Las marcas {{...}} del texto no coinciden con los ids de `huecos`.",
     },
@@ -75,27 +64,6 @@ export function versionPublicaHuecos(datos: Huecos): HuecosPublica {
     texto: datos.texto,
     huecos: datos.huecos.map(({ id }) => ({ id })),
   };
-}
-
-/** Parte el texto en trozos alternos para poder dibujar los recuadros. */
-export function trozos(
-  texto: string,
-): { tipo: "texto" | "hueco"; valor: string }[] {
-  const salida: { tipo: "texto" | "hueco"; valor: string }[] = [];
-  const patron = /\{\{([^}]+)\}\}/g;
-  let ultimo = 0;
-  let m: RegExpExecArray | null;
-  while ((m = patron.exec(texto)) !== null) {
-    if (m.index > ultimo) {
-      salida.push({ tipo: "texto", valor: texto.slice(ultimo, m.index) });
-    }
-    salida.push({ tipo: "hueco", valor: m[1] });
-    ultimo = m.index + m[0].length;
-  }
-  if (ultimo < texto.length) {
-    salida.push({ tipo: "texto", valor: texto.slice(ultimo) });
-  }
-  return salida;
 }
 
 /** Un punto por hueco. Aqui no hay nada que marcar de mas, asi que no resta. */

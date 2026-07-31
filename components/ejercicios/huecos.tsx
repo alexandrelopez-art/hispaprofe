@@ -1,7 +1,7 @@
 "use client";
 
-import { trozos, type HuecosPublica } from "@/lib/ejercicios/huecos";
-import { comoLista, type Respuestas } from "@/lib/ejercicios/tipos";
+import { type HuecosPublica } from "@/lib/ejercicios/huecos";
+import { comoLista, trozos, type Respuestas } from "@/lib/ejercicios/tipos";
 import type { Progreso, PropsCara } from "./ejercicio";
 import { Veredicto } from "./opcion";
 
