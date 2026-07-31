@@ -2,12 +2,15 @@
 
 import { area, botonSecundario, BotonQuitar, campo } from "./campos";
 
-type Pareja = { id: string; izquierda: string; derecha: string };
+type Pareja = { id: string; izquierda: string; derecha: string; audio?: string };
 
 type DatosRelacionar = {
   ejercicio: "relacionar";
   consigna: string;
+  texto?: string;
   parejas: Pareja[];
+  sobrantes: string[];
+  escuchas: number;
 };
 
 export const RELACIONAR_VACIO: DatosRelacionar = {
@@ -17,6 +20,8 @@ export const RELACIONAR_VACIO: DatosRelacionar = {
     { id: "r1", izquierda: "", derecha: "" },
     { id: "r2", izquierda: "", derecha: "" },
   ],
+  sobrantes: [],
+  escuchas: 2,
 };
 
 /**
@@ -58,17 +63,19 @@ export default function EditorRelacionar({
   // nada, y ese mensaje no describe lo que pasa de verdad. Se avisa primero
   // de esto, con un mensaje propio, para que el profesor nunca llegue al de
   // duplicados por este camino.
-  const incompleta = d.parejas.some((p) => !p.izquierda.trim() || !p.derecha.trim());
+  const incompleta =
+    d.parejas.some((p) => !p.izquierda.trim() || !p.derecha.trim()) ||
+    d.sobrantes.some((s) => !s.trim());
 
-  // El esquema rechaza dos derechas iguales: el estudiante vería dos celdas
-  // idénticas y una de las dos filas quedaría mal contada pase lo que pase.
-  // Se avisa aquí para no descubrirlo al guardar. `filter(Boolean)` deja
-  // fuera las vacías: mientras el profesor está rellenando, tener dos
-  // celdas todavía en blanco no es una repetición real. Se calcula solo si
-  // no hay parejas incompletas: con parejas a medias, lo que hay que decir
-  // es que falta rellenar, no que algo esté repetido.
-  const derechas = d.parejas.map((p) => p.derecha.trim()).filter(Boolean);
-  const repetida = !incompleta && derechas.find((v, i) => derechas.indexOf(v) !== i);
+  // El esquema rechaza dos derechas iguales, y también un sobrante que
+  // repita una respuesta buena o a otro sobrante: en los tres casos el
+  // estudiante vería dos celdas idénticas. Se avisa aquí para no
+  // descubrirlo al guardar.
+  const todas = [
+    ...d.parejas.map((p) => p.derecha.trim()),
+    ...d.sobrantes.map((s) => s.trim()),
+  ].filter(Boolean);
+  const repetida = !incompleta && todas.find((v, i) => todas.indexOf(v) !== i);
 
   return (
     <div className="space-y-6">
@@ -90,10 +97,26 @@ export default function EditorRelacionar({
 
       {repetida && (
         <p className="rounded-tarjeta bg-sol-100 px-4 py-3 text-sm text-tinta">
-          «{repetida}» está dos veces en la columna de la derecha. Repetir a la
-          izquierda sí vale; a la derecha no, porque serían dos celdas iguales.
+          «{repetida}» está dos veces entre las opciones de la derecha, contando
+          los sobrantes. El estudiante vería dos celdas idénticas y una de las
+          dos filas quedaría mal contada pase lo que pase.
         </p>
       )}
+
+      <label className="block text-sm font-semibold text-tinta">
+        Pasaje (opcional)
+        <textarea
+          rows={5}
+          value={d.texto ?? ""}
+          onChange={(e) => alCambiar({ ...d, texto: e.target.value || undefined })}
+          placeholder="Para las tareas de insertar fragmentos: el texto con los huecos numerados."
+          className={area}
+        />
+        <span className="mt-1 block text-xs font-normal text-tinta-suave">
+          Se pinta encima de las dos columnas. Numera los huecos en el texto y
+          escribe «Hueco 1», «Hueco 2»… en la columna de la izquierda.
+        </span>
+      </label>
 
       <div className="space-y-3">
         {d.parejas.map((p, i) => (
@@ -116,6 +139,16 @@ export default function EditorRelacionar({
                 className={campo}
               />
             </label>
+            <label className="block w-full text-sm font-semibold text-tinta">
+              Audio de esta fila (opcional)
+              <input
+                type="text"
+                value={p.audio ?? ""}
+                onChange={(e) => cambiarPareja(i, { audio: e.target.value || undefined })}
+                placeholder="Dirección del audio"
+                className={campo}
+              />
+            </label>
             {d.parejas.length > 2 && (
               <BotonQuitar onClick={() => alCambiar({ ...d, parejas: d.parejas.filter((_, j) => j !== i) })}>
                 Quitar
@@ -124,6 +157,64 @@ export default function EditorRelacionar({
           </div>
         ))}
       </div>
+
+      <fieldset className="rounded-tarjeta border border-hp-100 p-4">
+        <legend className="px-2 text-sm font-bold text-tinta">Sobrantes</legend>
+        <p className="text-sm text-tinta-suave">
+          Opciones que se mezclan con las buenas y no emparejan con nada. En el
+          DELE son las que hacen que haya nueve textos para seis enunciados.
+        </p>
+
+        <div className="mt-3 space-y-2">
+          {d.sobrantes.map((s, i) => (
+            <div key={i} className="flex items-center gap-3">
+              <input
+                type="text"
+                value={s}
+                onChange={(e) => {
+                  const sobrantes = [...d.sobrantes];
+                  sobrantes[i] = e.target.value;
+                  alCambiar({ ...d, sobrantes });
+                }}
+                className={`${campo} mt-0`}
+              />
+              <BotonQuitar
+                onClick={() =>
+                  alCambiar({ ...d, sobrantes: d.sobrantes.filter((_, j) => j !== i) })
+                }
+              >
+                Quitar
+              </BotonQuitar>
+            </div>
+          ))}
+        </div>
+
+        <button
+          type="button"
+          onClick={() => alCambiar({ ...d, sobrantes: [...d.sobrantes, ""] })}
+          className={`${botonSecundario} mt-3`}
+        >
+          Añadir sobrante
+        </button>
+      </fieldset>
+
+      {d.parejas.some((p) => p.audio) && (
+        <label className="block w-56 text-sm font-semibold text-tinta">
+          Escuchas por audio
+          <input
+            type="number"
+            min={1}
+            value={d.escuchas}
+            onChange={(e) =>
+              alCambiar({ ...d, escuchas: Math.max(1, Number(e.target.value) || 1) })
+            }
+            className={campo}
+          />
+          <span className="mt-1 block text-xs font-normal text-tinta-suave">
+            Dos es lo que da el examen. Sube el número para practicar.
+          </span>
+        </label>
+      )}
 
       <button
         type="button"
