@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { exigirProfesor } from "@/lib/profesor";
+import { getUsuarioActual } from "@/lib/usuario";
 import { pegarHorario } from "@/lib/acciones-orales";
 import type { Notas } from "@/lib/orales/formato";
 import Horario from "@/components/orales/horario";
@@ -18,7 +18,13 @@ export default async function ConvocatoriaPage({
 }) {
   const { id } = await params;
   const { turno: turnoActivo } = await searchParams;
-  const usuario = await exigirProfesor();
+  // Mismo patrón que el resto de pantallas de profe: redirigir por el rol,
+  // no lanzar. `exigirProfesor()` está pensado para acciones de servidor;
+  // aquí no hay `error.tsx` que atrape el throw.
+  const usuario = await getUsuarioActual();
+  if (!usuario || (usuario.role !== "PROFESOR" && usuario.role !== "ADMIN")) {
+    redirect("/dashboard");
+  }
 
   const convocatoria = await prisma.convocatoria.findUnique({
     where: { id },
@@ -157,51 +163,67 @@ export default async function ConvocatoriaPage({
                 }}
               />
             </>
-          ) : turnos.length === 0 ? (
-            <form
-              action={pegarHorario}
-              className="max-w-xl space-y-3 rounded-tarjeta bg-white p-5 shadow-suave"
-            >
-              <input type="hidden" name="convocatoriaId" value={id} />
-              <h2 className="font-bold text-tinta">Pega el horario del liceo</h2>
-              <p className="text-sm text-tinta-suave">
-                Una línea por turno, separando con tabulador o punto y coma:
-                <br />
-                <code className="text-xs">
-                  Mercredi 20/05 ; 08h00 ; 08h15 ; HERMITE ; Rose ; CDI
-                </code>
-                <br />
-                Una línea con <code className="text-xs">---</code> es una pausa.
-              </p>
-              <select
-                name="grupoId"
-                required
-                className="w-full rounded-lg border border-hp-100 px-3 py-2 text-sm"
-              >
-                <option value="">¿Qué grupo se examina?</option>
-                {grupos.map((g) => (
-                  <option key={g.id} value={g.id}>
-                    {g.nombre}
-                  </option>
-                ))}
-              </select>
-              <textarea
-                name="horario"
-                required
-                rows={10}
-                className="w-full rounded-lg border border-hp-100 p-3 font-mono text-xs"
-              />
-              <button
-                type="submit"
-                className="rounded-lg bg-hp-400 px-4 py-2 text-sm font-bold text-white"
-              >
-                Montar el horario
-              </button>
-            </form>
           ) : (
-            <p className="text-sm text-tinta-suave">
-              Elige a alguien en la lista para empezar a evaluar.
-            </p>
+            <div className="max-w-xl space-y-3">
+              {turnos.length > 0 && (
+                <p className="text-sm text-tinta-suave">
+                  Elige a alguien en la lista para empezar a evaluar.
+                </p>
+              )}
+              {/*
+                El formulario sigue disponible aunque ya haya turnos: antes
+                solo se pintaba con `turnos.length === 0`, así que un horario
+                a medio pegar (o uno al que le falta un segundo grupo) dejaba
+                al profesor sin forma de completarlo desde la pantalla. Ahora
+                que `pegarHorario` escribe dentro de un `$transaction`, un
+                fallo a mitad de camino ya no deja filas sueltas; lo único
+                que faltaba era una salida para intentarlo de nuevo o seguir
+                pegando. Se pega en dos veces sin duplicar: el orden de cada
+                grupo sigue donde lo dejó la vez anterior.
+              */}
+              <form
+                action={pegarHorario}
+                className="space-y-3 rounded-tarjeta bg-white p-5 shadow-suave"
+              >
+                <input type="hidden" name="convocatoriaId" value={id} />
+                <h2 className="font-bold text-tinta">
+                  {turnos.length > 0 ? "Pegar más horario" : "Pega el horario del liceo"}
+                </h2>
+                <p className="text-sm text-tinta-suave">
+                  Una línea por turno, separando con tabulador o punto y coma:
+                  <br />
+                  <code className="text-xs">
+                    Mercredi 20/05 ; 08h00 ; 08h15 ; HERMITE ; Rose ; CDI
+                  </code>
+                  <br />
+                  Una línea con <code className="text-xs">---</code> es una pausa.
+                </p>
+                <select
+                  name="grupoId"
+                  required
+                  className="w-full rounded-lg border border-hp-100 px-3 py-2 text-sm"
+                >
+                  <option value="">¿Qué grupo se examina?</option>
+                  {grupos.map((g) => (
+                    <option key={g.id} value={g.id}>
+                      {g.nombre}
+                    </option>
+                  ))}
+                </select>
+                <textarea
+                  name="horario"
+                  required
+                  rows={10}
+                  className="w-full rounded-lg border border-hp-100 p-3 font-mono text-xs"
+                />
+                <button
+                  type="submit"
+                  className="rounded-lg bg-hp-400 px-4 py-2 text-sm font-bold text-white"
+                >
+                  {turnos.length > 0 ? "Añadir al horario" : "Montar el horario"}
+                </button>
+              </form>
+            </div>
           )}
         </section>
       </div>
