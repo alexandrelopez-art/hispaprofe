@@ -9,9 +9,11 @@ import type { ClaveCriterio } from "@/lib/orales/criterios";
 import type { Notas } from "@/lib/orales/formato";
 import {
   caparTiempo,
+  grupoDeProfesor,
   notaDentroDelCriterio,
   origenDeSujetValido,
   puedeExaminarse,
+  sujetoDeConvocatoria,
 } from "@/lib/orales/reglas";
 
 /**
@@ -147,9 +149,19 @@ export async function borrarSujeto(formData: FormData) {
  */
 export async function pegarHorario(formData: FormData) {
   const convocatoriaId = String(formData.get("convocatoriaId") ?? "");
-  await exigirConvocatoriaSuya(convocatoriaId);
+  const { usuario } = await exigirConvocatoriaSuya(convocatoriaId);
   const grupoId = String(formData.get("grupoId") ?? "");
   if (!grupoId) throw new Error("Elige el grupo que se examina.");
+
+  // Regla 7: la convocatoria comprobada arriba no dice nada del grupo, que
+  // llega en el mismo formulario. Sin esto, un `grupoId` ajeno filtraría los
+  // datos de sus miembros y les crearía turnos en esta convocatoria.
+  const motivoGrupo = await grupoDeProfesor(
+    grupoId,
+    usuario.id,
+    usuario.role === "ADMIN",
+  );
+  if (motivoGrupo) throw new Error(motivoGrupo);
 
   const miembros = await prisma.miembroGrupo.findMany({
     where: { grupoId },
@@ -252,7 +264,16 @@ export type DatosEvaluacion = {
 export async function guardarEvaluacion(
   datos: DatosEvaluacion,
 ): Promise<{ error: string } | null> {
-  await exigirTurnoSuyo(datos.turnoId);
+  const turno = await exigirTurnoSuyo(datos.turnoId);
+
+  // Regla 8: que el turno sea tuyo no dice nada del sujet. Sin esto, un
+  // `sujetoId` acertado de otra convocatoria colaría en la ficha el título,
+  // la descripción y las preguntas de un examen ajeno.
+  const motivoSujeto = await sujetoDeConvocatoria(
+    datos.sujetoId,
+    turno.convocatoria.id,
+  );
+  if (motivoSujeto) return { error: motivoSujeto };
 
   if (datos.notas) {
     for (const criterio of CRITERIOS) {

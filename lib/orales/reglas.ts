@@ -1,3 +1,4 @@
+import { prisma } from "@/lib/prisma";
 import { CRITERIOS, TOPE_SEGUNDOS } from "@/lib/orales/criterios";
 import type { ClaveCriterio } from "@/lib/orales/criterios";
 import { fmtNota, pasoDe } from "@/lib/orales/formato";
@@ -98,4 +99,59 @@ export function notaDentroDelCriterio(
 export function caparTiempo(segundos: number): number {
   if (!Number.isFinite(segundos) || segundos < 0) return 0;
   return Math.min(TOPE_SEGUNDOS, segundos);
+}
+
+/**
+ * Regla 7: el grupo que se pega en el horario es de quien pide, o pide un
+ * administrador.
+ *
+ * `pegarHorario` recibe el `convocatoriaId` y el `grupoId` en el mismo
+ * `formData`. Comprobar la convocatoria no dice nada del grupo: acertando el
+ * id de un grupo ajeno se leerían nombre, apellido y correo de sus miembros
+ * por el emparejamiento, y se crearían turnos que enlazan a alumnos de otro
+ * profesor. Gemela de `grupoAsignable` en `lib/acciones-clases.ts`, pero
+ * viviendo aquí para poder verificarse desde un script, y devolviendo el
+ * motivo del rechazo como el resto de estas reglas.
+ */
+export async function grupoDeProfesor(
+  grupoId: string,
+  profesorId: string,
+  esAdmin: boolean,
+): Promise<string | null> {
+  if (esAdmin) return null;
+  const grupo = await prisma.grupo.findUnique({
+    where: { id: grupoId },
+    select: { profesorId: true },
+  });
+  if (!grupo) return "Ese grupo no existe.";
+  if (grupo.profesorId !== profesorId) return "Ese grupo no es tuyo.";
+  return null;
+}
+
+/**
+ * Regla 8: el sujet que se guarda en la evaluación es de la misma
+ * convocatoria que el turno.
+ *
+ * `Sujeto` guarda contenido de examen —título, descripción, preguntas,
+ * url—, así que sin esto un `sujetoId` acertado de otra convocatoria
+ * filtraría ese contenido entre profesores en cuanto una pantalla resolviera
+ * la relación.
+ *
+ * Sin sujet devuelve `null`: significa que todavía no se ha elegido
+ * documento, no que el elegido sea inválido.
+ */
+export async function sujetoDeConvocatoria(
+  sujetoId: string | null | undefined,
+  convocatoriaId: string,
+): Promise<string | null> {
+  if (!sujetoId) return null;
+  const sujeto = await prisma.sujeto.findUnique({
+    where: { id: sujetoId },
+    select: { convocatoriaId: true },
+  });
+  if (!sujeto) return "Ese sujet no existe.";
+  if (sujeto.convocatoriaId !== convocatoriaId) {
+    return "Ese sujet es de otra convocatoria.";
+  }
+  return null;
 }

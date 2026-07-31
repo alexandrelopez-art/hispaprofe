@@ -18,9 +18,11 @@ import {
 import {
   ajustarNota,
   caparTiempo,
+  grupoDeProfesor,
   notaDentroDelCriterio,
   origenDeSujetValido,
   puedeExaminarse,
+  sujetoDeConvocatoria,
 } from "@/lib/orales/reglas";
 
 function afirmar(condicion: boolean, mensaje: string) {
@@ -34,9 +36,12 @@ const marca = `verificar-orales-${process.pid}`;
 // aunque una afirmación reviente a mitad. Se rellenan en cuanto cada
 // `create` responde, no al final de `main`.
 let profesorId: string | undefined;
+let profesorAjenoId: string | undefined;
 let estudianteId: string | undefined;
 let grupoId: string | undefined;
+let grupoAjenoId: string | undefined;
 let convocatoriaId: string | undefined;
+let convocatoriaAjenaId: string | undefined;
 
 function comprobarFormato() {
   // Los cinco criterios suman veinte y ni uno más.
@@ -151,11 +156,49 @@ async function main() {
   });
   grupoId = grupo.id;
 
+  // Un segundo profesor con su propio grupo, para la regla 7: el grupo que
+  // se pega en el horario tiene que ser de quien pide.
+  const profesorAjeno = await prisma.user.create({
+    data: { email: `profe-ajeno-${marca}@ejemplo.test`, role: "PROFESOR" },
+  });
+  profesorAjenoId = profesorAjeno.id;
+  const grupoAjeno = await prisma.grupo.create({
+    data: { nombre: `Ajeno ${marca}`, profesorId: profesorAjeno.id },
+  });
+  grupoAjenoId = grupoAjeno.id;
+
+  // Regla 7: el grupo tiene que ser de quien pide.
+  afirmar(
+    (await grupoDeProfesor(grupoAjeno.id, profesor.id, false)) !== null,
+    "el grupo de otro profesor se rechaza",
+  );
+  afirmar(
+    (await grupoDeProfesor(grupo.id, profesor.id, false)) === null,
+    "el grupo propio se acepta",
+  );
+
   // ── El ida y vuelta completo: convocatoria → sujeto → turno → evaluación.
   const convocatoria = await prisma.convocatoria.create({
     data: { nombre: `Oral ${marca}`, profesorId: profesor.id },
   });
   convocatoriaId = convocatoria.id;
+
+  // Una segunda convocatoria con su propio sujet, para la regla 8: el sujet
+  // guardado en la evaluación tiene que ser de la convocatoria del turno.
+  const convocatoriaAjena = await prisma.convocatoria.create({
+    data: { nombre: `Ajena ${marca}`, profesorId: profesor.id },
+  });
+  convocatoriaAjenaId = convocatoriaAjena.id;
+  const sujetoAjeno = await prisma.sujeto.create({
+    data: {
+      convocatoriaId: convocatoriaAjena.id,
+      numero: 1,
+      eje: "Otro eje",
+      titulo: "Sujet de otra convocatoria",
+      descripcion: "No debería poder elegirse desde otro examen.",
+      imagenId: "img-ajena",
+    },
+  });
 
   const sujeto = await prisma.sujeto.create({
     data: {
@@ -169,6 +212,24 @@ async function main() {
       preguntas: ["¿Qué ves?", "¿Por qué incomoda?"],
     },
   });
+
+  // Regla 8: el sujet tiene que ser de la convocatoria del turno.
+  afirmar(
+    (await sujetoDeConvocatoria(sujetoAjeno.id, convocatoria.id)) !== null,
+    "un sujet de otra convocatoria se rechaza",
+  );
+  afirmar(
+    (await sujetoDeConvocatoria(sujeto.id, convocatoria.id)) === null,
+    "un sujet de la propia convocatoria se acepta",
+  );
+  afirmar(
+    (await sujetoDeConvocatoria(null, convocatoria.id)) === null,
+    "sin sujet elegido todavía, pasa",
+  );
+  afirmar(
+    (await sujetoDeConvocatoria(undefined, convocatoria.id)) === null,
+    "un sujet undefined también pasa",
+  );
 
   const turno = await prisma.turno.create({
     data: {
@@ -246,8 +307,12 @@ main()
     if (convocatoriaId) {
       await prisma.convocatoria.deleteMany({ where: { id: convocatoriaId } });
     }
+    if (convocatoriaAjenaId) {
+      await prisma.convocatoria.deleteMany({ where: { id: convocatoriaAjenaId } });
+    }
     if (grupoId) await prisma.grupo.deleteMany({ where: { id: grupoId } });
-    const userIds = [estudianteId, profesorId].filter(
+    if (grupoAjenoId) await prisma.grupo.deleteMany({ where: { id: grupoAjenoId } });
+    const userIds = [estudianteId, profesorId, profesorAjenoId].filter(
       (id): id is string => id !== undefined,
     );
     if (userIds.length > 0) {
