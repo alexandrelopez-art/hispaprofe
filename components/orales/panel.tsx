@@ -177,6 +177,14 @@ export default function Panel({
   const guardar = useCallback(
     (siguiente: Estado) => {
       setEstado(siguiente);
+      // Se escribe también aquí, y no solo en el efecto pasivo que copia
+      // `estado` a `estadoRef` tras cada render: entre este `setEstado` y
+      // ese efecto hay una ventana en la que `estadoRef.current` todavía
+      // apunta al estado anterior. Si en esa ventana se dispara `parar`,
+      // `arrancar`, `reiniciar` o `alElegir` —que leen `estadoRef.current`,
+      // no `estado`—, reconstruirían el siguiente estado a partir de una
+      // copia vieja y revertirían lo que se acaba de teclear.
+      estadoRef.current = siguiente;
       pendienteRef.current = siguiente;
       setEstadoGuardado("guardando");
       if (temporizador.current) clearTimeout(temporizador.current);
@@ -194,6 +202,9 @@ export default function Panel({
   const guardarYa = useCallback(
     (siguiente: Estado) => {
       setEstado(siguiente);
+      // Ver el comentario gemelo en `guardar`: cierra la misma ventana entre
+      // el `setEstado` y el efecto pasivo que sincroniza `estadoRef`.
+      estadoRef.current = siguiente;
       pendienteRef.current = siguiente;
       setEstadoGuardado("guardando");
       if (temporizador.current) {
@@ -207,10 +218,14 @@ export default function Panel({
 
   /** Vuelca al desmontar lo que quede sin confirmar: el autoguardado
    * pendiente y, si había un cronómetro corriendo, su tiempo transcurrido
-   * hasta ahora mismo. Pasa al cambiar de estudiante (el padre remonta el
-   * panel con otra `key`), al recargar y al cerrar la pestaña. No hay
-   * forma de esperar una promesa desde el cleanup de un efecto, pero
-   * lanzar el guardado es mejor que perderlo sin más. */
+   * hasta ese instante. Pasa al cambiar de estudiante (el padre remonta el
+   * panel con otra `key`) — es la única vez que este efecto se desmonta de
+   * verdad. NO pasa al recargar ni al cerrar la pestaña: React no ejecuta
+   * el cleanup de un efecto cuando el documento se descarga, así que un F5
+   * con un cronómetro corriendo a los 4:30 de una EOC se lleva por delante
+   * ese tiempo sin que esto llegue a correr. Por eso el intervalo de abajo
+   * también vuelca el tiempo corrido cada ~15 segundos mientras el
+   * cronómetro está en marcha: es la única red para esos dos casos. */
   useEffect(() => {
     // R-2: el `next dev` de este proyecto corre con `reactStrictMode`
     // activo, así que en desarrollo React monta, ejecuta el cleanup de
@@ -283,22 +298,51 @@ export default function Panel({
   );
 
   // Un solo intervalo, vivo solo mientras algo corre, que fuerza el
-  // repintado y comprueba el tope de cinco minutos. `parar` es estable
-  // (useCallback) y lee las refs en vez de cerrarse sobre `estado`, así
-  // que este efecto no se rehace en cada tecla que teclea el profesor
-  // mientras el reloj corre.
+  // repintado, comprueba el tope de cinco minutos y vuelca el tiempo cada
+  // ~15 segundos. `parar` y `guardarYa` son estables (useCallback) y leen
+  // las refs en vez de cerrarse sobre `estado`, así que este efecto no se
+  // rehace en cada tecla que teclea el profesor mientras el reloj corre.
+  // Arranca en 0: el efecto de abajo lo pone al día con `Date.now()` en
+  // cuanto corre, antes del primer tick del intervalo. Inicializarlo aquí
+  // con `Date.now()` violaría la regla de pureza del render (el lint de
+  // este proyecto la hace fallar): un `useRef(Date.now())` sigue evaluando
+  // esa llamada impura en cada repintado, aunque el valor solo se use una
+  // vez.
+  const ultimoVolcadoRef = useRef(0);
   useEffect(() => {
     if (!corriendo) return;
+    // Arranca la cuenta del volcado periódico desde que el cronómetro se
+    // pone en marcha, no desde un tick anterior que pudiera quedar de una
+    // carrera previa: si no, el primer volcado de una carrera nueva podría
+    // llegar casi de inmediato.
+    ultimoVolcadoRef.current = Date.now();
     const id = setInterval(() => {
       const instante = Date.now();
       setAhora(instante);
       if (arranqueEnRef.current === null) return;
       const campo = campoDeReloj[corriendo];
       const valor = transcurridoDe(estadoRef.current[campo], arranqueEnRef.current, instante);
-      if (valor >= TOPE_SEGUNDOS) parar(corriendo, instante);
+      if (valor >= TOPE_SEGUNDOS) {
+        parar(corriendo, instante);
+        return;
+      }
+      // B-12 (revisión final): el tiempo de un cronómetro en marcha solo
+      // vivía en `arranqueEn`, congelado al parar, al cambiar de sujet o al
+      // desmontar el panel. Un F5 a mitad de examen no dispara ninguno de
+      // esos tres, así que sin este volcado periódico `segundosEoc`/`Eoi`
+      // se quedaba en 0 en la base — el número que acaba en el CSV del
+      // liceo. Se congela y se vuelve a arrancar en el mismo instante, así
+      // que el reloj en pantalla no salta: la base pasa a ser el tiempo ya
+      // corrido y `arranqueEn` se reinicia a ahora mismo.
+      if (instante - ultimoVolcadoRef.current >= 15_000) {
+        ultimoVolcadoRef.current = instante;
+        const siguiente = congelarReloj(estadoRef.current, corriendo, arranqueEnRef.current, instante);
+        setArranqueEn(instante);
+        guardarYa(siguiente);
+      }
     }, 250);
     return () => clearInterval(id);
-  }, [corriendo, parar]);
+  }, [corriendo, parar, guardarYa]);
 
   /** Lo que enseña cada cronómetro ahora mismo: lo congelado si está
    * parado, o lo congelado más lo corrido desde que arrancó. Se llama
