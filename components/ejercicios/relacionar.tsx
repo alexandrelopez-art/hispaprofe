@@ -14,6 +14,7 @@ export default function CaraRelacionar({
   correccion,
   cerrado,
   pasoId,
+  escuchasUsadas,
 }: PropsCara) {
   const datos = publica as RelacionarPublica;
   const [cogida, setCogida] = useState<string | null>(null);
@@ -67,14 +68,18 @@ export default function CaraRelacionar({
                     // del audio —reescuchar antes de decidir, el gesto normal en
                     // una tarea auditiva— burbujea y empareja algo que el
                     // estudiante no eligió. Se corta en este envoltorio, no en el
-                    // propio `<audio>`, para que siga funcionando cuando la
-                    // Tarea 6 lo sustituya por el reproductor que cuenta escuchas.
-                    <div onClick={(e) => e.stopPropagation()}>
+                    // propio audio, y por eso siguió funcionando cuando la
+                    // Tarea 6 lo sustituyó por el reproductor que cuenta escuchas.
+                    // `max-w-[14rem]` va aquí y no en el `Reproductor`: el
+                    // `<audio>` que sustituyó lo llevaba, y sin él la fila crece
+                    // y descuadra el `ml-auto` de la columna de la derecha.
+                    <div onClick={(e) => e.stopPropagation()} className="max-w-[14rem]">
                       <Reproductor
                         src={izq.audio}
                         pasoId={pasoId}
                         clave={izq.id}
                         maximo={datos.escuchas}
+                        usadas={escuchasUsadas[izq.id] ?? 0}
                         cerrado={cerrado || pasoId === ""}
                       />
                     </div>

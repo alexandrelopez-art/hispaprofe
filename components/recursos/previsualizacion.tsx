@@ -108,6 +108,7 @@ export default function Previsualizacion({ datos }: { datos: unknown }) {
     // rama de audio corriente y el profesor puede oírlo las veces que
     // quiera mientras monta el ejercicio.
     pasoId: "",
+    escuchasUsadas: {},
   };
 
   const cara = (() => {

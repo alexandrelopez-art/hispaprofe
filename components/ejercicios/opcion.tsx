@@ -12,6 +12,7 @@ export default function CaraOpcion({
   correccion,
   cerrado,
   pasoId,
+  escuchasUsadas,
 }: PropsCara) {
   const datos = publica as OpcionPublica;
 
@@ -44,6 +45,7 @@ export default function CaraOpcion({
                   pasoId={pasoId}
                   clave={pregunta.id}
                   maximo={datos.escuchas}
+                  usadas={escuchasUsadas[pregunta.id] ?? 0}
                   cerrado={cerrado || pasoId === ""}
                 />
               </div>

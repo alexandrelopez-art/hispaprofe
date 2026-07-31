@@ -11,6 +11,7 @@ import { analizar, corregir, versionPublica } from "@/lib/ejercicios/registro";
 import type { Respuestas } from "@/lib/ejercicios/tipos";
 import SelectorEjercicio, { type Candidato } from "./selector-ejercicio";
 import Reproductor from "@/components/ejercicios/reproductor";
+import { esRacionado, escuchasDelPaso } from "@/lib/escuchas";
 
 // Fuerza render dinámico: lee de la base en cada visita.
 export const dynamic = "force-dynamic";
@@ -69,6 +70,8 @@ function BloqueContenido({
   bloque,
   pasoId,
   racionado,
+  puedeContar,
+  escuchas,
 }: {
   bloque: BloqueData;
   pasoId: string;
@@ -78,6 +81,18 @@ function BloqueContenido({
    * particular se oye las veces que haga falta.
    */
   racionado: boolean;
+  /**
+   * Quien mira tiene una asignación viva de este recorrido: solo así puede
+   * `pedirEscucha` concederle nada. Sin esto, un profesor viendo su propio
+   * paso (nunca tiene `Asignacion`, es de estudiantes) o un estudiante con
+   * la asignación archivada veían "Sin escuchas" sin que el audio hubiera
+   * sonado ni una vez — no podían oír el audio que ellos mismos habían
+   * subido. Cuando es `false`, se cae en la misma rama sin contar que ya
+   * usa la previsualización del profesor (`cerrado` en `Reproductor`).
+   */
+  puedeContar: boolean;
+  /** Ver el comentario de `PropsEjercicio.escuchas`, en `ejercicio.tsx`. */
+  escuchas: Record<string, number>;
 }) {
   switch (bloque.tipo) {
     case "TEXTO":
@@ -117,7 +132,9 @@ function BloqueContenido({
               pasoId={pasoId}
               clave={bloque.id}
               maximo={1}
-              cerrado={false}
+              usadas={escuchas[bloque.id] ?? 0}
+              // `!puedeContar` y no `false`: ver el comentario de la prop.
+              cerrado={!puedeContar}
             />
           ) : (
             <audio controls preload="metadata" className="w-full" src={bloque.url ?? ""}>
@@ -301,8 +318,13 @@ export default async function PasoPage({
       ? corregir(analizado, registro.respuestas as Respuestas, vinculo.ejercicio.id)
       : null;
 
-  const racionado =
-    paso.recorrido.tipo === "PREPARACION_DELE" && paso.recorrido.destreza !== null;
+  const racionado = esRacionado(paso.recorrido);
+
+  // Leído una sola vez para todo el paso: sirve tanto al bloque `AUDIO`
+  // (clave = id del bloque) como a los audios del ejercicio (clave = id de
+  // pregunta o pareja), porque `Escucha.clave` es un espacio único por
+  // `(asignacionId, pasoId, clave)` y los dos dominios de id no chocan.
+  const escuchasUsadas = asignacion ? await escuchasDelPaso(asignacion.id, paso.id) : {};
 
   return (
     <div className="mx-auto max-w-4xl px-6 py-12">
@@ -355,7 +377,13 @@ export default async function PasoPage({
                 indice={i}
                 total={paso.bloques.length}
               >
-                <BloqueContenido bloque={bloque} pasoId={paso.id} racionado={racionado} />
+                <BloqueContenido
+                  bloque={bloque}
+                  pasoId={paso.id}
+                  racionado={racionado}
+                  puedeContar={puedeMarcar}
+                  escuchas={escuchasUsadas}
+                />
               </BloqueEditable>
             ) : (
               <BloqueContenido
@@ -363,6 +391,8 @@ export default async function PasoPage({
                 bloque={bloque}
                 pasoId={paso.id}
                 racionado={racionado}
+                puedeContar={puedeMarcar}
+                escuchas={escuchasUsadas}
               />
             ),
           )}
@@ -430,6 +460,7 @@ export default async function PasoPage({
           // están guardadas" deja de ser cierto en pantalla: ver el
           // comentario de `PropsEjercicio.respuestas`.
           respuestas={(registro?.respuestas as Respuestas | null) ?? null}
+          escuchas={escuchasUsadas}
         />
       )}
 

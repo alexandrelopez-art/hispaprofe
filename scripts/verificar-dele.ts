@@ -6,7 +6,7 @@
 import "dotenv/config";
 import type { Destreza, Nivel } from "@/lib/generated/prisma/enums";
 import { PRUEBAS, pruebaDe, pruebasDe, sobrantesDe, tareaDe } from "@/lib/dele";
-import { apuntarEscucha, escuchasDe } from "@/lib/escuchas";
+import { apuntarEscucha, escuchasDe, escuchasDelPaso, esRacionado, maximoDeEscucha } from "@/lib/escuchas";
 import { prisma } from "@/lib/prisma";
 
 function afirmar(condicion: boolean, mensaje: string) {
@@ -21,6 +21,9 @@ const marca = `verificar-dele-${process.pid}`;
 let recorridoId: string | null = null;
 let pasoId: string | null = null;
 let asignacionId: string | null = null;
+let ejercicioId: string | null = null;
+let recorridoLibreId: string | null = null;
+let pasoLibreId: string | null = null;
 const usuarioIds: string[] = [];
 
 async function main() {
@@ -112,8 +115,12 @@ async function main() {
   });
   usuarioIds.push(profesor.id);
 
+  // Racionado a propósito: PREPARACION_DELE con destreza puesta, para poder
+  // probar también el tope del bloque AUDIO (siempre 1) en el mismo paso
+  // que ya usan las afirmaciones de `apuntarEscucha` de más abajo — la
+  // clave del bloque y las claves "a"/"b"/"c" no chocan.
   const recorrido = await prisma.recorrido.create({
-    data: { titulo: `Recorrido ${marca}`, nivel: "B1", orden: 1 },
+    data: { titulo: `Recorrido ${marca}`, nivel: "B1", orden: 1, tipo: "PREPARACION_DELE", destreza: "CO" },
   });
   recorridoId = recorrido.id;
 
@@ -151,6 +158,92 @@ async function main() {
   afirmar((await apuntarEscucha(asignacion.id, paso.id, "c", 4)) === 2, "la segunda deja dos");
   afirmar((await apuntarEscucha(asignacion.id, paso.id, "c", 4)) === 1, "la tercera deja una");
 
+  // 6. `escuchasDelPaso`: lo que el reproductor lee al montar, para no
+  //    mentir tras recargar la página (ver comentario E del informe).
+  const mapa = await escuchasDelPaso(asignacion.id, paso.id);
+  afirmar(
+    mapa["a"] === 2 && mapa["b"] === 1 && mapa["c"] === 3,
+    "escuchasDelPaso trae las veces exactas de cada clave ya tocada",
+  );
+  afirmar(
+    !("nunca-tocada" in mapa),
+    "una clave nunca escuchada no aparece en el mapa — quien lee hace `?? 0`",
+  );
+
+  // 7. `esRacionado`: la misma regla que usa la página del paso para elegir
+  //    entre el `Reproductor` y un `<audio>` normal.
+  afirmar(esRacionado({ tipo: "PREPARACION_DELE", destreza: "CO" }), "preparación DELE con destreza está racionada");
+  afirmar(!esRacionado({ tipo: "PREPARACION_DELE", destreza: null }), "preparación DELE sin destreza no está racionada");
+  afirmar(!esRacionado({ tipo: "CLASES_PARTICULARES", destreza: "CO" }), "clases particulares no se racionan aunque tengan destreza");
+
+  // 8. `maximoDeEscucha`: el tope se resuelve en el servidor mirando a qué
+  //    corresponde `clave` — no hay ningún parámetro `maximo` que aceptar
+  //    de quien llama, así que no hay nada que "mandar desde fuera" para
+  //    conseguir escuchas ilimitadas: `pedirEscucha` no expone ese hueco.
+  const bloqueAudio = await prisma.bloque.create({
+    data: { pasoId: paso.id, orden: 1, tipo: "AUDIO", url: "https://ejemplo.test/audio.mp3" },
+  });
+
+  const ejercicio = await prisma.ejercicio.create({
+    data: {
+      tipo: "OPCION_MULTIPLE",
+      titulo: `Ejercicio ${marca}`,
+      nivel: "B1",
+      datos: {
+        ejercicio: "opcion",
+        consigna: "Escucha y responde.",
+        multiple: false,
+        escuchas: 4,
+        preguntas: [
+          {
+            id: "p1",
+            enunciado: "¿Qué oyes?",
+            opciones: ["Uno", "Dos"],
+            correctas: [0],
+            audio: "https://ejemplo.test/p1.mp3",
+          },
+        ],
+      },
+    },
+  });
+  ejercicioId = ejercicio.id;
+  await prisma.pasoEjercicio.create({
+    data: { pasoId: paso.id, ejercicioId: ejercicio.id, orden: 1 },
+  });
+
+  afirmar(
+    (await maximoDeEscucha(paso.id, bloqueAudio.id)) === 1,
+    "el bloque AUDIO de una prueba racionada tiene tope 1, literal",
+  );
+  afirmar(
+    (await maximoDeEscucha(paso.id, "p1")) === 4,
+    "la pregunta con audio del ejercicio tiene el tope que declara su JSON (4, no un valor inventado)",
+  );
+  afirmar(
+    (await maximoDeEscucha(paso.id, "clave-inventada")) === null,
+    "una clave que no corresponde a nada de este paso no tiene tope",
+  );
+
+  // Defensa en profundidad: un audio de una clase particular (no racionada)
+  // no tiene tope contable aunque alguien intente pedirlo con el id de un
+  // bloque real — la página nunca llega a montar el `Reproductor` ahí, pero
+  // `maximoDeEscucha` tampoco lo autoriza si se le preguntara igualmente.
+  const recorridoLibre = await prisma.recorrido.create({
+    data: { titulo: `Recorrido libre ${marca}`, nivel: "B1", orden: 1 },
+  });
+  recorridoLibreId = recorridoLibre.id;
+  const pasoLibre = await prisma.paso.create({
+    data: { recorridoId: recorridoLibre.id, titulo: "Paso libre", tipo: "ACTIVIDAD", ciclo: 1, orden: 1 },
+  });
+  pasoLibreId = pasoLibre.id;
+  const bloqueLibre = await prisma.bloque.create({
+    data: { pasoId: pasoLibre.id, orden: 1, tipo: "AUDIO", url: "https://ejemplo.test/libre.mp3" },
+  });
+  afirmar(
+    (await maximoDeEscucha(pasoLibre.id, bloqueLibre.id)) === null,
+    "un audio de una clase particular no se raciona, ni aunque se pregunte por su bloque",
+  );
+
   console.log("\nTodo bien.");
 }
 
@@ -187,11 +280,30 @@ main()
     }
     if (pasoId) {
       const id = pasoId;
+      // Bloque no tiene onDelete: Cascade hacia Paso (a diferencia de
+      // PasoEjercicio, que sí lo tiene): sin borrarlo antes, el bloque AUDIO
+      // de la afirmación 8 deja el paso sin poder borrarse.
+      await intentar("bloques", () => prisma.bloque.deleteMany({ where: { pasoId: id } }));
       await intentar("paso", () => prisma.paso.delete({ where: { id } }));
     }
     if (recorridoId) {
       const id = recorridoId;
       await intentar("recorrido", () => prisma.recorrido.delete({ where: { id } }));
+    }
+    if (ejercicioId) {
+      // Después del paso: PasoEjercicio cae en cascada al borrar el paso,
+      // y solo entonces el ejercicio se queda sin nada que lo enganche.
+      const id = ejercicioId;
+      await intentar("ejercicio", () => prisma.ejercicio.delete({ where: { id } }));
+    }
+    if (pasoLibreId) {
+      const id = pasoLibreId;
+      await intentar("bloques (recorrido libre)", () => prisma.bloque.deleteMany({ where: { pasoId: id } }));
+      await intentar("paso (recorrido libre)", () => prisma.paso.delete({ where: { id } }));
+    }
+    if (recorridoLibreId) {
+      const id = recorridoLibreId;
+      await intentar("recorrido libre", () => prisma.recorrido.delete({ where: { id } }));
     }
     if (usuarioIds.length) {
       await intentar("usuarios", () => prisma.user.deleteMany({ where: { id: { in: usuarioIds } } }));

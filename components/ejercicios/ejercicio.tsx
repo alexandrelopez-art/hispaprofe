@@ -28,6 +28,14 @@ export type PropsEjercicio = {
    * por el profesor sin pasar por aquí).
    */
   respuestas: Respuestas | null;
+  /**
+   * Escuchas ya gastadas en este paso, por clave (id de pregunta o pareja).
+   * Leído en el servidor (`escuchasDelPaso`) para que el reproductor de
+   * cada audio arranque ya informado, sin esperar a un primer clic: si no,
+   * recargar la página después de agotar las escuchas volvía a decir
+   * "Puedes oírlo 2 veces" hasta el siguiente intento.
+   */
+  escuchas: Record<string, number>;
 };
 
 export type PropsCara = {
@@ -49,6 +57,8 @@ export type PropsCara = {
    * previsualización del profesor, donde no se cuenta nada.
    */
   pasoId: string;
+  /** Ver el comentario de `PropsEjercicio.escuchas`. Vacío en la previsualización. */
+  escuchasUsadas: Record<string, number>;
 };
 
 /**
@@ -69,6 +79,7 @@ export default function Ejercicio({
   puntos,
   correccion,
   respuestas,
+  escuchas,
 }: PropsEjercicio) {
   const [valor, setValor] = useState<Respuestas>(respuestas ?? {});
   const [enviando, setEnviando] = useState(false);
@@ -85,6 +96,7 @@ export default function Ejercicio({
       // ver el comentario de `PropsCara.cerrado`.
       cerrado: respondido,
       pasoId,
+      escuchasUsadas: escuchas,
     };
     switch (tipo) {
       case "opcion":
