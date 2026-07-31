@@ -107,6 +107,9 @@ model Recorrido {
   titulo       String
   descripcion  String?
   nivel        Nivel
+  /// De qué prueba del DELE es esta secuencia. Null en clases particulares,
+  /// y también en una de preparación que no quiera ceñirse a una prueba.
+  destreza     Destreza?
   tipo         TipoRecorrido @default(CLASES_PARTICULARES)
   orden        Int
   publicado    Boolean       @default(false)
@@ -204,6 +207,7 @@ model Asignacion {
   updatedAt    DateTime  @updatedAt
 
   completados PasoCompletado[]
+  escuchas    Escucha[]
 
   @@unique([estudianteId, recorridoId])
   @@index([estudianteId, archivada])
@@ -231,6 +235,29 @@ model PasoCompletado {
   respuestas   Json?
 
   @@unique([asignacionId, pasoId])
+  @@index([asignacionId])
+}
+
+/// Cuántas veces ha oído un estudiante un audio concreto de un paso.
+///
+/// Tabla propia y no una columna en PasoCompletado: esa fila significa "el
+/// paso está hecho" y se crea cuando el estudiante lo marca, así que apuntar
+/// ahí la primera escucha daría el paso por hecho al dar al play.
+///
+/// Una fila por audio y no por paso: la tarea 1 de comprensión auditiva de
+/// B1 son seis monólogos, y cada uno se oye dos veces.
+model Escucha {
+  id           String     @id @default(cuid())
+  asignacion   Asignacion @relation(fields: [asignacionId], references: [id], onDelete: Cascade)
+  asignacionId String
+  pasoId       String
+  /// El id del elemento que lleva el audio: una pregunta en `opcion`, una
+  /// pareja en `relacionar`.
+  clave        String
+  veces        Int        @default(0)
+  createdAt    DateTime   @default(now())
+
+  @@unique([asignacionId, pasoId, clave])
   @@index([asignacionId])
 }
 
