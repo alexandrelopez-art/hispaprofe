@@ -15,6 +15,7 @@ import {
   fmtTotal,
   pasoDe,
 } from "@/lib/orales/formato";
+import type { Notas } from "@/lib/orales/formato";
 import {
   ajustarNota,
   caparTiempo,
@@ -280,6 +281,20 @@ async function main() {
   afirmar(evaluacion.segundosEoc === 287.5, "los segundos admiten decimales");
   afirmar(sujeto.preguntas.length === 2, "el sujet guarda sus preguntas de la EOI");
   afirmar(sujeto.recursoId === null, "un sujet con imagen no apunta a ningún recurso");
+
+  // El semáforo con una fila real, no con un objeto inventado.
+  const conEvaluacion = await prisma.turno.findUniqueOrThrow({
+    where: { id: turno.id },
+    select: { evaluacion: { select: { sujetoId: true, notas: true } } },
+  });
+  afirmar(
+    estadoDe(conEvaluacion.evaluacion as { sujetoId: string | null; notas: Notas | null }) === "hecho",
+    "un turno con sujet y cinco notas sale en verde",
+  );
+  afirmar(
+    fmtTotal(calcularTotal(conEvaluacion.evaluacion?.notas as Notas)) === "15,0",
+    "y su nota se lee 15,0",
+  );
 
   // Una pausa es un turno sin estudiante.
   const pausa = await prisma.turno.create({
