@@ -34,8 +34,14 @@ export const expresionSchema = z
     /** Solo en las escritas. */
     palabras: z
       .object({
-        minimo: z.number().int().min(1, { message: "El mínimo de palabras tiene que ser al menos uno." }),
-        maximo: z.number().int().min(1, { message: "El máximo de palabras tiene que ser al menos uno." }),
+        minimo: z
+          .number()
+          .int({ message: "El mínimo de palabras tiene que ser un número entero." })
+          .min(1, { message: "El mínimo de palabras tiene que ser al menos uno." }),
+        maximo: z
+          .number()
+          .int({ message: "El máximo de palabras tiene que ser un número entero." })
+          .min(1, { message: "El máximo de palabras tiene que ser al menos uno." }),
       })
       .optional(),
     /** Solo en las orales. */
