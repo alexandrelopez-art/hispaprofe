@@ -17,9 +17,11 @@ import {
   fmtTotal,
   hayNotaPuesta,
   HORA_PAUSA,
+  notaDe,
   pasoDe,
 } from "@/lib/orales/formato";
 import type { Notas } from "@/lib/orales/formato";
+import { parsearHorario } from "@/lib/orales/horario";
 import {
   ajustarNota,
   alternarFrase,
@@ -89,7 +91,10 @@ function comprobarFormato() {
   );
   afirmar(
     calcularTotal({ lengua: 0.25, fluidez: 0.25 }) === 0.5,
-    "sumar cuartos no arrastra error de coma flotante",
+    // No es una comprobación de coma flotante: 0,25 y 0,5 son potencias de
+    // dos y su suma ya sale exacta. Lo que valida es que el redondeo de
+    // `calcularTotal` no estropea un total que ya venía bien.
+    "sumar cuartos da un total exacto, y el redondeo no lo estropea",
   );
 
   // Sin ninguna nota puesta no hay total que enseñar: ni en el CSV ni en
@@ -99,6 +104,12 @@ function comprobarFormato() {
     hayNotaPuesta({ lengua: 0 }) === true,
     "un cero puesto a mano sí cuenta como nota puesta",
   );
+
+  // `notaDe`: la única forma de preguntar «¿hay nota aquí?» que usan
+  // `estadoDe`, la ficha y el CSV.
+  afirmar(notaDe({}, "lengua") === null, "sin nota puesta, notaDe da null");
+  afirmar(notaDe({ lengua: 0 }, "lengua") === 0, "un cero puesto a mano no es null");
+  afirmar(notaDe({ lengua: 3 }, "lengua") === 3, "una nota puesta se devuelve tal cual");
 
   // El semáforo.
   afirmar(estadoDe(null) === "vacio", "sin evaluación, gris");
@@ -205,6 +216,98 @@ function comprobarCsv() {
   afirmar(colsConCero[20] === "0.0", "con al menos una nota puesta, aunque sea un cero, el total sí se calcula");
 }
 
+/**
+ * `parsearHorario` (lib/orales/horario.ts): siete campos, dos separadores,
+ * dos formatos de pausa, emparejamiento por correo o por nombre —eso lo
+ * decide la acción— y la herencia del día, que es donde vivió durante diez
+ * revisiones el defecto de la 1: una pausa en formato de columnas (`; ; ;
+ * --- ; ;`) llegaba con `campos[0] === ""`, no `"---"`, así que la rama que
+ * comprobaba la pausa pelada no la heredaba y el turno se guardaba con
+ * `dia: ""`.
+ */
+function comprobarHorario() {
+  // Los dos separadores del liceo, en la misma tanda de líneas.
+  const dosSeparadores = parsearHorario(
+    "Mercredi 20/05\t08h00\t08h15\tHERMITE\tRose\tCDI\n" +
+      "Mercredi 20/05 ; 08h30 ; 08h45 ; DUPONT ; Léa ; CDI",
+  );
+  afirmar(dosSeparadores.length === 2, "una línea por turno, sin importar el separador");
+  afirmar(
+    !dosSeparadores[0].pausa && dosSeparadores[0].apellido === "HERMITE",
+    "el tabulador separa los siete campos",
+  );
+  afirmar(
+    !dosSeparadores[1].pausa && dosSeparadores[1].apellido === "DUPONT",
+    "el punto y coma separa los siete campos",
+  );
+
+  // El séptimo campo, el correo, solo si la línea lo trae.
+  const conCorreo = parsearHorario(
+    "Mercredi 20/05 ; 08h00 ; 08h15 ; HERMITE ; Rose ; CDI ; rose@ejemplo.test",
+  );
+  afirmar(
+    !conCorreo[0].pausa && conCorreo[0].correo === "rose@ejemplo.test",
+    "el séptimo campo, si viene, es el correo para emparejar",
+  );
+  const sinCorreo = parsearHorario("Mercredi 20/05 ; 08h00 ; 08h15 ; HERMITE ; Rose ; CDI");
+  afirmar(
+    !sinCorreo[0].pausa && sinCorreo[0].correo === null,
+    "sin séptimo campo, el correo es null y no una cadena vacía",
+  );
+
+  // Una línea con menos de los siete campos no revienta el pegado entero.
+  const conMenosCampos = parsearHorario("Mercredi 20/05 ; 08h15 ; HERMITE ; Rose");
+  afirmar(conMenosCampos.length === 1, "una línea con campos de menos sigue dando una línea");
+  afirmar(
+    !conMenosCampos[0].pausa &&
+      conMenosCampos[0].sala === null &&
+      conMenosCampos[0].correo === null,
+    "los campos que faltan al final del todo quedan en null, no revientan el parseo",
+  );
+
+  // La pausa pelada hereda el día de la fila anterior.
+  const conPausaPelada = parsearHorario(
+    "Mercredi 20/05 ; 08h00 ; 08h15 ; HERMITE ; Rose ; CDI\n" +
+      "---\n" +
+      "Mercredi 20/05 ; 09h00 ; 09h15 ; DUPONT ; Léa ; CDI",
+  );
+  afirmar(
+    conPausaPelada[1].pausa && conPausaPelada[1].dia === "Mercredi 20/05",
+    "la pausa pelada («---») hereda el día de la fila anterior",
+  );
+  afirmar(
+    !conPausaPelada[2].pausa && conPausaPelada[2].dia === "Mercredi 20/05",
+    "tras una pausa pelada, la fila siguiente conserva el día",
+  );
+
+  // La pausa en formato de columnas: el defecto de la revisión final. Sin
+  // el arreglo, esto habría dado `dia: ""` y no `"Mercredi 20/05"`.
+  const conPausaDeColumnas = parsearHorario(
+    "Mercredi 20/05 ; 08h00 ; 08h15 ; HERMITE ; Rose ; CDI\n" +
+      " ; ; ; --- ; ; \n" +
+      "Mercredi 20/05 ; 09h00 ; 09h15 ; DUPONT ; Léa ; CDI",
+  );
+  afirmar(
+    conPausaDeColumnas[1].pausa && conPausaDeColumnas[1].dia === "Mercredi 20/05",
+    "la pausa en formato de columnas también hereda el día, no se queda en blanco",
+  );
+  afirmar(
+    !conPausaDeColumnas[2].pausa && conPausaDeColumnas[2].dia === "Mercredi 20/05",
+    "tras una pausa de columnas, la fila siguiente conserva el día",
+  );
+
+  // Herencia del día en filas normales: el liceo lo pega una sola vez por
+  // jornada y lo deja en blanco en las siguientes.
+  const conDiaUnaVez = parsearHorario(
+    "Mercredi 20/05 ; 08h00 ; 08h15 ; HERMITE ; Rose ; CDI\n" +
+      " ; 08h30 ; 08h45 ; DUPONT ; Léa ; CDI",
+  );
+  afirmar(
+    !conDiaUnaVez[1].pausa && conDiaUnaVez[1].dia === "Mercredi 20/05",
+    "una fila normal sin día propio hereda el de la fila anterior",
+  );
+}
+
 function comprobarReglasPuras() {
   // Regla 5: la nota no se sale del criterio.
   afirmar(ajustarNota(null, 1, 4) === 0.5, "el primer + sobre una nota vacía pone medio punto");
@@ -223,6 +326,20 @@ function comprobarReglasPuras() {
   afirmar(
     (notaDentroDelCriterio("fluidez", 2.5) ?? "").includes("2"),
     "el rechazo dice cuál es el máximo, no un error genérico",
+  );
+
+  // La rejilla del paso: `ajustarNota` (los botones) nunca se sale de ella,
+  // pero `guardarEvaluacion` recibe notas de una acción, no de un botón, y
+  // sin esto aceptaría un 3,3 sobre un criterio que se mueve de 0,5 en 0,5.
+  afirmar(notaDentroDelCriterio("lengua", 3.5) === null, "sobre 4, un medio punto cae en la rejilla");
+  afirmar(
+    notaDentroDelCriterio("lengua", 3.3) !== null,
+    "sobre 4, una nota que no es medio punto se rechaza aunque esté bajo el máximo",
+  );
+  afirmar(notaDentroDelCriterio("fluidez", 1.25) === null, "sobre 2, un cuarto de punto cae en la rejilla");
+  afirmar(
+    notaDentroDelCriterio("fluidez", 1.1) !== null,
+    "sobre 2, una nota que no es cuarto de punto se rechaza",
   );
 
   // Regla 4: el cronómetro no pasa de cinco minutos.
@@ -305,6 +422,7 @@ function comprobarReglasPuras() {
 async function main() {
   comprobarFormato();
   comprobarCsv();
+  comprobarHorario();
   comprobarReglasPuras();
   const profesor = await prisma.user.create({
     data: { email: `profe-${marca}@ejemplo.test`, role: "PROFESOR" },
