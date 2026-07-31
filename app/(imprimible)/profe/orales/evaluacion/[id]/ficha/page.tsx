@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { exigirProfesor } from "@/lib/profesor";
 import { CRITERIOS } from "@/lib/orales/criterios";
-import { calcularTotal, fmtNota, fmtTiempo, fmtTotal } from "@/lib/orales/formato";
+import { calcularTotal, fmtNota, fmtTiempo, fmtTotal, hayNotaPuesta } from "@/lib/orales/formato";
 import type { Notas } from "@/lib/orales/formato";
 
 export const dynamic = "force-dynamic";
@@ -11,6 +11,15 @@ export const dynamic = "force-dynamic";
  * La ficha imprimible del examen oral. Página propia, sin cabecera ni
  * barra lateral de la aplicación, para poder guardarla en PDF o abrirla
  * en una pestaña aparte desde el panel.
+ *
+ * Vive en el grupo de rutas `(imprimible)` y no en `(app)` a propósito: la
+ * URL es la misma (`/profe/orales/evaluacion/[id]/ficha`, los grupos no
+ * la tocan), pero así no hereda `app/(app)/layout.tsx` — logo, menú y
+ * `UserButton` incluidos —, que de otro modo saldría impreso encima de la
+ * nota del alumno y podría tirar la ficha a una segunda página. Es el
+ * problema simétrico del `display:none` que se comía la tira de tiempos
+ * en el HTML original: aquí lo que sobra no debe imprimirse, y esconderlo
+ * a base de CSS habría sido tan frágil como aquello.
  */
 export default async function FichaPage({
   params,
@@ -51,6 +60,11 @@ export default async function FichaPage({
   const comentarios = (evaluacion.comentarios as Record<string, string>) ?? {};
   const alumno = evaluacion.turno.estudiante;
 
+  // `null` y no `0`: un examen que no se cronometró no duró cero segundos,
+  // y una evaluación recién creada (con el `sujetoId` ya guardado por el
+  // autoguardado, pero sin ninguna nota) no tiene un «0,0 / 20» de verdad.
+  const tiempo = (segundos: number | null) => (segundos === null ? "—" : fmtTiempo(segundos));
+
   return (
     <main className="ficha mx-auto max-w-[210mm] bg-white p-8 text-tinta">
       <header className="flex items-end justify-between border-b border-hp-100 pb-3">
@@ -65,7 +79,7 @@ export default async function FichaPage({
           </p>
         </div>
         <span className="text-3xl font-extrabold tabular-nums">
-          {fmtTotal(calcularTotal(notas))}
+          {hayNotaPuesta(notas) ? fmtTotal(calcularTotal(notas)) : "—"}
           <span className="text-base font-semibold text-tinta-suave"> / 20</span>
         </span>
       </header>
@@ -73,8 +87,8 @@ export default async function FichaPage({
       {/* La tira de tiempos. En el HTML original se perdía al imprimir:
           una regla `display:none` de pantalla ganaba a la de @media print. */}
       <div className="tiempos mt-3 flex gap-6 text-sm">
-        <span>EOC <b className="font-mono">{fmtTiempo(evaluacion.segundosEoc ?? 0)}</b></span>
-        <span>EOI <b className="font-mono">{fmtTiempo(evaluacion.segundosEoi ?? 0)}</b></span>
+        <span>EOC <b className="font-mono">{tiempo(evaluacion.segundosEoc)}</b></span>
+        <span>EOI <b className="font-mono">{tiempo(evaluacion.segundosEoi)}</b></span>
       </div>
 
       {evaluacion.sujeto && (

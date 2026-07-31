@@ -1,5 +1,5 @@
 import { CRITERIOS } from "@/lib/orales/criterios";
-import { calcularTotal } from "@/lib/orales/formato";
+import { calcularTotal, hayNotaPuesta } from "@/lib/orales/formato";
 import type { Notas } from "@/lib/orales/formato";
 
 export type FilaCsv = {
@@ -23,16 +23,6 @@ export function celda(valor: unknown): string {
   const texto = valor === null || valor === undefined ? "" : String(valor);
   if (/[",\r\n;]/.test(texto)) return `"${texto.replace(/"/g, '""')}"`;
   return texto;
-}
-
-/**
- * Si hay al menos una nota puesta, aunque sea un cero. La misma distinción
- * que hace `estadoDe` en `lib/orales/formato.ts`: comparar contra
- * `undefined`/`null` y no por veracidad, porque `if (nota)` daría «falta»
- * ante un cero de verdad.
- */
-function hayNotaPuesta(notas: Notas): boolean {
-  return CRITERIOS.some((c) => notas[c.key] !== undefined && notas[c.key] !== null);
 }
 
 /**

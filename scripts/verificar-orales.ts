@@ -15,6 +15,7 @@ import {
   fmtNota,
   fmtTiempo,
   fmtTotal,
+  hayNotaPuesta,
   HORA_PAUSA,
   pasoDe,
 } from "@/lib/orales/formato";
@@ -89,6 +90,14 @@ function comprobarFormato() {
   afirmar(
     calcularTotal({ lengua: 0.25, fluidez: 0.25 }) === 0.5,
     "sumar cuartos no arrastra error de coma flotante",
+  );
+
+  // Sin ninguna nota puesta no hay total que enseñar: ni en el CSV ni en
+  // la ficha impresa un «0,0 / 20» es la nota de nadie.
+  afirmar(hayNotaPuesta({}) === false, "sin ninguna nota puesta, hayNotaPuesta es false");
+  afirmar(
+    hayNotaPuesta({ lengua: 0 }) === true,
+    "un cero puesto a mano sí cuenta como nota puesta",
   );
 
   // El semáforo.

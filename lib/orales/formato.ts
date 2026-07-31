@@ -48,6 +48,20 @@ export function calcularTotal(notas: Notas | null | undefined): number {
   return Math.round(suma * 100) / 100;
 }
 
+/**
+ * Si hay al menos una nota puesta, aunque sea un cero. La misma distinción
+ * que hace `estadoDe` más abajo: comparar contra `undefined`/`null` y no
+ * por veracidad, porque `if (nota)` daría «falta» ante un cero de verdad.
+ *
+ * Vive aquí y no en `csv.ts` porque la ficha impresa necesita la misma
+ * regla: sin ella, una evaluación recién creada (con el `sujetoId` ya
+ * guardado por el autoguardado pero ninguna nota puesta) enseñaría un
+ * «0,0 / 20» como si fuera la nota final del alumno.
+ */
+export function hayNotaPuesta(notas: Notas): boolean {
+  return CRITERIOS.some((c) => notas[c.key] !== undefined && notas[c.key] !== null);
+}
+
 /** El semáforo del horario. */
 export type EstadoTurno = "vacio" | "medias" | "hecho";
 
