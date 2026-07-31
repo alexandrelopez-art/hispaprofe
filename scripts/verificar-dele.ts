@@ -4,6 +4,8 @@
  * Ejecutar con:  npx tsx scripts/verificar-dele.ts
  */
 import "dotenv/config";
+import type { Destreza, Nivel } from "@/lib/generated/prisma/enums";
+import { PRUEBAS, pruebaDe, pruebasDe, sobrantesDe, tareaDe } from "@/lib/dele";
 import { apuntarEscucha, escuchasDe } from "@/lib/escuchas";
 import { prisma } from "@/lib/prisma";
 
@@ -22,6 +24,66 @@ let asignacionId: string | null = null;
 const usuarioIds: string[] = [];
 
 async function main() {
+  // ─── El mapa consigo mismo ──────────────────────────────────────────
+  const MOTORES = new Set(["opcion", "huecos", "relacionar", "ordenar"]);
+
+  for (const prueba of PRUEBAS) {
+    const donde = `${prueba.nivel} · ${prueba.prueba}`;
+
+    afirmar(prueba.tareas.length > 0, `${donde} tiene tareas`);
+    afirmar(prueba.duracionMinutos > 0, `${donde} tiene duración`);
+
+    const numeros = prueba.tareas.map((t) => t.numero);
+    afirmar(
+      new Set(numeros).size === numeros.length,
+      `${donde} no repite ningún número de tarea`,
+    );
+
+    for (const tarea of prueba.tareas) {
+      const cual = `${donde} · T${tarea.numero}`;
+      afirmar(MOTORES.has(tarea.motor), `${cual} apunta a un tipo del motor que existe`);
+      afirmar(tarea.items > 0, `${cual} tiene ítems`);
+      afirmar(tarea.opciones > 0, `${cual} tiene opciones`);
+      afirmar(tarea.pide.trim().length > 0, `${cual} dice qué se pide`);
+      // `relacionar` es uno a uno: no puede tener menos opciones que ítems,
+      // porque cada ítem necesita la suya y no se pueden repetir.
+      if (tarea.motor === "relacionar") {
+        afirmar(!tarea.listaComun, `${cual} con relacionar no usa lista común`);
+        afirmar(
+          tarea.opciones >= tarea.items,
+          `${cual} con relacionar tiene al menos una opción por ítem`,
+        );
+      }
+      // Solo `relacionar` reparte de una lista única y por tanto puede tener
+      // sobrantes. En `opcion`, `opciones` son las de cada ítem, así que la
+      // resta no significa nada y `sobrantesDe` tiene que dar cero.
+      if (tarea.motor !== "relacionar") {
+        afirmar(sobrantesDe(tarea) === 0, `${cual} no es de sobrantes`);
+      }
+    }
+  }
+
+  // Las pruebas verificadas tienen el número de tareas que dice el examen.
+  const ESPERADAS: [Nivel, Destreza, number][] = [
+    ["B1", "CE", 5], ["B1", "CO", 5],
+    ["B2", "CE", 4], ["B2", "CO", 5],
+    ["A2_B1_ESCOLAR", "CE", 4], ["A2_B1_ESCOLAR", "CO", 4],
+  ];
+  for (const [nivel, destreza, cuantas] of ESPERADAS) {
+    const p = pruebaDe(nivel, destreza);
+    afirmar(p !== null, `${nivel} · ${destreza} está en el mapa`);
+    afirmar(p!.tareas.length === cuantas, `${nivel} · ${destreza} tiene ${cuantas} tareas`);
+    afirmar(p!.tareas.every((t) => t.verificado), `${nivel} · ${destreza} está toda verificada`);
+  }
+
+  // Las cuatro preguntas al mapa.
+  afirmar(pruebasDe("B1").length === 2, "B1 tiene las dos pruebas de comprensión");
+  afirmar(pruebaDe("B1", "EE") === null, "las de expresión no están en el mapa");
+  afirmar(tareaDe("B1", "CE", 1)?.formato === "MATCH_TEXT", "B1 · CE · T1 es MATCH_TEXT");
+  afirmar(tareaDe("B1", "CE", 99) === null, "una tarea que no existe devuelve null");
+  afirmar(sobrantesDe(tareaDe("B1", "CE", 1)!) === 3, "B1 · CE · T1 tiene tres sobrantes");
+  afirmar(sobrantesDe(tareaDe("B1", "CE", 2)!) === 0, "B1 · CE · T2 no tiene sobrantes");
+
   const estudiante = await prisma.user.create({
     data: { email: `alumno-${marca}@ejemplo.test`, role: "STUDENT" },
   });
