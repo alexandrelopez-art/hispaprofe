@@ -101,6 +101,7 @@ function comprobarFormato() {
 function comprobarReglasPuras() {
   // Regla 5: la nota no se sale del criterio.
   afirmar(ajustarNota(null, 1, 4) === 0.5, "el primer + sobre una nota vacía pone medio punto");
+  afirmar(ajustarNota(null, 1, 2) === 0.25, "sobre 2, el primer + deja un cuarto de punto");
   afirmar(ajustarNota(null, -1, 4) === 0, "el primer − sobre una nota vacía la deja en cero");
   afirmar(ajustarNota(4, 1, 4) === 4, "el + no pasa del máximo del criterio");
   afirmar(ajustarNota(0, -1, 4) === 0, "el − no baja de cero");
