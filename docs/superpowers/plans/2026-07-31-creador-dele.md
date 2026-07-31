@@ -401,7 +401,21 @@ export type TareaDele = {
   listaComun: boolean;
   /** Los ítems oficiales de la tarea. */
   items: number;
-  /** Entre cuántas opciones se elige. Si son más que ítems, hay sobrantes. */
+  /**
+   * Entre cuántas opciones elige **cada ítem**.
+   *
+   * Ojo, que no es lo mismo que «cuántas opciones hay en la pantalla». En
+   * `MC` y en `CLOZE` cada pregunta trae sus tres propias, así que tres
+   * opciones y seis preguntas son dieciocho opciones en total. En `ATTRIB` y
+   * en `MATCH_PERSON` las tres son una lista común que todos comparten. En
+   * los dos casos el número dice lo mismo desde el punto de vista del
+   * estudiante: entre cuántas elige cada vez.
+   *
+   * **Los sobrantes solo existen en `relacionar`**, que es el único que
+   * reparte de una lista única y uno a uno: ahí, nueve opciones para seis
+   * ítems son tres que no emparejan con nada. En `opcion` la resta no
+   * significa nada.
+   */
   opciones: number;
   /** Lo que se enseña en pantalla al elegir la tarea. */
   pide: string;
@@ -683,8 +697,16 @@ export function tareaDe(
   return pruebaDe(nivel, destreza)?.tareas.find((t) => t.numero === numero) ?? null;
 }
 
-/** Cuántas opciones sobran en esta tarea. Cero si no sobra ninguna. */
+/**
+ * Cuántas opciones sobran en esta tarea. Cero si no sobra ninguna.
+ *
+ * Solo `relacionar` puede tener sobrantes: es el único que reparte de una
+ * lista única y uno a uno. En `opcion`, `opciones` son las de cada ítem
+ * —tres por pregunta, no tres en total—, así que restarle los ítems no
+ * significa nada y hay que devolver cero sin mirar.
+ */
 export function sobrantesDe(tarea: TareaDele): number {
+  if (tarea.motor !== "relacionar") return 0;
   return Math.max(0, tarea.opciones - tarea.items);
 }
 ```
@@ -728,10 +750,11 @@ import { PRUEBAS, pruebaDe, pruebasDe, sobrantesDe, tareaDe } from "@/lib/dele";
           `${cual} con relacionar tiene al menos una opción por ítem`,
         );
       }
-      // Al revés: si las opciones son menos que los ítems, alguna se repite,
-      // y eso solo lo aguanta `opcion` con lista común.
-      if (tarea.opciones < tarea.items) {
-        afirmar(tarea.listaComun, `${cual} repite opciones, así que usa lista común`);
+      // Solo `relacionar` reparte de una lista única y por tanto puede tener
+      // sobrantes. En `opcion`, `opciones` son las de cada ítem, así que la
+      // resta no significa nada y `sobrantesDe` tiene que dar cero.
+      if (tarea.motor !== "relacionar") {
+        afirmar(sobrantesDe(tarea) === 0, `${cual} no es de sobrantes`);
       }
     }
   }
