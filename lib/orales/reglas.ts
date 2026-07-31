@@ -88,3 +88,51 @@ export function caparTiempo(segundos: number): number {
   if (!Number.isFinite(segundos) || segundos < 0) return 0;
   return Math.min(TOPE_SEGUNDOS, segundos);
 }
+
+/**
+ * Encender o apagar una frase sugerida de la tarjeta de criterio.
+ *
+ * Encenderla la escribe en el comentario, pero solo una vez: si el
+ * profesor ya la había tecleado a mano, no se repite. Apagarla no borra
+ * nada del texto —a esas alturas puede llevar retoques del profesor que la
+ * frase por sí sola no explica.
+ *
+ * Vive aquí y no en `panel.tsx` para poder verificarla desde un script: es
+ * la única regla del panel con una condición sutil (no duplicar, no
+ * borrar) que merece una prueba y no solo una lectura del código.
+ */
+export function alternarFrase(
+  activas: string[],
+  texto: string,
+  frase: string,
+): { activas: string[]; texto: string } {
+  const encendida = activas.includes(frase);
+  const siguientesActivas = encendida
+    ? activas.filter((f) => f !== frase)
+    : [...activas, frase];
+  const siguienteTexto =
+    !encendida && !texto.includes(frase)
+      ? texto
+        ? `${texto.replace(/\s+$/, "")} · ${frase}`
+        : frase
+      : texto;
+  return { activas: siguientesActivas, texto: siguienteTexto };
+}
+
+/**
+ * Qué pasa con `preguntadas` (los índices de las preguntas de la EOI ya
+ * hechas) al elegir un sujet.
+ *
+ * `preguntadas` es una lista de índices sin más: no dice de qué sujet son.
+ * Cambiar de verdad de documento las vacía, porque si no la pregunta 2 de
+ * un sujet se queda marcada en el siguiente sin tener nada que ver. Volver
+ * a pulsar el sujet que ya estaba elegido no borra el progreso: no hay
+ * cambio real que justifique perderlo.
+ */
+export function preguntadasAlElegir(
+  sujetoIdActual: string | null,
+  sujetoIdElegido: string,
+  preguntadasActuales: number[],
+): number[] {
+  return sujetoIdActual === sujetoIdElegido ? preguntadasActuales : [];
+}

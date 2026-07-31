@@ -20,9 +20,11 @@ import {
 import type { Notas } from "@/lib/orales/formato";
 import {
   ajustarNota,
+  alternarFrase,
   caparTiempo,
   notaDentroDelCriterio,
   origenDeSujetValido,
+  preguntadasAlElegir,
 } from "@/lib/orales/reglas";
 import {
   grupoDeProfesor,
@@ -140,6 +142,68 @@ function comprobarReglasPuras() {
   afirmar(
     origenDeSujetValido({ imagenId: "a1", recursoId: "e1" }) !== null,
     "un sujet con imagen y recurso a la vez se rechaza",
+  );
+
+  // B-5 de la revisión de la tarea 8: encender/apagar una frase sugerida.
+  const encendida = alternarFrase([], "", "Buena entonación");
+  afirmar(
+    encendida.activas.includes("Buena entonación") && encendida.texto === "Buena entonación",
+    "encender una frase la escribe en el comentario",
+  );
+  const apagada = alternarFrase(encendida.activas, encendida.texto, "Buena entonación");
+  afirmar(
+    !apagada.activas.includes("Buena entonación") && apagada.texto === encendida.texto,
+    "apagar una frase no borra el texto que escribió",
+  );
+  const conTextoAMano = alternarFrase(
+    [],
+    "Nota escrita a mano por el profesor",
+    "Buena entonación",
+  );
+  afirmar(
+    conTextoAMano.texto === "Nota escrita a mano por el profesor · Buena entonación",
+    "encender una frase se añade al final del texto ya escrito a mano",
+  );
+  const yaEscritaAMano = alternarFrase(
+    [],
+    "Ya venía con Buena entonación de antes",
+    "Buena entonación",
+  );
+  afirmar(
+    yaEscritaAMano.texto === "Ya venía con Buena entonación de antes",
+    "encender una frase que ya aparece escrita a mano no la duplica",
+  );
+  const alternarLaEncendida = alternarFrase(
+    ["Buena entonación"],
+    "Buena entonación",
+    "Buena entonación",
+  );
+  afirmar(
+    alternarLaEncendida.activas.length === 0,
+    "alternar una frase ya encendida la apaga en vez de duplicarla en la lista",
+  );
+  const apagadaConTextoAMano = alternarFrase(
+    ["Buena entonación"],
+    "Un comentario que ya decía Buena entonación a mano",
+    "Buena entonación",
+  );
+  afirmar(
+    apagadaConTextoAMano.texto === "Un comentario que ya decía Buena entonación a mano",
+    "apagar una frase no borra el comentario aunque la frase también estuviera escrita a mano",
+  );
+
+  // B-5: qué pasa con las preguntas marcadas al elegir un sujet.
+  afirmar(
+    preguntadasAlElegir("sujeto-1", "sujeto-2", [0, 2]).length === 0,
+    "cambiar de sujet de verdad vacía las preguntas marcadas",
+  );
+  afirmar(
+    preguntadasAlElegir("sujeto-1", "sujeto-1", [0, 2]).length === 2,
+    "repulsar el mismo sujet no borra las preguntas marcadas",
+  );
+  afirmar(
+    preguntadasAlElegir(null, "sujeto-1", [0]).length === 0,
+    "elegir el primer sujet también vacía las preguntas que hubiera sueltas",
   );
 }
 

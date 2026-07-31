@@ -1,15 +1,23 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
 import { TOPE_SEGUNDOS } from "@/lib/orales/criterios";
 import { fmtTiempo } from "@/lib/orales/formato";
 
 /**
- * Un cronómetro que cuenta hacia arriba hasta cinco minutos y se para solo.
+ * El cronómetro es de presentación pura: recibe los segundos ya calculados
+ * y solo avisa de las dos pulsaciones posibles.
  *
- * El tiempo se calcula desde una marca de inicio y no sumando ticks: un
- * `setInterval` pierde milisegundos en cada vuelta y en cinco minutos eso
- * se nota. El intervalo solo repinta.
+ * La primera versión llevaba el reloj de verdad aquí dentro (una marca de
+ * arranque y un `setInterval` propios), pero eso lo dejaba fuera del
+ * alcance de `Panel`: el tiempo transcurrido solo vivía en este componente,
+ * así que el padre no podía guardarlo ni recuperarlo en una repintada. Con
+ * dos cronómetros en la misma pantalla eso era un doble problema —arrancar
+ * uno para el otro no guardaba el tiempo del que se paraba, y cualquier
+ * `guardar()` del padre (una tecla en un comentario, un `+`) rehacía el
+ * efecto de aquí y rebobinaba el reloj a partir del último valor
+ * *guardado*, no del que de verdad llevaba corriendo. Ahora `Panel` lleva
+ * la marca de arranque y el único `setInterval` que hace falta, y este
+ * componente solo pinta lo que le llega.
  */
 export default function Cronometro({
   etiqueta,
@@ -17,44 +25,18 @@ export default function Cronometro({
   romano,
   segundos,
   corriendo,
-  alCambiar,
-  alArrancar,
+  alPulsar,
+  alReiniciar,
 }: {
   etiqueta: string;
   sub: string;
   romano: string;
   segundos: number;
   corriendo: boolean;
-  alCambiar: (segundos: number, corriendo: boolean) => void;
-  alArrancar: () => void;
+  alPulsar: () => void;
+  alReiniciar: () => void;
 }) {
-  const [mostrado, setMostrado] = useState(segundos);
-  const desde = useRef<number | null>(null);
-
-  useEffect(() => {
-    if (!corriendo) {
-      desde.current = null;
-      return;
-    }
-    desde.current = Date.now() - segundos * 1000;
-    const id = setInterval(() => {
-      const va = (Date.now() - (desde.current ?? Date.now())) / 1000;
-      if (va >= TOPE_SEGUNDOS) {
-        setMostrado(TOPE_SEGUNDOS);
-        alCambiar(TOPE_SEGUNDOS, false);
-        return;
-      }
-      setMostrado(va);
-    }, 250);
-    return () => clearInterval(id);
-  }, [corriendo, segundos, alCambiar]);
-
-  // Parado, el reloj enseña `segundos` directamente en vez de sincronizarlo
-  // en un `mostrado` con un `setState` síncrono dentro del efecto (lo que el
-  // lint del proyecto rechaza como cascada de renders evitable). Corriendo,
-  // `mostrado` es quien manda: lo va empujando el intervalo de arriba.
-  const valor = corriendo ? mostrado : segundos;
-  const acabado = valor >= TOPE_SEGUNDOS;
+  const acabado = segundos >= TOPE_SEGUNDOS;
 
   return (
     <div className="flex flex-col gap-1.5 rounded-tarjeta border border-hp-100 bg-white p-5">
@@ -72,34 +54,38 @@ export default function Cronometro({
           acabado ? "text-coral-500" : "text-tinta"
         }`}
       >
-        {fmtTiempo(valor)}
+        {fmtTiempo(segundos)}
         <span className="ml-1 text-lg font-medium text-tinta-suave">/ 05:00</span>
       </span>
       <div className="mt-2 flex gap-2">
         <button
           type="button"
-          onClick={() => {
-            if (acabado) {
-              alCambiar(0, false);
-              return;
-            }
-            if (corriendo) {
-              alCambiar(valor, false);
-              return;
-            }
-            // Regla 4: arrancar uno para el otro. Lo hace el panel, que es
-            // quien ve los dos.
-            alArrancar();
-          }}
-          className={`flex-1 rounded-lg px-4 py-2.5 font-bold text-white ${
-            acabado ? "bg-coral-500" : corriendo ? "bg-sol-300 text-tinta" : "bg-tinta"
+          onClick={alPulsar}
+          // B-7: cada rama trae su propio color de texto completo. Antes
+          // el texto-blanco de la cadena base convivía con el
+          // `text-tinta` de la rama «Pausar», y en el CSS compilado ganaba
+          // el blanco: el botón de pausar salía blanco sobre amarillo,
+          // ilegible — justo el que hay que acertar para que el tiempo se
+          // guarde.
+          className={`flex-1 rounded-lg px-4 py-2.5 font-bold ${
+            acabado
+              ? "bg-coral-500 text-white"
+              : corriendo
+                ? "bg-sol-300 text-tinta"
+                : "bg-tinta text-white"
           }`}
         >
-          {acabado ? "Terminado · reiniciar" : corriendo ? "Pausar" : valor > 0 ? "Reanudar" : "Iniciar"}
+          {acabado
+            ? "Terminado · reiniciar"
+            : corriendo
+              ? "Pausar"
+              : segundos > 0
+                ? "Reanudar"
+                : "Iniciar"}
         </button>
         <button
           type="button"
-          onClick={() => alCambiar(0, false)}
+          onClick={alReiniciar}
           className="rounded-lg border border-hp-100 px-3.5 py-2.5 text-tinta-suave"
           title="Reiniciar"
         >
