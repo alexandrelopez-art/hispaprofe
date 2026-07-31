@@ -54,6 +54,7 @@ Las revisiones del plan anterior encontraron 38 defectos, y casi todos venían d
 | `components/recursos/editor-opcion.tsx` | **Modificar.** El audio de cada pregunta. | 5 |
 | `lib/acciones-escuchas.ts` | **Crear.** La acción que llama el reproductor. | 6 |
 | `components/ejercicios/reproductor.tsx` | **Crear.** El reproductor con su contador. | 6 |
+| `app/(app)/pasos/[pasoId]/page.tsx` | **Modificar.** El bloque `AUDIO` de una prueba, racionado. | 6 |
 | `lib/acciones.ts` | **Modificar.** `crearSecuencia` guarda la destreza. | 7 |
 | `app/(app)/profe/secuencias/nueva/page.tsx` | **Modificar.** Nivel y prueba. | 7 |
 | `app/(app)/recorridos/[id]/page.tsx` | **Modificar.** Las tareas sugeridas. | 8 |
@@ -513,6 +514,9 @@ export const PRUEBAS: PruebaDele[] = [
   },
 
   // ─── A2/B1 escolar ───────────────────────────────────────────────────
+  // Contrastado contra dos exámenes oficiales distintos, los dos publicados
+  // en examenes.cervantes.es: el Modelo 0 y la convocatoria de mayo de 2015.
+  // Los dos reparten los 25 ítems de la lectura igual: 6, 6, 6 y 7.
   {
     nivel: "A2_B1_ESCOLAR", prueba: "CE", duracionMinutos: 50,
     tareas: [
@@ -530,21 +534,28 @@ export const PRUEBAS: PruebaDele[] = [
         pide: "Siete huecos con tres opciones cada uno." },
     ],
   },
+  // Los cuatro datos de esta prueba están contrastados contra dos exámenes
+  // oficiales distintos: el Modelo 0 y la convocatoria de mayo de 2015, los
+  // dos publicados en examenes.cervantes.es. Coinciden en todo.
   {
-    nivel: "A2_B1_ESCOLAR", prueba: "CO", duracionMinutos: 35,
+    nivel: "A2_B1_ESCOLAR", prueba: "CO", duracionMinutos: 30,
     tareas: [
+      // Siete, no seis: "Vas a escuchar siete conversaciones… preguntas (1-7)".
+      // Las cuatro primeras dan las tres opciones en dibujos, no en texto, así
+      // que hoy el motor solo sabe construir las tres últimas.
       { numero: 1, formato: "MC", motor: "opcion", listaComun: false,
-        items: 6, opciones: 3, verificado: true,
-        pide: "Conversaciones con apoyo de imágenes, una pregunta cada una." },
+        items: 7, opciones: 3, verificado: true,
+        pide: "Siete conversaciones, una pregunta de tres opciones cada una. Las cuatro primeras responden con imágenes." },
       { numero: 2, formato: "MATCH_TEXT", motor: "relacionar", listaComun: false,
         items: 6, opciones: 9, verificado: true,
-        pide: "Relacionar seis monólogos con seis de los nueve enunciados. Sobran tres." },
+        pide: "Relacionar seis mensajes con seis de los nueve enunciados. Sobran tres." },
       { numero: 3, formato: "ATTRIB", motor: "opcion", listaComun: true,
         items: 6, opciones: 3, verificado: true,
-        pide: "De cada enunciado, si lo dice el hombre, la mujer o ninguno." },
+        pide: "Una conversación: de cada enunciado, si lo dice ella, él o ninguno de los dos." },
+      // Tres noticias y seis preguntas —dos por noticia—, no siete noticias.
       { numero: 4, formato: "MC", motor: "opcion", listaComun: false,
-        items: 7, opciones: 3, verificado: true,
-        pide: "Siete noticias, una pregunta de tres opciones cada una." },
+        items: 6, opciones: 3, verificado: true,
+        pide: "Tres noticias de radio y seis preguntas de tres opciones: dos por noticia." },
     ],
   },
 
@@ -759,17 +770,38 @@ import { PRUEBAS, pruebaDe, pruebasDe, sobrantesDe, tareaDe } from "@/lib/dele";
     }
   }
 
-  // Las pruebas verificadas tienen el número de tareas que dice el examen.
-  const ESPERADAS: [Nivel, Destreza, number][] = [
-    ["B1", "CE", 5], ["B1", "CO", 5],
-    ["B2", "CE", 4], ["B2", "CO", 5],
-    ["A2_B1_ESCOLAR", "CE", 4], ["A2_B1_ESCOLAR", "CO", 4],
+  // Las pruebas verificadas tienen el número de tareas y el total de ítems
+  // que dice el examen.
+  //
+  // El total se afirma aparte porque es el único número de aquí que no hay
+  // que interpretar: los enunciados oficiales lo dicen a la cara —«Debes
+  // responder a 25 preguntas»—, así que se copia y ya está.
+  //
+  // Lo que caza y lo que no, dicho claro para que nadie se confíe:
+  //
+  // NO caza que los ítems estén mal repartidos entre tareas. El mapa llegó a
+  // decir que la Tarea 1 de la auditiva del escolar tenía seis ítems y la
+  // Tarea 4 siete, cuando son siete y seis, y sumaba 25 igualmente. Eso solo
+  // lo caza leer el examen; por eso el mapa dice contra qué se contrastó.
+  //
+  // SÍ caza el error de después: corregir una tarea y olvidar la otra. Que es
+  // lo que ronda cada vez que alguien toca un `items`.
+  //
+  // Los dos totales del escolar están leídos de los exámenes oficiales. Los de
+  // B1 y B2 salen del encargo del profesor: si alguno falla al ejecutar esto,
+  // el que hay que mirar es el total, no las tareas.
+  const ESPERADAS: [Nivel, Destreza, number, number][] = [
+    ["B1", "CE", 5, 30], ["B1", "CO", 5, 30],
+    ["B2", "CE", 4, 36], ["B2", "CO", 5, 30],
+    ["A2_B1_ESCOLAR", "CE", 4, 25], ["A2_B1_ESCOLAR", "CO", 4, 25],
   ];
-  for (const [nivel, destreza, cuantas] of ESPERADAS) {
+  for (const [nivel, destreza, cuantas, items] of ESPERADAS) {
     const p = pruebaDe(nivel, destreza);
     afirmar(p !== null, `${nivel} · ${destreza} está en el mapa`);
     afirmar(p!.tareas.length === cuantas, `${nivel} · ${destreza} tiene ${cuantas} tareas`);
     afirmar(p!.tareas.every((t) => t.verificado), `${nivel} · ${destreza} está toda verificada`);
+    const suma = p!.tareas.reduce((t, tarea) => t + tarea.items, 0);
+    afirmar(suma === items, `${nivel} · ${destreza} suma ${items} ítems (son ${suma})`);
   }
 
   // Las cuatro preguntas al mapa.
@@ -807,6 +839,10 @@ git commit -m "El mapa del examen, con lo deducido marcado como tal"
 ### Task 3: Sobrantes, texto y audio en `relacionar`
 
 El motor. Sin editor todavía: al terminar esta tarea, un ejercicio con sobrantes se corrige bien si se siembra a mano.
+
+**Los sobrantes son lo que desbloquea el primer examen real** y no admiten atajo: sin ellos, la Tarea 1 de comprensión de lectura enseña seis anuncios en vez de nueve y se resuelve por descarte.
+
+**El audio de cada pareja, en cambio, es para los ejercicios que escribe el profesor**, no para los exámenes oficiales: esos vienen con un MP3 por tarea que ya trae las dos escuchas dentro, y van en un bloque `AUDIO` (Task 6, Step 6). Las dos vías conviven a propósito — en un ejercicio de práctica no hay un archivo con las pausas ya metidas, y el alumno agradece llevar su ritmo.
 
 **Files:**
 - Modify: `lib/ejercicios/relacionar.ts`
@@ -1291,9 +1327,15 @@ En `app/api/archivos/route.ts`, sustituye la lista de permitidos y el tope por d
 // a WebP baja de 400 KB, asi que 4 MB solo salta con algo muy raro.
 const MAXIMO_IMAGEN = 4 * 1024 * 1024;
 
-// El audio no se puede reducir en el navegador como una imagen, y un audio
-// DELE de cinco minutos ronda los 5 MB. Doce deja margen para uno largo sin
-// abrir la puerta a subir una película.
+// El audio no se puede reducir en el navegador como una imagen, asi que este
+// tope no se salta solo: hay que recomprimir antes de subir.
+//
+// Los MP3 del Cervantes vienen en mono a 320 kbps, siete veces mas calidad de
+// la que necesita una voz: la tarea 1 del A2/B1 escolar dura casi quince
+// minutos y pesa 35,7 MB. A 48 kbps baja a 5,8 MB sin diferencia audible
+// (`afconvert -f mp4f -d aac -b 48000 -s 3 entrada.mp3 salida.m4a`, que ya
+// viene en macOS). Doce megas dejan pasar eso y rechazan el original, que es
+// justo lo que se busca: el mensaje de error tiene que ensenar a recomprimir.
 const MAXIMO_AUDIO = 12 * 1024 * 1024;
 
 const IMAGENES = [
@@ -1326,7 +1368,7 @@ Y sustituye las dos comprobaciones:
       {
         error: esImagen
           ? "La imagen pesa demasiado incluso después de reducirla."
-          : "El audio pesa demasiado. El tope son 12 MB.",
+          : "El audio pesa demasiado. El tope son 12 MB: recomprímelo a 48 kbps en mono, que para voz suena igual y ocupa una séptima parte.",
       },
       { status: 400 },
     );
@@ -1774,15 +1816,88 @@ En `components/ejercicios/relacionar.tsx`, lo mismo para el de cada izquierda:
 
 En `app/(app)/pasos/[pasoId]/page.tsx`, el componente `<Ejercicio>` ya recibe `pasoId`. Comprueba que lo sigue pasando y que llega hasta las caras.
 
-- [ ] **Step 6: Verificar**
+- [ ] **Step 6: El bloque `AUDIO` de una prueba, también con contador**
+
+Esta es la forma en la que se monta un examen oficial, y no la de los pasos anteriores.
+
+Los MP3 que publica el Instituto Cervantes vienen **uno por tarea**, con las instrucciones, cada audio, su pausa, el mismo audio otra vez y los segundos para contestar, todo dentro del mismo archivo: la Tarea 1 del A2/B1 escolar dura 14 minutos y 52 segundos. **La segunda escucha la da el archivo, no el contador**, así que ese audio se oye una vez y va colgado del paso —en un bloque `AUDIO`, que ya existe—, no de cada pregunta.
+
+En `app/(app)/pasos/[pasoId]/page.tsx`, `BloqueContenido` no sabe hoy a qué paso pertenece ni si el paso es una prueba. Añade las dos cosas a sus props:
+
+```tsx
+function BloqueContenido({
+  bloque,
+  pasoId,
+  racionado,
+}: {
+  bloque: BloqueData;
+  pasoId: string;
+  /**
+   * El paso es una tarea de examen de verdad: recorrido de preparación y con
+   * prueba elegida. Solo entonces se raciona el audio. Un audio de una clase
+   * particular se oye las veces que haga falta.
+   */
+  racionado: boolean;
+}) {
+```
+
+Y sustituye la rama `AUDIO`:
+
+```tsx
+    case "AUDIO":
+      return (
+        <div>
+          {bloque.etiqueta && (
+            <p className="mb-2 text-sm font-semibold text-tinta">
+              {bloque.etiqueta}
+            </p>
+          )}
+          {racionado ? (
+            // Una sola escucha, y no dos: el archivo oficial ya trae la
+            // repeticion dentro. Por eso el maximo es un literal y no una
+            // columna del bloque — no hay nada que configurar.
+            <Reproductor
+              src={bloque.url ?? ""}
+              pasoId={pasoId}
+              clave={bloque.id}
+              maximo={1}
+              cerrado={false}
+            />
+          ) : (
+            <audio controls preload="metadata" className="w-full" src={bloque.url ?? ""}>
+              <a href={bloque.url ?? "#"} target="_blank" rel="noopener noreferrer">
+                Abrir el audio
+              </a>
+            </audio>
+          )}
+        </div>
+      );
+```
+
+`clave` es el id del bloque. `Escucha.clave` es un `String` libre y su unicidad es `(asignacionId, pasoId, clave)`, así que un id de bloque no puede chocar con un id de pregunta: **`lib/escuchas.ts` no cambia ni una línea.**
+
+`BloqueData` necesita el `id`; añádelo al tipo y al `select` de la consulta si no está. Y donde se pintan los bloques, calcula `racionado` una vez:
+
+```tsx
+  const racionado =
+    paso.recorrido.tipo === "PREPARACION_DELE" && paso.recorrido.destreza !== null;
+```
+
+`Recorrido.destreza` ya existe: la añadió la migración de la Task 1.
+
+- [ ] **Step 7: Verificar**
 
 Run: `npx tsc --noEmit && npm run lint && npx tsx scripts/verificar-dele.ts && npx tsx scripts/verificar-recursos.ts`
 Expected: todo limpio y en verde.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 8: Probarlo a mano**
+
+Un paso de una secuencia de preparación con prueba elegida, con un bloque `AUDIO`: suena una vez, y a la segunda el botón dice «Sin escuchas». **Recarga la página**: sigue diciéndolo. El mismo bloque en una secuencia de clases particulares suena las veces que quieras.
+
+- [ ] **Step 9: Commit**
 
 ```bash
-git add lib/acciones-escuchas.ts components/ejercicios components/recursos/previsualizacion.tsx
+git add lib/acciones-escuchas.ts components/ejercicios components/recursos/previsualizacion.tsx "app/(app)/pasos/[pasoId]/page.tsx"
 git commit -m "Un reproductor que cuenta las escuchas donde no se pueden devolver"
 ```
 

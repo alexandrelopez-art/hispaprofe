@@ -64,16 +64,35 @@ async function main() {
   }
 
   // Las pruebas verificadas tienen el número de tareas que dice el examen.
-  const ESPERADAS: [Nivel, Destreza, number][] = [
-    ["B1", "CE", 5], ["B1", "CO", 5],
-    ["B2", "CE", 4], ["B2", "CO", 5],
-    ["A2_B1_ESCOLAR", "CE", 4], ["A2_B1_ESCOLAR", "CO", 4],
+  // El total de ítems se afirma aparte porque es el único número de aquí que
+  // no hay que interpretar: los enunciados oficiales lo dicen a la cara
+  // —«Debes responder a 25 preguntas»—, así que se copia y ya está.
+  //
+  // Lo que caza y lo que no, dicho claro para que nadie se confíe:
+  //
+  // NO caza que los ítems estén mal repartidos entre tareas. Este mapa llegó
+  // a decir que la Tarea 1 de la auditiva del escolar tenía seis ítems y la
+  // Tarea 4 siete, cuando son siete y seis, y sumaba 25 igualmente. Eso solo
+  // lo caza leer el examen; por eso el mapa dice contra qué se contrastó.
+  //
+  // SÍ caza el error de después: corregir una tarea y olvidar la otra, que es
+  // lo que ronda cada vez que alguien toca un `items`.
+  //
+  // Los dos totales del escolar están leídos de los exámenes oficiales. Los
+  // de B1 y B2 salen del encargo del profesor: si alguno falla, el que hay
+  // que mirar es el total, no las tareas.
+  const ESPERADAS: [Nivel, Destreza, number, number][] = [
+    ["B1", "CE", 5, 30], ["B1", "CO", 5, 30],
+    ["B2", "CE", 4, 36], ["B2", "CO", 5, 30],
+    ["A2_B1_ESCOLAR", "CE", 4, 25], ["A2_B1_ESCOLAR", "CO", 4, 25],
   ];
-  for (const [nivel, destreza, cuantas] of ESPERADAS) {
+  for (const [nivel, destreza, cuantas, items] of ESPERADAS) {
     const p = pruebaDe(nivel, destreza);
     afirmar(p !== null, `${nivel} · ${destreza} está en el mapa`);
     afirmar(p!.tareas.length === cuantas, `${nivel} · ${destreza} tiene ${cuantas} tareas`);
     afirmar(p!.tareas.every((t) => t.verificado), `${nivel} · ${destreza} está toda verificada`);
+    const suma = p!.tareas.reduce((t, tarea) => t + tarea.items, 0);
+    afirmar(suma === items, `${nivel} · ${destreza} suma ${items} ítems (son ${suma})`);
   }
 
   // Las cuatro preguntas al mapa.

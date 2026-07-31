@@ -282,22 +282,61 @@ El límite de escuchas va en la raíz de **los dos** esquemas, `opcion` y
   escuchas: z.number().int().min(1).default(2),
 ```
 
-Lo que falta, entonces, es de dónde sale el archivo y cuántas veces suena.
+### El audio oficial viene por tarea, no por ítem
 
-**De dónde sale: de las dos vías.** Subir un archivo desde el ordenador, o pegar
-un enlace de fuera. Las dos acaban siendo una dirección en el mismo campo, así
-que subir solo añade una forma de generarla. `/api/archivos` deja entrar los
-formatos de audio y sube su tope de peso: un audio de cinco minutos ronda los
-5 MB y una foto ya comprimida no llega a 400 KB.
+Todo lo anterior es la pieza para **montar** una tarea auditiva desde cero. Pero
+los exámenes publicados no vienen troceados: el Instituto Cervantes distribuye
+**un MP3 por tarea**, y dentro va todo —las instrucciones leídas, cada audio, su
+pausa, el mismo audio otra vez, y los diez segundos para contestar—. La Tarea 1
+del A2/B1 escolar de mayo de 2015 dura 14 minutos y 52 segundos y son las siete
+conversaciones seguidas.
+
+Es decir: **la segunda escucha no la da el contador, la da el propio archivo.**
+
+De ahí que un examen oficial no se monte con el audio por pregunta, sino con un
+**bloque `AUDIO` encima de las tareas del paso**, que es algo que el modelo ya
+admite hoy sin tocar nada (`TipoBloque.AUDIO` con su `url`). Lo único que le
+falta es el contador, y el mismo `Reproductor` sirve: `Escucha.clave` es un
+`String` libre, así que ahí va el id del bloque en vez del id de una pregunta.
+`lib/escuchas.ts` no cambia.
+
+**Cuántas veces suena un bloque: una.** No hay columna nueva ni casilla que
+marcar. Un archivo que ya lleva las dos escuchas dentro se oye una vez, y esa es
+toda la configuración que admite. Se cuenta solo cuando el paso es de verdad una
+tarea de examen —recorrido de tipo `PREPARACION_DELE` **y** con `destreza`—;
+en cualquier otro sitio el bloque `AUDIO` se comporta como hoy, con su
+reproductor libre. Un audio de una clase particular no se raciona.
+
+Los dos caminos conviven y no compiten: **el bloque es para los exámenes
+oficiales, el audio por ítem es para los ejercicios que escribe el profesor**,
+donde no hay un MP3 con las pausas ya metidas y el alumno agradece llevar su
+ritmo.
+
+### De dónde sale el archivo
+
+**De las dos vías.** Subir un archivo desde el ordenador, o pegar un enlace de
+fuera. Las dos acaban siendo una dirección en el mismo campo, así que subir solo
+añade una forma de generarla. `/api/archivos` deja entrar los formatos de audio y
+sube su tope de peso.
+
+**Los originales no entran, y no deben.** Los MP3 del Cervantes vienen en mono a
+320 kbps: la Tarea 1 pesa 35,7 MB y las cuatro juntas 88 MB. Eso es siete veces
+más calidad de la que necesita una voz hablando. Recomprimidos a 48 kbps —con
+`afconvert`, que ya viene en macOS— la Tarea 1 baja a 5,8 MB y las cuatro a unos
+14 MB, sin diferencia audible. El tope de 12 MB está puesto para dejar pasar eso
+y no lo otro: **es un tope que enseña a recomprimir**, y el mensaje de error lo
+dice.
 
 **Aviso que conviene dejar escrito:** los archivos se guardan dentro de la base
 de datos, no en un disco aparte. Es bueno para las imágenes —todo viaja junto en
 la copia de seguridad— y con audio la base va a crecer bastante más rápido. No es
 un problema hoy; es algo que hay que saber antes de subir cincuenta audios.
 
-**Cuántas veces suena:** dos, contadas en el servidor. El número va en el
-ejercicio y no en una constante, para poder hacer un ejercicio de práctica con
-cuatro escuchas sin que dejen de ser dos en los simulacros.
+**Cuántas veces suena:** contadas en el servidor siempre, pero el número depende
+de dónde cuelgue el audio. En un **ejercicio**, dos por defecto, y el número va
+en el propio ejercicio y no en una constante, para poder hacer uno de práctica
+con cuatro sin que dejen de ser dos en los simulacros. En un **bloque**, una y
+solo una, por lo dicho arriba: el archivo oficial ya trae la repetición dentro.
 
 **Se cuenta al dar al play, no al terminar.** Es lo que hace el examen, donde el
 audio suena una vez y no se rebobina. Agotadas, el reproductor se apaga. Y como
@@ -345,7 +384,8 @@ aviso de dato sin confirmar.
 | `lib/dele/index.ts` | Las preguntas que se le hacen al mapa. **Fuera de las acciones.** |
 | `lib/escuchas.ts` | Contar y consultar escuchas. **Fuera de las acciones.** |
 | `lib/acciones-escuchas.ts` | La acción que llama el reproductor. |
-| `components/ejercicios/reproductor.tsx` | El reproductor con su contador. |
+| `components/ejercicios/reproductor.tsx` | El reproductor con su contador. Lo usan las dos caras y el bloque `AUDIO`. |
+| `app/(app)/pasos/[pasoId]/page.tsx` | **Modificar.** El bloque `AUDIO` de una prueba pasa por el reproductor. |
 | `components/recursos/editor-relacionar.tsx` | **Modificar.** Sobrantes, texto y el audio de cada pareja. |
 | `components/recursos/editor-opcion.tsx` | **Modificar.** El audio de cada pregunta. |
 | `components/recursos/subir-audio.tsx` | Subir un archivo o pegar un enlace. |
@@ -370,6 +410,17 @@ que declaran sobrantes tengan más opciones que ítems, que toda entrada lleve s
 marca de verificado, y que las pruebas verificadas tengan el número de tareas que
 dice el examen. Es barato y evita la errata tonta en trescientas líneas de datos.
 
+Y una más: **que los ítems de cada prueba verificada sumen el total oficial**.
+Los enunciados lo dicen a la cara —«Debes responder a 25 preguntas»—, así que es
+el único número de ahí que se copia sin interpretar.
+
+Conviene ser exacto con lo que sujeta. **No** caza un reparto malo entre tareas:
+el mapa llegó a decir que la Tarea 1 de la auditiva del escolar tenía seis ítems
+y la Tarea 4 siete, cuando son siete y seis, y sumaba 25 igualmente. Eso solo lo
+caza leer el examen, y por eso el mapa anota contra qué fuente se contrastó cada
+prueba. Lo que **sí** caza es el error de después: corregir una tarea y olvidar
+la otra, que es lo que ronda cada vez que alguien toca un `items`.
+
 *El contador de escuchas contra filas reales*: que la primera deje una, que la
 segunda deje cero, que la tercera se niegue, y —la que de verdad importa— que
 **volver a preguntar después de agotarlas siga diciendo que no**. Si eso falla,
@@ -383,9 +434,13 @@ emparejamiento: que la versión pública de `relacionar` lleve el audio de cada
 pareja a la izquierda, porque sin él dos tareas auditivas no se pueden hacer.
 
 **A mano**, que es lo que un script no ve: crear la prueba de B1 · Comprensión de
-lectura entera, con sus cinco tareas, y hacerla con la cuenta de estudiante. Y una
-tarea auditiva: oír el audio dos veces, comprobar que a la tercera no suena, y
-recargar la página para comprobar que sigue sin sonar.
+lectura entera, con sus cinco tareas, y hacerla con la cuenta de estudiante. Y las
+dos formas de audio: en un **ejercicio**, oírlo dos veces y comprobar que a la
+tercera no suena; en un **bloque** de una prueba, oírlo una y comprobar que a la
+segunda no. En los dos casos, **recargar la página** para comprobar que sigue sin
+sonar — es lo único que distingue un contador de verdad de uno decorativo. Y el
+mismo bloque en una secuencia de clases particulares, que tiene que sonar sin
+límite.
 
 ---
 
@@ -399,6 +454,13 @@ recargar la página para comprobar que sigue sin sonar.
 - **El simulacro completo.** Las cuatro pruebas de un nivel de una sentada, con
   los grupos de calificación (Grupo 1 = lectura + escritas, Grupo 2 = auditiva +
   orales, ≥30/50 cada uno). Necesita las de expresión, así que no antes de C.
+- **Las opciones en imagen.** `preguntaOpcionSchema.opciones` es una lista de
+  textos. La Tarea 1 de comprensión auditiva del A2/B1 escolar responde con
+  dibujos en sus cuatro primeras preguntas —lo hacen igual el Modelo 0 y la
+  convocatoria de mayo de 2015, así que es la estructura de la tarea y no una
+  rareza—. **Consecuencia concreta: esa tarea no se puede montar entera.** Las
+  tres últimas preguntas sí, porque responden con texto. Se decide aparte,
+  porque es ampliar el motor y no usarlo.
 - **El cronómetro.** El mapa guarda la duración oficial de cada prueba y la
   enseña, pero no cuenta el tiempo ni cierra nada al agotarse.
 - **La calificación especial de A2/B1 escolar.** Un examen que certifica A2 o B1

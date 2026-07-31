@@ -150,6 +150,10 @@ export const PRUEBAS: PruebaDele[] = [
   },
 
   // ─── A2/B1 escolar ───────────────────────────────────────────────────
+  // Contrastado contra dos exámenes oficiales distintos, los dos publicados
+  // en examenes.cervantes.es: el Modelo 0 y la convocatoria de mayo de 2015.
+  // Coinciden en todo, y los dos reparten los 25 ítems de la lectura igual:
+  // 6, 6, 6 y 7.
   {
     nivel: "A2_B1_ESCOLAR", prueba: "CE", duracionMinutos: 50,
     tareas: [
@@ -168,20 +172,25 @@ export const PRUEBAS: PruebaDele[] = [
     ],
   },
   {
-    nivel: "A2_B1_ESCOLAR", prueba: "CO", duracionMinutos: 35,
+    nivel: "A2_B1_ESCOLAR", prueba: "CO", duracionMinutos: 30,
     tareas: [
+      // Siete, no seis: "Vas a escuchar siete conversaciones… preguntas (1-7)".
+      // Las cuatro primeras dan las tres opciones en dibujos y no en texto, en
+      // los dos exámenes, así que es la estructura de la tarea y no una rareza
+      // de uno. Hoy el motor solo sabe construir las tres últimas.
       { numero: 1, formato: "MC", motor: "opcion", listaComun: false,
-        items: 6, opciones: 3, verificado: true,
-        pide: "Conversaciones con apoyo de imágenes, una pregunta cada una." },
+        items: 7, opciones: 3, verificado: true,
+        pide: "Siete conversaciones, una pregunta de tres opciones cada una. Las cuatro primeras responden con imágenes." },
       { numero: 2, formato: "MATCH_TEXT", motor: "relacionar", listaComun: false,
         items: 6, opciones: 9, verificado: true,
-        pide: "Relacionar seis monólogos con seis de los nueve enunciados. Sobran tres." },
+        pide: "Relacionar seis mensajes con seis de los nueve enunciados. Sobran tres." },
       { numero: 3, formato: "ATTRIB", motor: "opcion", listaComun: true,
         items: 6, opciones: 3, verificado: true,
-        pide: "De cada enunciado, si lo dice el hombre, la mujer o ninguno." },
+        pide: "Una conversación: de cada enunciado, si lo dice ella, él o ninguno de los dos." },
+      // Tres noticias y seis preguntas —dos por noticia—, no siete noticias.
       { numero: 4, formato: "MC", motor: "opcion", listaComun: false,
-        items: 7, opciones: 3, verificado: true,
-        pide: "Siete noticias, una pregunta de tres opciones cada una." },
+        items: 6, opciones: 3, verificado: true,
+        pide: "Tres noticias de radio y seis preguntas de tres opciones: dos por noticia." },
     ],
   },
 
