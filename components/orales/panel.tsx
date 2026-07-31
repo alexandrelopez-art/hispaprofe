@@ -143,7 +143,15 @@ export default function Panel({
           setEstadoGuardado("error");
           return; // no se confirmó nada: pendienteRef se deja puesto
         }
-        pendienteRef.current = null;
+        // R-1: solo se limpia si `pendienteRef` sigue siendo el mismo envío
+        // que se acaba de confirmar. Si mientras esta petición estaba en
+        // vuelo llegó un cambio más nuevo (otra tecla, otro `guardarYa`),
+        // `pendienteRef` ya apunta a ese cambio más nuevo, no al que acaba
+        // de responder — limpiarlo a ciegas aquí borraría el rastro de algo
+        // que todavía no se confirmó, y un desmontaje justo después no lo
+        // mandaría: se perdería en silencio con la pantalla diciendo
+        // «Guardado».
+        if (pendienteRef.current === siguiente) pendienteRef.current = null;
         setError(null);
         setEstadoGuardado("guardado");
       } catch (e) {
@@ -204,6 +212,16 @@ export default function Panel({
    * forma de esperar una promesa desde el cleanup de un efecto, pero
    * lanzar el guardado es mejor que perderlo sin más. */
   useEffect(() => {
+    // R-2: el `next dev` de este proyecto corre con `reactStrictMode`
+    // activo, así que en desarrollo React monta, ejecuta el cleanup de
+    // abajo y vuelve a montar de inmediato. El `ref` sobrevive a ese doble
+    // montaje (a diferencia de un remontaje de verdad por `key`), así que
+    // sin esta línea `montadoRef.current` se quedaba en `false` para
+    // siempre después del primer montaje de prueba: todos los `return`
+    // tempranos de `enviar` se cumplían, el indicador se quedaba clavado en
+    // «Guardando…» y los errores de B-3 no llegaban a pintarse nunca, en
+    // desarrollo (en producción, sin doble montaje, no pasaba).
+    montadoRef.current = true;
     return () => {
       montadoRef.current = false;
       if (temporizador.current) {
@@ -241,6 +259,12 @@ export default function Panel({
         instante,
       );
       setArranqueEn(instante);
+      // Menor: sin esto, el primer fotograma pinta con el `ahora` del
+      // último tick del intervalo anterior (o el de montaje, si nunca
+      // corrió), que queda por detrás de `arranqueEn` recién puesto —el
+      // mismo susto visual de un rebobinado que acaba de arreglarse en
+      // B-1, aunque aquí no se pierda nada de lo guardado.
+      setAhora(instante);
       setCorriendo(cual);
       if (siguiente !== estadoRef.current) guardarYa(siguiente);
     },
