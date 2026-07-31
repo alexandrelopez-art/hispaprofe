@@ -82,16 +82,45 @@ main()
     process.exitCode = 1;
   })
   .finally(async () => {
-    // El orden importa: los vínculos antes que sus extremos.
-    if (asignacionId) {
-      await prisma.escucha.deleteMany({ where: { asignacionId } });
-      await prisma.pasoCompletado.deleteMany({ where: { asignacionId } });
-      await prisma.asignacion.delete({ where: { id: asignacionId } });
+    let fallos = 0;
+    // Cada borrado se intenta aunque el anterior reviente: si uno falla por
+    // un blip transitorio, los demás no se quedan sin ni siquiera
+    // intentarse, y la basura que sí se puede quitar se quita.
+    async function intentar(que: string, fn: () => Promise<unknown>) {
+      try {
+        await fn();
+      } catch (e) {
+        fallos++;
+        console.error(`FALLO AL LIMPIAR (${que}):`, e instanceof Error ? e.message : e);
+      }
     }
-    if (pasoId) await prisma.paso.delete({ where: { id: pasoId } });
-    if (recorridoId) await prisma.recorrido.delete({ where: { id: recorridoId } });
+
+    // El orden importa: los vínculos antes que sus extremos, porque las
+    // claves foráneas son RESTRICT. Capturado en `const` dentro de cada
+    // bloque para que TypeScript lo vea no-nulo dentro del cierre.
+    if (asignacionId) {
+      const id = asignacionId;
+      await intentar("escuchas", () => prisma.escucha.deleteMany({ where: { asignacionId: id } }));
+      await intentar("pasos completados", () => prisma.pasoCompletado.deleteMany({ where: { asignacionId: id } }));
+      await intentar("asignación", () => prisma.asignacion.delete({ where: { id } }));
+    }
+    if (pasoId) {
+      const id = pasoId;
+      await intentar("paso", () => prisma.paso.delete({ where: { id } }));
+    }
+    if (recorridoId) {
+      const id = recorridoId;
+      await intentar("recorrido", () => prisma.recorrido.delete({ where: { id } }));
+    }
     if (usuarioIds.length) {
-      await prisma.user.deleteMany({ where: { id: { in: usuarioIds } } });
+      await intentar("usuarios", () => prisma.user.deleteMany({ where: { id: { in: usuarioIds } } }));
+    }
+
+    // Un rechazo sin capturar aquí sería silencioso: nadie lo ve y la
+    // basura se descubre a mano, como pasó la vez que faltaba esto.
+    if (fallos > 0) {
+      console.error(`\nLa limpieza falló en ${fallos} paso(s): puede haber quedado basura de prueba en la base.`);
+      process.exitCode = 1;
     }
     await prisma.$disconnect();
   });
