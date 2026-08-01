@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@/lib/generated/prisma/client";
 
 // Hermano del motor de `lib/ejercicios/`, no miembro. Ese motor tiene cuatro
 // tipos y los cuatro se corrigen solos; `corregir()` es un switch exhaustivo
@@ -385,6 +386,26 @@ export async function anotarEntrega(
     where: { asignacionId_pasoId: { asignacionId, pasoId } },
     update: { entrega },
     create: { asignacionId, pasoId, entrega },
+  });
+}
+
+/**
+ * Deshace una corrección: borra la nota, el comentario y los puntos, y deja
+ * la tarea abierta otra vez.
+ *
+ * **No toca `entrega`.** Lo que el alumno mandó es suyo y no se pierde por
+ * reabrir: si vuelve a entregar, lo sustituye él. Y la fila no se borra —el
+ * paso sigue hecho, porque entregó de verdad—, que es lo que separa esto de
+ * desmarcar un paso.
+ *
+ * `verificadoEl` en `null` es lo que reabre las dos puertas a la vez: la del
+ * alumno (`puedeEntregar` y `puedeEntregarAudio` dejan de decir «ya está
+ * corregida») y la de la bandeja, que vuelve a listarla como pendiente.
+ */
+export async function reabrirEntrega(asignacionId: string, pasoId: string): Promise<void> {
+  await prisma.pasoCompletado.updateMany({
+    where: { asignacionId, pasoId },
+    data: { valoracion: Prisma.DbNull, puntos: null, verificadoEl: null },
   });
 }
 

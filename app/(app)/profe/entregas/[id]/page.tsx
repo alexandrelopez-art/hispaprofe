@@ -4,6 +4,7 @@ import { analizarExpresion, seOyeLaEntrega } from "@/lib/expresion";
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import Rubrica from "@/components/expresion/rubrica";
+import { reabrir } from "@/lib/acciones-expresion";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +24,7 @@ export default async function CorregirPage({
     select: {
       entrega: true,
       valoracion: true,
+      verificadoEl: true,
       asignacionId: true,
       paso: {
         select: {
@@ -108,6 +110,34 @@ export default async function CorregirPage({
           }
         />
       </div>
+
+      {/*
+        Solo cuando ya está corregida, y detrás de un desplegable: deshacer
+        borra la nota y el comentario, así que no puede estar a un clic de
+        distancia del botón de corregir.
+      */}
+      {registro.verificadoEl && (
+        <details className="mt-6">
+          <summary className="cursor-pointer text-xs font-bold text-tinta-suave hover:text-hp-500">
+            Reabrir la tarea
+          </summary>
+          <form action={reabrir} className="mt-3 rounded-tarjeta bg-fondo p-4">
+            <input type="hidden" name="asignacionId" value={registro.asignacionId} />
+            <input type="hidden" name="pasoId" value={registro.paso.id} />
+            <p className="text-sm text-tinta-suave">
+              Se borran la nota y el comentario, y {nombre.split(" ")[0]} vuelve
+              a poder entregar. Lo que mandó no se toca: sigue aquí hasta que lo
+              sustituya.
+            </p>
+            <button
+              type="submit"
+              className="mt-3 h-9 rounded-full border border-hp-200 px-4 text-xs font-bold text-tinta-suave transition-colors hover:border-hp-400 hover:text-hp-600"
+            >
+              Reabrir
+            </button>
+          </form>
+        </details>
+      )}
 
       {datos.modelo && (
         <section className="mt-6 rounded-tarjeta border border-hp-100 bg-white p-6 shadow-suave">

@@ -13,6 +13,7 @@ import {
   puedeEntregar,
   puedeValorarse,
   puntosDe,
+  reabrirEntrega,
 } from "@/lib/expresion";
 import { puedeCitarse } from "@/lib/citas";
 
@@ -139,6 +140,40 @@ export async function valorar(
 
   refrescar(pasoId, asignacion.estudianteId);
   return { ok: "Corregido." };
+}
+
+/**
+ * Deshace una corrección.
+ *
+ * Existe porque un audio se estropea de más formas que un texto: cinco
+ * segundos de silencio, el micrófono en la mesa, la voz de otro. Sin esto, un
+ * profesor que corrigiera eso dejaba al alumno sin poder volver a entregar y
+ * sin ninguna pantalla que lo desatascara. La regla vive en `lib/` y lo que
+ * hace —y lo que a propósito no hace, que es tocar la entrega— está allí.
+ *
+ * Sin estado ni mensaje: la pantalla se repinta con la rúbrica en blanco, que
+ * ya dice lo que ha pasado.
+ */
+export async function reabrir(formData: FormData) {
+  const usuario = await exigirProfesor();
+
+  const asignacionId = String(formData.get("asignacionId") ?? "");
+  const pasoId = String(formData.get("pasoId") ?? "");
+  if (!asignacionId || !pasoId) return;
+
+  // El mismo tope que `valorar`, por lo mismo: esto es un endpoint público y
+  // deshace una corrección. Un administrador se lo salta.
+  if (usuario.role !== "ADMIN" && !(await esDeEsteProfesor(asignacionId, usuario.id))) {
+    return;
+  }
+
+  await reabrirEntrega(asignacionId, pasoId);
+
+  const asignacion = await prisma.asignacion.findUnique({
+    where: { id: asignacionId },
+    select: { estudianteId: true },
+  });
+  refrescar(pasoId, asignacion?.estudianteId);
 }
 
 export async function citarOral(

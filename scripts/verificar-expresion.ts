@@ -14,6 +14,7 @@ import {
   puedeEntregar,
   puedeValorarse,
   puntosDe,
+  reabrirEntrega,
   versionPublicaExpresion,
 } from "@/lib/expresion";
 import { desmarcarSiNoRevisado } from "@/lib/progreso";
@@ -333,6 +334,28 @@ async function main() {
   afirmar(
     (await puedeEntregar(asignacion.id, paso.id, "Otro más.")) !== null,
     "una vez corregida, ya no se puede reescribir",
+  );
+
+  // Reabrir: deshace la corrección y **no** toca la entrega. Las tres
+  // afirmaciones van juntas a propósito: la primera sola pasaría con un
+  // `deleteMany`, que sería mucho peor que no reabrir nada.
+  await prisma.pasoCompletado.updateMany({
+    where: { asignacionId: asignacion.id, pasoId: paso.id },
+    data: { entrega: "Lo que escribió.", valoracion: { notas: { c1: 2 }, comentario: "Bien" } },
+  });
+  await reabrirEntrega(asignacion.id, paso.id);
+  const reabierta = await prisma.pasoCompletado.findUnique({
+    where: { asignacionId_pasoId: { asignacionId: asignacion.id, pasoId: paso.id } },
+    select: { entrega: true, valoracion: true, puntos: true, verificadoEl: true },
+  });
+  afirmar(
+    reabierta?.verificadoEl === null && reabierta?.puntos === null && reabierta?.valoracion === null,
+    "reabrir borra la nota, los puntos y la marca de verificado",
+  );
+  afirmar(reabierta?.entrega === "Lo que escribió.", "reabrir NO borra lo que entregó el alumno");
+  afirmar(
+    (await puedeEntregar(asignacion.id, paso.id, "Otro más.")) === null,
+    "tras reabrir, el alumno vuelve a poder entregar",
   );
 
   // ─── La cita del oral ───────────────────────────────────────────────
