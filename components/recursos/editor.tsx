@@ -352,8 +352,10 @@ export default function Editor({
           {/*
             No es una lista de negaciones (una por marca) porque eso se
             desincroniza en cuanto se añade un tipo nuevo: se comprueba
-            contra `VACIO`, la misma fuente que ya usa `nuevo/page.tsx` para
-            decidir qué tipos ofrecer. Con los cuatro tipos actuales nunca
+            contra `VACIO`. Este es el único sitio donde esa comprobación
+            vale, porque aquí estamos en el cliente y `VACIO` es el objeto
+            de verdad; `nuevo/page.tsx` es de servidor y desde allí solo se
+            ve una referencia al módulo. Con los cinco tipos actuales nunca
             se pinta; queda listo para cuando `MarcaEjercicio` crezca antes
             de que su editor exista.
           */}

@@ -1,27 +1,29 @@
 import { getUsuarioActual } from "@/lib/usuario";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import Editor, { VACIO, type MarcaRecurso } from "@/components/recursos/editor";
+import Editor, { type MarcaRecurso } from "@/components/recursos/editor";
 import { sobrantesDe, tareaDe, type TareaDele } from "@/lib/dele";
 import type { Destreza, Nivel } from "@/lib/generated/prisma/enums";
 
 /**
- * Los tipos que se ofrecen. Se filtra por `VACIO`, que es quien sabe cuáles
- * tienen editor: así esta lista puede estar completa desde el principio sin
- * ofrecer una puerta que no lleva a ninguna parte.
+ * Los tipos que se ofrecen, escritos a mano.
+ *
+ * Antes se filtraban contra `VACIO` para no ofrecer una puerta sin editor
+ * detrás, y eso dejaba la página en blanco: `VACIO` vive en `editor.tsx`,
+ * que es un componente de cliente, y esta página es de servidor. Al otro
+ * lado de esa frontera un import de valor no trae el objeto, trae una
+ * referencia al módulo del cliente: `Object.keys` devuelve `[]` y cualquier
+ * propiedad sale `undefined`, así que el filtro descartaba los cinco tipos
+ * sin que nada fallara ni se quejara. La puerta sin editor la sigue tapando
+ * el propio `Editor`, que comprueba `VACIO` ahí donde sí es de verdad.
  */
-const TODOS_LOS_TIPOS: { marca: MarcaRecurso; nombre: string; explica: string }[] = [
+const TIPOS: { marca: MarcaRecurso; nombre: string; explica: string }[] = [
   { marca: "opcion", nombre: "Opción", explica: "Preguntas con opciones. Una correcta, o varias." },
   { marca: "huecos", nombre: "Huecos", explica: "Un texto con palabras que faltan y hay que escribir." },
   { marca: "relacionar", nombre: "Relacionar", explica: "Dos columnas que se emparejan arrastrando." },
   { marca: "ordenar", nombre: "Ordenar", explica: "Piezas desordenadas que hay que poner en su sitio." },
   { marca: "expresion", nombre: "Expresión", explica: "Una redacción o una tarea oral, que corriges tú con una rúbrica." },
 ];
-
-// Aparte de `TODOS_LOS_TIPOS` para que la anotación de tipo se aplique al
-// literal del array: encadenado con `.filter` en la misma expresión, TS
-// infería `marca` como `string` y no como `MarcaRecurso`.
-const TIPOS = TODOS_LOS_TIPOS.filter((t) => VACIO[t.marca] !== undefined);
 
 /** El nombre del nivel tal y como se escribe en pantalla. */
 function nombreNivel(nivel: string): string {
