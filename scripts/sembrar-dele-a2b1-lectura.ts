@@ -283,11 +283,18 @@ Junto con Luciano Pavarotti y José Carreras, actuó en numerosas ocasiones en m
       consigna: "Lee el texto y rellena los huecos con la opción correcta.",
       multiple: false,
       presentacion: "desplegable",
-      texto: `Nunca {{19}} sabe dónde puede estar el próximo Juan Antonio Bayona. O el próximo Norman Foster, o David Delfín o Banksy… Si te gusta escribir, si tu {{20}} libre lo dedicas a diseñar, a componer canciones o cualquier forma de creación artística, este puede ser tu momento. No importa de dónde eres: {{21}} interesa descubrir tu talento y compartir tus creaciones. Porque muchas veces, las formas de creatividad están escondidas y es lo que buscamos {{22}} en nuestro concurso «Se busca talento».
+      // El texto ya no se pinta como Markdown, sino como texto plano: el
+      // titular y la atribución van como sus propios párrafos, sin `##` ni
+      // cursiva, y se leen como lo que son por estar solos en su línea.
+      texto: `Buscamos nuevos talentos
+
+Nunca {{19}} sabe dónde puede estar el próximo Juan Antonio Bayona. O el próximo Norman Foster, o David Delfín o Banksy… Si te gusta escribir, si tu {{20}} libre lo dedicas a diseñar, a componer canciones o cualquier forma de creación artística, este puede ser tu momento. No importa de dónde eres: {{21}} interesa descubrir tu talento y compartir tus creaciones. Porque muchas veces, las formas de creatividad están escondidas y es lo que buscamos {{22}} en nuestro concurso «Se busca talento».
 
 Queremos conocer a esos creadores, de cualquier disciplina, que tienen algo nuevo que {{23}} al mundo. Puede {{24}} un poema, una película corta, una canción, una fotografía… Cualquier muestra, de cualquier arte, será bienvenida. Buscamos creadores de literatura, cine, vídeos, música, arquitectura, pintura, moda, ilustración.
 
-Esta es la segunda edición de un concurso que empezó {{25}} doce meses. Ahora tú también puedes ser uno de ellos. Solo tienes que enviarnos una breve biografía tuya y tu muestra de talento por correo electrónico (talentos@lavida.es). Nosotros la valoraremos y, durante el verano, escogeremos las más interesantes, que tendrán su reflejo en la edición digital de EL PAÍS. Porque, quién sabe, quizá tu talento es uno de los que estamos buscando.`,
+Esta es la segunda edición de un concurso que empezó {{25}} doce meses. Ahora tú también puedes ser uno de ellos. Solo tienes que enviarnos una breve biografía tuya y tu muestra de talento por correo electrónico (talentos@lavida.es). Nosotros la valoraremos y, durante el verano, escogeremos las más interesantes, que tendrán su reflejo en la edición digital de EL PAÍS. Porque, quién sabe, quizá tu talento es uno de los que estamos buscando.
+
+(Adaptado de cultura.elpais.com)`,
       preguntas: [
         { id: "19", enunciado: "19.", opciones: ["me", "se", "le"], correctas: [1] },
         { id: "20", enunciado: "20.", opciones: ["momento", "tiempo", "ocio"], correctas: [1] },
