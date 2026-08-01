@@ -305,19 +305,23 @@ export default async function PasoPage({
   const expresion = analizado ? null : vinculo ? analizarExpresion(vinculo.ejercicio.datos) : null;
   const corregida = Boolean(registro?.verificadoEl);
 
-  // En una escrita, entregar es lo que marca el paso: el par
-  // «marcar / Hecho ✓» sobra, y peor que sobrar, porque «Hecho ✓» desmarca y
-  // desmarcar borraba la redacción. En las orales se queda: ahí marcar sigue
-  // siendo la única señal que da el alumno.
-  const escrita = expresion?.modalidad === "escrita";
-  const marcable = puedeMarcar && !escrita;
+  // Entregar es lo que marca el paso, así que el par «marcar / Hecho ✓» sobra
+  // —y peor que sobrar: «Hecho ✓» desmarca, y desmarcar borraba la entrega—.
+  // Vale para la escrita y para la oral grabada. La oral de clase se queda:
+  // ahí marcar sigue siendo la única señal que da el alumno.
+  const entregable =
+    expresion?.modalidad === "escrita" || (expresion?.modalidad === "oral" && expresion.grabada);
+  const marcable = puedeMarcar && !entregable;
 
   // Si el oral ya está citado, cuándo. El diseño se lo promete al alumno y
   // hasta ahora la cita solo se veía en dos pantallas de profesor: llegaba a
   // clase sin saber que ese día se examinaba. Una clase anulada no cuenta:
   // decir una fecha que no va a pasar es peor que no decir nada.
+  //
+  // Una grabada no se cita nunca —no se hace en clase—, así que ni se pregunta:
+  // `puedeCitarse` ya lo prohíbe, pero esta consulta sobraría igual.
   const cita =
-    asignacion && expresion?.modalidad === "oral"
+    asignacion && expresion?.modalidad === "oral" && !expresion.grabada
       ? await prisma.citaOral.findFirst({
           where: {
             asignacionId: asignacion.id,
@@ -590,7 +594,8 @@ export default async function PasoPage({
         asignación: el estado es un hecho pasado, no una acción. Los dos
         botones ("Marcar como hecho" y "Hecho ✓") van detrás de `marcable`:
         asignación viva —solo así se puede tocar el paso— y que el paso no
-        sea una expresión escrita, que se marca sola al entregar.
+        sea de los que se entregan (la escrita y la oral grabada), que se
+        marcan solos al entregar.
       */}
       {(registro || marcable) && (
         <div className="mt-10 flex flex-col items-center gap-3">

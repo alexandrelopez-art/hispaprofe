@@ -8,6 +8,7 @@ import { entregar, type EstadoExpresion } from "@/lib/acciones-expresion";
 // convierte algún día en un import de valor, se lleva media base de datos
 // al bundle. Que se quede en `import type`.
 import type { ExpresionPublica } from "@/lib/expresion";
+import Grabadora from "./grabadora";
 
 /** Palabras de verdad: separadas por espacios, sin contar los de sobra. */
 function contarPalabras(texto: string): number {
@@ -75,7 +76,7 @@ export default function Entrega({
         </audio>
       )}
 
-      {publica.modalidad === "oral" ? (
+      {publica.modalidad === "oral" && !publica.grabada ? (
         <div className="mt-6 rounded-tarjeta bg-sol-100 px-4 py-3 text-sm text-tinta">
           <p>
             Esta tarea se hace en clase, con tu profesor. Aquí tienes el
@@ -88,6 +89,15 @@ export default function Entrega({
             </p>
           )}
         </div>
+      ) : publica.modalidad === "oral" ? (
+        // La oral grabada: se entrega dentro de la aplicación, así que no hay
+        // ni cita ni línea de «esto se hace en clase».
+        <Grabadora
+          pasoId={pasoId}
+          minutos={publica.minutos ?? 0}
+          entrega={entrega}
+          cerrada={cerrada}
+        />
       ) : (
         <form action={enviar} className="mt-6">
           <input type="hidden" name="pasoId" value={pasoId} />

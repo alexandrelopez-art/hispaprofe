@@ -1,0 +1,470 @@
+"use client";
+
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useRouter } from "next/navigation";
+
+/**
+ * El tope duro de la grabadora, en minutos.
+ *
+ * Es el mismo número que `MINUTOS_MAXIMOS_GRABACION` en `lib/expresion.ts`,
+ * copiado aquí a mano y no importado: ese módulo importa `prisma`, y esto es
+ * un componente de cliente, así que un import de valor se llevaría media base
+ * de datos al navegador. Son dos copias del mismo tope y tienen que moverse
+ * juntas: si allí sube a veinte, aquí también.
+ */
+const MINUTOS_MAXIMOS = 15;
+
+/** Los mismos minutos, en segundos, que es en lo que cuenta el reloj. */
+const SEGUNDOS_MAXIMOS = MINUTOS_MAXIMOS * 60;
+
+/** Las entregas grabadas son siempre una dirección de `/api/archivos`. */
+const PREFIJO_ARCHIVO = "/api/archivos/";
+
+/**
+ * La extensión que le toca a cada contenedor. Solo sirve para ponerle nombre
+ * al Blob: sin nombre, `FormData` no lo manda como archivo y la puerta
+ * contesta «No llegó ninguna grabación». El servidor lo renombra al guardarlo,
+ * así que aquí basta con que sea coherente.
+ */
+const EXTENSIONES: Record<string, string> = {
+  "audio/webm": "webm",
+  "audio/ogg": "ogg",
+  "audio/mp4": "m4a",
+  "audio/mpeg": "mp3",
+  "audio/wav": "wav",
+};
+
+function nombreDeGrabacion(tipo: string): string {
+  const base = tipo.split(";")[0].trim().toLowerCase();
+  return `grabacion.${EXTENSIONES[base] ?? "webm"}`;
+}
+
+/**
+ * Si este navegador sabe grabar.
+ *
+ * Se lee con `useSyncExternalStore` y no en un efecto porque es un dato que en
+ * el servidor no existe: la primera pintada tiene que coincidir con la del
+ * navegador o la hidratación se queja. En el servidor damos por buena la
+ * grabadora —el botón «Grabar»— y al hidratar, si resulta que no la hay, la
+ * pantalla cambia al rodeo.
+ */
+function haySoporte(): boolean {
+  return typeof MediaRecorder !== "undefined" && Boolean(navigator.mediaDevices);
+}
+
+/** Nada a lo que suscribirse: el soporte del navegador no cambia en marcha. */
+function sinSuscripcion(): () => void {
+  return () => {};
+}
+
+/** El reloj que ve el alumno: `m:ss`. */
+function reloj(segundos: number): string {
+  const m = Math.floor(segundos / 60);
+  const s = segundos % 60;
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
+
+/**
+ * Lo que el alumno tiene grabado y todavía no ha entregado. Los tres van
+ * juntos porque se crean y se tiran juntos: el `url` es un `createObjectURL`
+ * del `blob` y hay que revocarlo antes de soltarlo.
+ */
+type Pendiente = { blob: Blob; nombre: string; url: string };
+
+type Estado = "inicio" | "grabando" | "grabado" | "enviando";
+
+/**
+ * El alumno graba su tarea oral, se escucha, repite si quiere y la entrega.
+ *
+ * Todo lo que decide de verdad —quién puede, hasta cuándo, y qué se guarda—
+ * vive en el servidor: aquí solo se produce el audio y se manda a
+ * `/api/entregas/audio`. Lo que esta pantalla enseñe o esconda no autoriza
+ * nada.
+ */
+export default function Grabadora({
+  pasoId,
+  minutos,
+  entrega,
+  cerrada,
+}: {
+  pasoId: string;
+  /** Los minutos que pide la tarea. Avisan, no cortan: 0 si no se dijeron. */
+  minutos: number;
+  /** La dirección de lo ya entregado, si ya entregó. */
+  entrega: string | null;
+  /** No se puede tocar: ya está corregida, o la asignación está archivada. */
+  cerrada: boolean;
+}) {
+  const router = useRouter();
+
+  const [estado, setEstado] = useState<Estado>("inicio");
+  const [segundos, setSegundos] = useState(0);
+  const [pendiente, setPendiente] = useState<Pendiente | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [aviso, setAviso] = useState<string | null>(null);
+  /**
+   * Se ha pedido «Volver a grabar» sobre una entrega que ya existe: hasta que
+   * entre la nueva, hay que enseñar la grabadora y no el reproductor de la
+   * vieja.
+   */
+  const [regrabando, setRegrabando] = useState(false);
+  /**
+   * El micrófono no se ha dejado usar: permiso denegado, o ninguno conectado.
+   * Es la otra mitad del rodeo, y una vez encendida se queda: el permiso
+   * denegado no se vuelve a pedir en la misma visita.
+   */
+  const [sinMicrofono, setSinMicrofono] = useState(false);
+  /**
+   * El rodeo: `<input type="file">`, la única puerta de repuesto de quien no
+   * puede grabar aquí dentro.
+   */
+  const rodeo = !useSyncExternalStore(sinSuscripcion, haySoporte, () => true) || sinMicrofono;
+
+  const grabadoraRef = useRef<MediaRecorder | null>(null);
+  const pistaRef = useRef<MediaStream | null>(null);
+  /** Cuándo se empezó a grabar, para que el reloj no dependa del intervalo. */
+  const inicioRef = useRef(0);
+  // El `url` del pendiente, aparte, para poder revocarlo al desmontar sin
+  // colgar el efecto de limpieza de un estado que cambia.
+  const urlRef = useRef<string | null>(null);
+
+  /**
+   * Suelta el micrófono. Sin esto el punto rojo del navegador se queda
+   * encendido y el aparato ocupado aunque la grabación haya terminado.
+   */
+  const soltarPista = useCallback(() => {
+    pistaRef.current?.getTracks().forEach((t) => t.stop());
+    pistaRef.current = null;
+  }, []);
+
+  const detener = useCallback(() => {
+    // La pista se suelta dentro de `onstop`, cuando ya está armado el Blob:
+    // cortarle el sonido a un `MediaRecorder` que todavía no ha terminado de
+    // volcar es la forma de perder el último trozo.
+    if (grabadoraRef.current?.state === "recording") grabadoraRef.current.stop();
+    else soltarPista();
+  }, [soltarPista]);
+
+  // Al desmontar: el micrófono se suelta y el objeto se revoca. Si no, cambiar
+  // de paso a media grabación deja el micrófono abierto.
+  useEffect(() => {
+    return () => {
+      if (grabadoraRef.current?.state === "recording") grabadoraRef.current.stop();
+      pistaRef.current?.getTracks().forEach((t) => t.stop());
+      if (urlRef.current) URL.revokeObjectURL(urlRef.current);
+    };
+  }, []);
+
+  // El reloj, y con él el corte duro. Se limpia en el `return`: sin eso queda
+  // un intervalo por cada grabación empezada.
+  //
+  // Los segundos se calculan restando la hora de inicio y no sumando uno por
+  // tic: un navegador en segundo plano frena los intervalos, y un reloj que
+  // suma tics diría que van cinco minutos cuando van doce —y el corte duro
+  // llegaría tardísimo—.
+  useEffect(() => {
+    if (estado !== "grabando") return;
+    const id = setInterval(() => {
+      const van = Math.floor((Date.now() - inicioRef.current) / 1000);
+      setSegundos(van);
+      // Los minutos de la tarea solo avisan; esto es lo que impide una
+      // grabación de dos horas. Y se dice: una grabadora que se para sola sin
+      // explicarlo parece rota.
+      if (van >= SEGUNDOS_MAXIMOS) {
+        setAviso(`Se ha parado sola: el máximo son ${MINUTOS_MAXIMOS} minutos.`);
+        detener();
+      }
+    }, 1000);
+    return () => clearInterval(id);
+  }, [estado, detener]);
+
+  function guardarPendiente(blob: Blob, nombre: string) {
+    if (urlRef.current) URL.revokeObjectURL(urlRef.current);
+    const url = URL.createObjectURL(blob);
+    urlRef.current = url;
+    setPendiente({ blob, nombre, url });
+    setEstado("grabado");
+  }
+
+  async function empezar() {
+    setError(null);
+    setAviso(null);
+
+    let pista: MediaStream;
+    try {
+      pista = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch {
+      // Permiso denegado o sin micrófono. No hay segundo intento que valga la
+      // pena: se le ofrece el rodeo, que es lo que sí puede hacer.
+      setSinMicrofono(true);
+      setError(
+        "No hemos podido usar tu micrófono. Puedes grabarte con otra aplicación y subir el archivo aquí.",
+      );
+      return;
+    }
+
+    let grabadora: MediaRecorder;
+    try {
+      grabadora = new MediaRecorder(pista);
+    } catch {
+      pista.getTracks().forEach((t) => t.stop());
+      setSinMicrofono(true);
+      setError(
+        "Este navegador no sabe grabar. Puedes grabarte con otra aplicación y subir el archivo aquí.",
+      );
+      return;
+    }
+
+    const trozos: Blob[] = [];
+    grabadora.ondataavailable = (e) => {
+      if (e.data.size > 0) trozos.push(e.data);
+    };
+    grabadora.onstop = () => {
+      soltarPista();
+      // El tipo, el que diga el navegador: `audio/webm;codecs=opus` en Chrome
+      // y `audio/ogg; codecs=opus` en Firefox pasan la puerta tal cual, que
+      // los normaliza el servidor. Inventarle uno aquí sería mentir sobre lo
+      // que hay dentro del archivo.
+      const tipo = grabadora.mimeType || trozos[0]?.type || "";
+      const blob = new Blob(trozos, { type: tipo });
+      if (blob.size === 0) {
+        // Parar antes de que llegue el primer trozo, o un micrófono mudo. Se
+        // dice aquí: mandarlo vacío solo consigue que el compresor del
+        // servidor conteste «no se pudo procesar», que no explica nada.
+        setError("No se ha grabado nada. Comprueba tu micrófono y vuelve a intentarlo.");
+        setEstado("inicio");
+        return;
+      }
+      guardarPendiente(blob, nombreDeGrabacion(tipo));
+    };
+
+    pistaRef.current = pista;
+    grabadoraRef.current = grabadora;
+    inicioRef.current = Date.now();
+    setPendiente(null);
+    setSegundos(0);
+    grabadora.start();
+    setEstado("grabando");
+  }
+
+  function repetir() {
+    if (urlRef.current) URL.revokeObjectURL(urlRef.current);
+    urlRef.current = null;
+    setPendiente(null);
+    setSegundos(0);
+    setError(null);
+    setAviso(null);
+    setEstado("inicio");
+  }
+
+  async function entregarAudio() {
+    if (!pendiente) return;
+    setEstado("enviando");
+    setError(null);
+
+    const cuerpo = new FormData();
+    cuerpo.set("pasoId", pasoId);
+    // Con nombre: sin él, `FormData` manda el Blob como un campo de texto y la
+    // puerta contesta «No llegó ninguna grabación».
+    cuerpo.set("archivo", pendiente.blob, pendiente.nombre);
+
+    let respuesta: Response;
+    try {
+      respuesta = await fetch("/api/entregas/audio", { method: "POST", body: cuerpo });
+    } catch {
+      // Lo grabado sigue en pantalla, con su reproductor y su botón: perderlo
+      // porque se cayó la red sería lo peor que puede hacer esta pantalla.
+      setError("No se pudo enviar la grabación. Comprueba tu conexión y vuelve a intentarlo.");
+      setEstado("grabado");
+      return;
+    }
+
+    // El cuerpo se lee venga con el código que venga: la puerta contesta con
+    // el mismo `{ error }` en un 400, en un 403 y en un 500. El `catch` es
+    // para cuando lo que llega no es JSON —un error del proxy, por ejemplo—.
+    const json = await respuesta.json().catch(() => null);
+    if (!respuesta.ok) {
+      setError(json?.error ?? "No se pudo entregar la grabación. Vuelve a intentarlo.");
+      setEstado("grabado");
+      return;
+    }
+
+    if (urlRef.current) URL.revokeObjectURL(urlRef.current);
+    urlRef.current = null;
+    setPendiente(null);
+    setSegundos(0);
+    setAviso(null);
+    setEstado("inicio");
+    setRegrabando(false);
+    // Para que la página vuelva del servidor con la entrega ya guardada: es de
+    // ahí de donde sale el reproductor de arriba, y el estado del paso.
+    router.refresh();
+  }
+
+  function elegirArchivo(archivo: File) {
+    setError(null);
+    setAviso(null);
+    setSegundos(0);
+    // Se queda a la espera con su reproductor, igual que una grabación hecha
+    // aquí: así el alumno oye lo que va a mandar antes de mandarlo, y el envío
+    // tiene un solo camino.
+    guardarPendiente(archivo, archivo.name);
+  }
+
+  const enviando = estado === "enviando";
+  // Solo se reproduce lo que es una grabación. `entrega` es la misma columna
+  // donde vive la redacción de una escrita, así que una tarea que ayer era
+  // escrita y hoy es grabada tiene ahí un texto: pintarlo como `src` de un
+  // reproductor daría un audio roto.
+  const grabacionEntregada =
+    entrega && entrega.startsWith(PREFIJO_ARCHIVO) ? entrega : null;
+  const pasado = minutos > 0 && segundos > minutos * 60;
+
+  if (cerrada) {
+    return (
+      <div className="mt-6">
+        {grabacionEntregada ? (
+          <>
+            <p className="text-sm text-tinta-suave">Esto es lo que entregaste:</p>
+            <audio controls preload="none" src={grabacionEntregada} className="mt-2 w-full max-w-sm">
+              Tu navegador no puede reproducir este audio.
+            </audio>
+          </>
+        ) : (
+          <p className="text-sm text-tinta-suave">Esta tarea ya no admite grabaciones.</p>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-6">
+      <p className="text-sm text-tinta-suave">
+        Grábate aquí mismo y entrega la grabación
+        {minutos > 0 ? `: la tarea dura unos ${minutos} minutos` : ""}.
+      </p>
+
+      {/* Con una entrega hecha, lo primero que se ve es esa grabación. La
+          grabadora solo vuelve si él la pide. */}
+      {grabacionEntregada && !regrabando ? (
+        <div className="mt-3">
+          <audio controls preload="none" src={grabacionEntregada} className="w-full max-w-sm">
+            Tu navegador no puede reproducir este audio.
+          </audio>
+          <button
+            type="button"
+            onClick={() => {
+              setError(null);
+              setAviso(null);
+              setSegundos(0);
+              setEstado("inicio");
+              setRegrabando(true);
+            }}
+            className="mt-3 h-11 rounded-full border-2 border-hp-200 px-6 text-sm font-bold text-hp-600 transition-colors hover:border-hp-400"
+          >
+            Volver a grabar
+          </button>
+        </div>
+      ) : (
+        <div className="mt-3">
+          {pendiente && (
+            <audio controls preload="none" src={pendiente.url} className="w-full max-w-sm">
+              Tu navegador no puede reproducir este audio.
+            </audio>
+          )}
+
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            {estado === "inicio" && !rodeo && (
+              <button
+                type="button"
+                onClick={empezar}
+                className="h-11 rounded-full bg-hp-400 px-6 text-sm font-extrabold text-white transition-colors hover:bg-hp-500"
+              >
+                Grabar
+              </button>
+            )}
+
+            {estado === "grabando" && (
+              <button
+                type="button"
+                onClick={detener}
+                className="h-11 rounded-full bg-hp-400 px-6 text-sm font-extrabold text-white transition-colors hover:bg-hp-500"
+              >
+                Parar
+              </button>
+            )}
+
+            {(estado === "grabado" || enviando) && pendiente && (
+              <>
+                <button
+                  type="button"
+                  disabled={enviando}
+                  onClick={entregarAudio}
+                  className="h-11 rounded-full bg-hp-400 px-6 text-sm font-extrabold text-white transition-colors hover:bg-hp-500 disabled:opacity-40"
+                >
+                  {enviando ? "Entregando…" : grabacionEntregada ? "Volver a entregar" : "Entregar"}
+                </button>
+                <button
+                  type="button"
+                  disabled={enviando}
+                  onClick={repetir}
+                  className="h-11 rounded-full border-2 border-hp-200 px-6 text-sm font-bold text-hp-600 transition-colors hover:border-hp-400 disabled:opacity-40"
+                >
+                  Repetir
+                </button>
+              </>
+            )}
+
+            {(estado === "grabando" || segundos > 0) && (
+              <span className={`text-sm ${pasado ? "font-bold text-tinta" : "text-tinta-suave"}`}>
+                {minutos > 0 ? `${reloj(segundos)} de ${reloj(minutos * 60)}` : reloj(segundos)}
+              </span>
+            )}
+          </div>
+
+          {/*
+            El rodeo. Se pinta cuando no hay `MediaRecorder` o el micrófono no
+            se deja usar: sin él, ese alumno no tiene ninguna forma de entregar.
+          */}
+          {rodeo && estado !== "grabando" && (
+            <div className="mt-3">
+              <label className="text-sm text-tinta-suave">
+                Sube tu grabación:{" "}
+                <input
+                  type="file"
+                  accept="audio/*"
+                  disabled={enviando}
+                  onChange={(e) => {
+                    const archivo = e.target.files?.[0];
+                    if (archivo) elegirArchivo(archivo);
+                    e.target.value = "";
+                  }}
+                  className="mt-2 block text-sm text-tinta"
+                />
+              </label>
+            </div>
+          )}
+
+          {/*
+            El aviso de los minutos no bloquea, igual que el contador de
+            palabras de la escrita: pasarse es un error del alumno que el
+            profesor puntúa, no algo que la aplicación deba impedirle.
+          */}
+          {pasado && (
+            <p className="mt-2 text-sm text-tinta-suave">
+              Te has pasado del tiempo que pide la tarea. Puedes entregarlo
+              igual, pero cuenta para la nota.
+            </p>
+          )}
+        </div>
+      )}
+
+      {aviso && (
+        <p className="mt-3 rounded-tarjeta bg-sol-100 px-4 py-3 text-sm text-tinta">{aviso}</p>
+      )}
+      {error && (
+        <p className="mt-3 rounded-tarjeta bg-sol-100 px-4 py-3 text-sm text-tinta">{error}</p>
+      )}
+    </div>
+  );
+}
