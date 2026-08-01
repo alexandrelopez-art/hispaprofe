@@ -12,6 +12,8 @@ import type { MarcaEjercicio } from "@/lib/ejercicios/tipos";
 import { Prisma } from "@/lib/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { pasoLibre } from "@/lib/recursos";
+import { PRUEBAS, sobrantesDe } from "@/lib/dele";
+import { componerEncargo, encargosPara } from "@/lib/pegado/encargo";
 
 function afirmar(condicion: boolean, mensaje: string) {
   if (!condicion) throw new Error(`FALLO: ${mensaje}`);
@@ -243,6 +245,79 @@ async function main() {
       `el ejemplo de ${motor} enseña también cómo se manda el bloque`,
     );
   }
+
+  // ─── El encargo, tarea por tarea ─────────────────────────────────────
+  let tareasVistas = 0;
+  for (const prueba of PRUEBAS) {
+    for (const tarea of prueba.tareas) {
+      const cual = `${prueba.nivel} · ${prueba.prueba} · T${tarea.numero}`;
+      const encargo = componerEncargo(`${prueba.nivel} · Tarea ${tarea.numero}`, tarea.motor, tarea);
+      tareasVistas++;
+
+      afirmar(encargo.motor === tarea.motor, `${cual}: el encargo usa el motor del mapa`);
+      afirmar(
+        encargo.texto.includes(`"${tarea.motor}"`),
+        `${cual}: el encargo nombra el motor dentro del JSON que pide`,
+      );
+      afirmar(
+        encargo.texto.includes(String(tarea.items)),
+        `${cual}: el encargo dice cuántos ítems lleva`,
+      );
+      afirmar(encargo.texto.includes(tarea.pide), `${cual}: el encargo dice qué se pide`);
+
+      // Los sobrantes solo existen en `relacionar`. En `opcion`, `opciones`
+      // son las de cada ítem y restarle los ítems no significa nada, así que
+      // el encargo no puede contarlos.
+      //
+      // Se busca la frase exacta de la cuenta —«**3 sobrantes.**»— y no la
+      // palabra suelta: la palabra sale también en la lista de campos y en el
+      // ejemplo resuelto de `relacionar`, así que buscarla a secas daría por
+      // buena una cuenta que no está.
+      const sobran = sobrantesDe(tarea);
+      afirmar(
+        encargo.texto.includes("sobrantes.**") === sobran > 0,
+        `${cual}: el encargo cuenta los sobrantes exactamente cuando los hay`,
+      );
+      if (sobran > 0) {
+        afirmar(
+          encargo.texto.includes(`**${sobran} sobrantes.**`),
+          `${cual}: el encargo dice que sobran ${sobran}`,
+        );
+      }
+
+      afirmar(
+        !tarea.verificado || !encargo.texto.includes("sin confirmar"),
+        `${cual}: una tarea verificada no lleva el aviso de dato sin confirmar`,
+      );
+      if (!tarea.verificado) {
+        afirmar(
+          encargo.texto.includes("sin confirmar"),
+          `${cual}: una tarea deducida avisa de que su dato está sin confirmar`,
+        );
+      }
+
+      afirmar(
+        encargo.texto.includes("no lleva audio"),
+        `${cual}: el encargo dice que el audio no va dentro`,
+      );
+    }
+  }
+  afirmar(tareasVistas === 52, `el mapa tiene 52 tareas y se han recorrido las ${tareasVistas}`);
+
+  // ─── El encargo de un paso libre ─────────────────────────────────────
+  const libres = encargosPara("Calentamiento", null);
+  afirmar(libres.length === 4, "un paso que no es tarea del examen ofrece los cuatro motores");
+  // Otra vez la frase exacta y no la palabra suelta: el encargo de
+  // `relacionar` nombra el campo `sobrantes` al describir su esquema aunque
+  // no haya tarea del mapa —esa parte no cambia—, así que buscar la palabra
+  // a secas daría por malo un encargo que no cuenta nada.
+  afirmar(
+    libres.every((e) => !e.texto.includes("sobrantes.**")),
+    "sin mapa no se habla de cuántas sobran: ese número solo lo sabe el mapa",
+  );
+
+  const deTarea = encargosPara("Tarea 1", PRUEBAS[0].tareas[0]);
+  afirmar(deTarea.length === 1, "una tarea del examen ofrece un solo encargo, el suyo");
 
   // ─── Las negativas del paso ──────────────────────────────────────────
   const recorrido = await prisma.recorrido.create({
