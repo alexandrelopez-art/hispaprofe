@@ -14,6 +14,8 @@ import Reproductor from "@/components/ejercicios/reproductor";
 import { esRacionado, escuchasDelPaso } from "@/lib/escuchas";
 import { numeroDeTarea, tareaDe } from "@/lib/dele";
 import { TIPO_DE_EJERCICIO } from "@/lib/recursos";
+import { analizarExpresion, versionPublicaExpresion } from "@/lib/expresion";
+import Entrega from "@/components/expresion/entrega";
 
 // Fuerza render dinámico: lee de la base en cada visita.
 export const dynamic = "force-dynamic";
@@ -271,7 +273,14 @@ export default async function PasoPage({
             pasoId: paso.id,
           },
         },
-        select: { completadoEl: true, verificadoEl: true, puntos: true, respuestas: true },
+        select: {
+          completadoEl: true,
+          verificadoEl: true,
+          puntos: true,
+          respuestas: true,
+          entrega: true,
+          valoracion: true,
+        },
       })
     : null;
 
@@ -290,6 +299,11 @@ export default async function PasoPage({
   });
   const analizado = vinculo ? analizar(vinculo.ejercicio.datos) : null;
   const hayEjercicio = analizado !== null;
+
+  // La expresión es hermana del motor: si `analizar` no lo reconoce, puede
+  // ser una tarea de expresión.
+  const expresion = analizado ? null : vinculo ? analizarExpresion(vinculo.ejercicio.datos) : null;
+  const corregida = Boolean(registro?.verificadoEl);
 
   // Qué tarea del examen es este paso. La regla vive en `lib/dele` porque la
   // comparte con el panel de tareas sugeridas, que necesita contar como
@@ -506,6 +520,26 @@ export default async function PasoPage({
           // que cuenta solo serviría para enseñar "Sin escuchas" sobre un
           // audio que nunca ha sonado. Ver `PropsEjercicio.puedeContar`.
           puedeContar={puedeMarcar}
+        />
+      )}
+
+      {/*
+        La tarea de expresión: hermana del ejercicio autocorregible de
+        arriba, pero sin corrección automática. `versionPublicaExpresion` es
+        lo que impide que el texto modelo viaje al navegador antes de que el
+        profesor corrija — no basta con esconderlo en el JSX, porque lo que
+        el servidor manda se lee entero en el código fuente de la página.
+      */}
+      {expresion && asignacion && (
+        <Entrega
+          pasoId={paso.id}
+          publica={versionPublicaExpresion(expresion, corregida)}
+          entrega={registro?.entrega ?? null}
+          valoracion={
+            (registro?.valoracion as { notas: Record<string, number>; comentario: string } | null) ??
+            null
+          }
+          cerrada={corregida}
         />
       )}
 
