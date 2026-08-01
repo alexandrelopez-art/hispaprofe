@@ -161,12 +161,20 @@ function Desplegable({
   alElegir,
   cerrado,
   className,
+  etiqueta,
 }: {
   pregunta: OpcionPublica["preguntas"][number];
   valor: string;
   alElegir: (v: string) => void;
   cerrado: boolean;
   className: string;
+  /**
+   * `aria-label` del desplegable. Por defecto, el enunciado de la pregunta
+   * —que en la lista de siempre ya dice algo ("¿Dónde vive?")—, pero el
+   * cloze lo llama con "Hueco {id}": ahí el enunciado es solo el número
+   * ("19."), y un lector de pantalla lo anunciaría sin ningún contexto.
+   */
+  etiqueta?: string;
 }) {
   return (
     <select
@@ -179,7 +187,7 @@ function Desplegable({
       onKeyDown={(e) => {
         if (e.key === "Enter") e.preventDefault();
       }}
-      aria-label={pregunta.enunciado}
+      aria-label={etiqueta ?? pregunta.enunciado}
       className={className}
     >
       <option value="">?</option>
@@ -217,9 +225,14 @@ function CaraCloze({
 
   return (
     <div>
-      {/* Interlineado holgado: los desplegables son más altos que la línea. */}
-      <p className="text-lg leading-loose text-tinta">
-        {trozos(datos.texto ?? "").map((parte, i) => {
+      {/* Interlineado holgado: los desplegables son más altos que la línea.
+          `whitespace-pre-wrap`: el pasaje sembrado trae `\n\n` entre
+          párrafos y sin esto el navegador los colapsa, dejando todo el
+          texto corrido en una sola línea (como en `relacionar.tsx`). */}
+      <p className="whitespace-pre-wrap text-lg leading-loose text-tinta">
+        {/* `datos.texto` ya se comprobó en `CaraOpcion` (`if (datos.texto)`)
+            antes de llamar a este componente: no puede faltar aquí. */}
+        {trozos(datos.texto!).map((parte, i) => {
           if (parte.tipo === "texto") return <span key={i}>{parte.valor}</span>;
 
           const pregunta = porId.get(parte.valor);
@@ -242,6 +255,7 @@ function CaraCloze({
                 alElegir={(v) => alCambiar({ ...valor, [pregunta.id]: v })}
                 cerrado={cerrado}
                 className={`mx-1 inline-block h-9 rounded-lg border-2 bg-white px-2 align-middle text-base text-tinta outline-none disabled:opacity-100 ${borde}`}
+                etiqueta={`Hueco ${pregunta.id}`}
               />
               {item && !item.acertado && (
                 <strong className="mx-1 font-extrabold text-tinta">{item.correcta}</strong>
