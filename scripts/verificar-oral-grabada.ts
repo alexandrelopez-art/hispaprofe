@@ -26,6 +26,7 @@ import {
   puedeEntregarAudio,
   puedeOirse,
   puedeValorarse,
+  seOyeLaEntrega,
 } from "@/lib/expresion";
 import { Prisma } from "@/lib/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
@@ -495,6 +496,26 @@ async function main() {
     !esGrabacionEntregada("https://otrositio.example/api/archivos/x"),
     "ni una dirección de fuera que acabe pareciéndose",
   );
+
+  // Y la pantalla de corrección pregunta por las dos cosas. La segunda mitad
+  // es la que impide que un alumno con una tarea escrita escriba
+  // «/api/archivos/…» en el recuadro y consiga un reproductor rotulado «Lo que
+  // grabó» —con el id del compañero, la voz del compañero— mientras su
+  // redacción no se enseña en ninguna parte.
+  const direccion = `${PREFIJO_GRABACION}${guardadaId}`;
+  afirmar(
+    seOyeLaEntrega(datosGrabada, direccion),
+    "una grabada con una grabación entregada suena",
+  );
+  afirmar(
+    !seOyeLaEntrega(analizarExpresion(ESCRITA)!, direccion),
+    "una escrita con una dirección por redacción NO suena: se lee como el texto que es",
+  );
+  afirmar(
+    !seOyeLaEntrega(datosGrabada, "Ayer fui al mercado y compré fruta."),
+    "y una grabada con un texto entregado tampoco: se enseña la redacción",
+  );
+  afirmar(!seOyeLaEntrega(datosGrabada, null), "sin entrega no suena nada");
 
   // ─── Suprimir una ficha se lleva la voz ─────────────────────────────
   // Una madre pide que se borren los datos de su hija. Desfirmar el archivo

@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { getUsuarioActual } from "@/lib/usuario";
-import { analizarExpresion, esGrabacionEntregada } from "@/lib/expresion";
+import { analizarExpresion, seOyeLaEntrega } from "@/lib/expresion";
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import Rubrica from "@/components/expresion/rubrica";
@@ -60,6 +60,10 @@ export default async function CorregirPage({
   const nombre =
     [alumno.firstName, alumno.lastName].filter(Boolean).join(" ") || alumno.email;
 
+  // Reproductor o texto. La regla vive en `lib/` con su porqué, y ahí la
+  // ejercita el script: aquí no se decide nada.
+  const suena = seOyeLaEntrega(datos, registro.entrega);
+
   return (
     <div className="mx-auto max-w-3xl px-6 py-12">
       <Link href="/profe/entregas" className="text-sm font-semibold text-tinta-suave hover:text-hp-500">
@@ -71,21 +75,17 @@ export default async function CorregirPage({
       <p className="mt-6 rounded-tarjeta bg-fondo p-4 text-sm text-tinta">{datos.consigna}</p>
 
       {/*
-        Quién manda aquí es lo entregado y no la modalidad de la tarea: Pablo
-        puede pasar a grabada una escrita que ya tiene la redacción de alguien
-        en `entrega`, y entonces preguntarle a la tarea daría un reproductor con
-        un texto por `src` y una redacción que no se enseña en ninguna pantalla.
-        El audio es privado y la ruta que lo sirve mira la sesión, así que el
-        `src` viaja con la cookie del profesor y no hace falta nada más aquí.
-        `preload="none"` para no bajar los megas de todas las entregas al abrir
-        la pantalla.
+        Qué se pinta lo decide `suena`, arriba. El audio es privado y la ruta
+        que lo sirve mira la sesión, así que el `src` viaja con la cookie del
+        profesor y no hace falta nada más aquí. `preload="none"` para no bajar
+        los megas de todas las entregas al abrir la pantalla.
       */}
       {registro.entrega && (
         <section className="mt-6 rounded-tarjeta border border-hp-100 bg-white p-6 shadow-suave">
           <p className="text-xs font-bold uppercase tracking-wider text-tinta-suave">
-            {esGrabacionEntregada(registro.entrega) ? "Lo que grabó" : "Lo que escribió"}
+            {suena ? "Lo que grabó" : "Lo que escribió"}
           </p>
-          {esGrabacionEntregada(registro.entrega) ? (
+          {suena ? (
             <audio controls preload="none" src={registro.entrega} className="mt-3 w-full max-w-md">
               Tu navegador no puede reproducir este audio.
             </audio>

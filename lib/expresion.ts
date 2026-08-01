@@ -136,6 +136,28 @@ export function esGrabacionEntregada(entrega: string | null): boolean {
 }
 
 /**
+ * Si a esta entrega hay que ponerle un reproductor, o leerla como texto.
+ *
+ * Hacen falta las dos mitades y por motivos distintos, así que la regla vive
+ * aquí entera y no repartida por las pantallas:
+ *
+ * - Que **lo entregado** sea una grabación, porque una escrita que pasó a
+ *   grabada tiene la redacción de alguien en `entrega` y esa redacción hay que
+ *   enseñarla.
+ * - Que **la tarea** sea grabada, porque `entrega` es texto libre del alumno:
+ *   en una escrita, quien escriba «/api/archivos/loquesea» conseguía un
+ *   reproductor muerto rotulado «Lo que grabó» y su redacción sin ver; y con
+ *   el id de la grabación de un compañero, que su profesor oyera la voz del
+ *   compañero con el nombre de él encima.
+ *
+ * El permiso no depende de esto —de eso se ocupa `puedeOirse`—: lo que se
+ * arregla aquí es el rótulo, que es lo que estaba mintiendo.
+ */
+export function seOyeLaEntrega(datos: Expresion, entrega: string | null): boolean {
+  return esGrabada(datos) && esGrabacionEntregada(entrega);
+}
+
+/**
  * Lo que aceptamos recibir de un alumno, antes de comprimir. Cincuenta megas
  * dejan pasar un archivo del móvil sin abrir la puerta a una película.
  */
