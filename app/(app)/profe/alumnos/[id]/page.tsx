@@ -78,6 +78,12 @@ export default async function AlumnoPage({
             puntos: true,
             verificadoEl: true,
             completadoEl: true,
+            // Solo para saber si hay algo que corregir: una escrita sin
+            // entrega no se puede puntuar con la rúbrica, así que en esa fila
+            // va el campo de puntos a mano. El texto no sale de aquí —esto es
+            // un componente de servidor y no se lo pasa a ninguno de cliente—;
+            // se lee entero en `/profe/entregas/[id]`.
+            entrega: true,
           },
         },
       },
@@ -254,12 +260,25 @@ export default async function AlumnoPage({
                       const expresion = paso.ejercicios[0]
                         ? analizarExpresion(paso.ejercicios[0].ejercicio.datos)
                         : null;
+                      const oral = expresion?.modalidad === "oral";
+                      /*
+                        Qué control lleva la fila, y solo uno:
+
+                        - la rúbrica cuando hay algo que puntuar con ella: un
+                          oral siempre, y una escrita solo si el alumno entregó
+                          —`valorar` rechaza a propósito una escrita sin texto,
+                          así que el enlace llevaría a un callejón sin salida—;
+                        - el campo de puntos a mano en todo lo demás, incluida
+                          la escrita sin entrega: la redacción hecha en papel,
+                          en clase, se sigue puntuando como cualquier paso del
+                          proyecto.
+                      */
+                      const conRubrica = oral || Boolean(registro?.entrega);
                       // Un oral sin registro no tiene fila a la que enlazar,
                       // pero sí se puede corregir: `valorar` hace `upsert`, así
                       // que la fila nace al guardar la rúbrica. Se monta aquí
                       // mismo, plegada, en vez de dejar el paso sin puerta.
-                      const rubricaEnLinea =
-                        expresion?.modalidad === "oral" && !registro && mia;
+                      const rubricaEnLinea = conRubrica && !registro && mia;
                       return (
                         <li
                           key={paso.id}
@@ -288,16 +307,30 @@ export default async function AlumnoPage({
                               </span>
                             )}
                             {/*
-                              Los puntos de una tarea de expresión salen de la
-                              rúbrica, no de un número escrito a mano: el campo
-                              suelto se sustituye por un enlace a la pantalla
-                              que sí sabe puntuarla. Sin fila que corregir no
-                              hay adónde enlazar: el oral se corrige en el
-                              desplegable de abajo y no repite rótulo aquí; la
-                              escrita sin entrega solo dice en qué estado está,
-                              porque `valorar` la rechaza a propósito.
+                              Una asignación de otro profesor solo enseña el
+                              estado: corregir la abriría en una pantalla que
+                              contesta `notFound()`, y puntuarla a mano no es
+                              suyo. El rótulo se queda porque el estado sí es
+                              información.
                             */}
-                            {expresion ? (
+                            {!mia ? (
+                              <span className="shrink-0 text-xs text-tinta-suave">
+                                {registro?.verificadoEl
+                                  ? `${registro.puntos ?? 0} pts`
+                                  : registro
+                                    ? "Sin corregir"
+                                    : oral
+                                      ? "Sin evaluar"
+                                      : expresion
+                                        ? "Sin entregar"
+                                        : "Pendiente"}
+                              </span>
+                            ) : conRubrica ? (
+                              // Los puntos de una rúbrica no se escriben a
+                              // mano: el enlace lleva a la pantalla que sabe
+                              // puntuarla. Sin fila todavía no hay adónde
+                              // enlazar, y ahí entra la rúbrica en línea de
+                              // abajo, que no repite rótulo aquí.
                               registro ? (
                                 <Link
                                   href={`/profe/entregas/${registro.id}`}
@@ -307,13 +340,7 @@ export default async function AlumnoPage({
                                     ? "Ver la corrección"
                                     : "Corregir"}
                                 </Link>
-                              ) : rubricaEnLinea ? null : (
-                                <span className="shrink-0 text-xs text-tinta-suave">
-                                  {expresion.modalidad === "oral"
-                                    ? "Sin evaluar"
-                                    : "Sin entregar"}
-                                </span>
-                              )
+                              ) : null
                             ) : (
                               <form
                                 action={otorgarPuntos}
@@ -347,7 +374,7 @@ export default async function AlumnoPage({
                             )}
                           </div>
 
-                          {expresion?.modalidad === "oral" && mia && (
+                          {oral && mia && (
                             <CitarOral
                               asignacionId={asignacion.id}
                               pasoId={paso.id}
