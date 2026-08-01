@@ -125,6 +125,13 @@ export default function Grabadora({
    */
   const [regrabando, setRegrabando] = useState(false);
   /**
+   * Qué entrega había en la prop cuando se mandó la última grabación. Es lo
+   * que permite saber que el refresco ya aterrizó —la prop ya es otra— y que
+   * hay una grabación del servidor que enseñar. En estado y no en un `useRef`
+   * porque se lee al pintar, y un `ref` leído al pintar no repinta nada.
+   */
+  const [entregaAlMandar, setEntregaAlMandar] = useState<string | null>(null);
+  /**
    * El micrófono no se ha dejado usar: permiso denegado, o ninguno conectado.
    * Es la otra mitad del rodeo, y una vez encendida se queda: el permiso
    * denegado no se vuelve a pedir en la misma visita.
@@ -248,6 +255,15 @@ export default function Grabadora({
         return;
       }
 
+      // Nos han sacado de la pantalla mientras el navegador preguntaba por el
+      // permiso. La limpieza del efecto ya corrió, y corrió con `pistaRef`
+      // todavía en `null`: si seguimos, esta pista no la para nadie nunca y el
+      // punto rojo se queda encendido hasta recargar la página.
+      if (desmontadoRef.current) {
+        pista.getTracks().forEach((t) => t.stop());
+        return;
+      }
+
       let grabadora: MediaRecorder;
       try {
         grabadora = new MediaRecorder(pista);
@@ -354,6 +370,7 @@ export default function Grabadora({
     // Nada se limpia aquí: lo grabado se queda en pantalla, ya como entregado,
     // con su reproductor. Es lo que impide que entre el clic y el refresco
     // haya un instante en el que parezca que no se ha entregado nada.
+    setEntregaAlMandar(grabacionEntregada);
     setAviso(null);
     setEstado("entregado");
     // Para que la página vuelva del servidor con la entrega ya guardada: de
@@ -397,6 +414,22 @@ export default function Grabadora({
   const grabacionEntregada =
     entrega && entrega.startsWith(PREFIJO_ARCHIVO) ? entrega : null;
   const pasado = minutos > 0 && segundos > minutos * 60;
+  /**
+   * La grabación que ya ha guardado el servidor, cuando el refresco de la
+   * última entrega ha aterrizado de verdad (la prop ya no es la que había al
+   * mandarla).
+   *
+   * Se prefiere al Blob local en cuanto existe, y no por pulcritud: la ruta
+   * comprime con ffmpeg, así que lo que va a oír el profesor **no es** el Blob
+   * que grabó el navegador. Si el alumno solo oyera el suyo, una compresión
+   * que saliera muda pasaría inadvertida para los dos.
+   */
+  const entregadaDelServidor =
+    estado === "entregado" &&
+    grabacionEntregada &&
+    grabacionEntregada !== entregaAlMandar
+      ? grabacionEntregada
+      : null;
 
   if (cerrada) {
     return (
@@ -431,11 +464,26 @@ export default function Grabadora({
       {estado === "entregado" ? (
         <div className="mt-3">
           <p className="text-sm font-bold text-tinta">Entregado ✓ Ya lo tiene tu profe.</p>
-          {pendiente && (
+          {/*
+            Primero suena el Blob local, para que la confirmación no espere a
+            nadie; en cuanto el servidor devuelve la suya, se cambia por ella,
+            que es la que va a oír el profesor. El cambio no parpadea: las dos
+            son un reproductor en el mismo sitio.
+          */}
+          {entregadaDelServidor ? (
+            <audio
+              controls
+              preload="none"
+              src={entregadaDelServidor}
+              className="mt-2 w-full max-w-sm"
+            >
+              Tu navegador no puede reproducir este audio.
+            </audio>
+          ) : pendiente ? (
             <audio controls preload="none" src={pendiente.url} className="mt-2 w-full max-w-sm">
               Tu navegador no puede reproducir este audio.
             </audio>
-          )}
+          ) : null}
           {refrescando && (
             <p className="mt-2 text-sm text-tinta-suave">Actualizando la página…</p>
           )}
