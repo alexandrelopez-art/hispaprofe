@@ -37,10 +37,18 @@ async function main() {
   afirmar(comprimido.tipo === "audio/mp4", "el resultado se declara audio/mp4");
   afirmar(comprimido.nombre === "tono.m4a", "la extensión del nombre acompaña al formato");
 
-  // 2. Lo devuelto es audio de verdad, no bytes cualesquiera. La prueba es
-  //    que el compresor lo puede volver a leer: si fuera basura, fallaría.
+  // 2. Lo devuelto es audio de verdad, no bytes cualesquiera. Que la llamada
+  //    no lance ya lo garantiza el paso anterior sin ejercitar nada nuevo:
+  //    lo que de verdad prueba que es audio válido es que el compresor lo
+  //    vuelve a leer, lo vuelve a *comprimir* (medido en esta máquina:
+  //    113.562 → 108.305 bytes) y el tipo de salida sigue siendo audio/mp4.
+  //    Basura binaria con ese tamaño no encogería ni se declararía así.
   const otraVez = await comprimirAudio(comprimido.datos, "tono.m4a", "audio/mp4");
-  afirmar(otraVez.datos.length > 0, "el resultado se puede volver a comprimir: es audio válido");
+  afirmar(
+    otraVez.datos.length < comprimido.datos.length,
+    `recomprimir el m4a vuelve a encoger (${comprimido.datos.length} → ${otraVez.datos.length})`,
+  );
+  afirmar(otraVez.tipo === "audio/mp4", "y el tipo de salida sigue siendo audio/mp4");
 
   // 3. Cuando comprimir engordaría, se conserva la entrada tal cual.
   //

@@ -33,7 +33,12 @@ const COMPRESORES: Compresor[] = [
   },
   {
     orden: "ffmpeg",
-    args: (e, s) => ["-y", "-i", e, "-ac", "1", "-c:a", "aac", "-b:a", "48k", s],
+    // `-vn` descarta cualquier flujo de vídeo: muchos MP3 llevan una carátula
+    // incrustada, que ffmpeg trata como vídeo (mjpeg) y selecciona por
+    // defecto, y el muxer de `.m4a` no admite mjpeg y aborta con un MP3
+    // perfectamente sano. `-nostdin` evita que, lanzado sin terminal, se
+    // quede esperando entrada por teclado en vez de fallar o terminar.
+    args: (e, s) => ["-y", "-nostdin", "-i", e, "-vn", "-ac", "1", "-c:a", "aac", "-b:a", "48k", s],
   },
 ];
 
@@ -46,18 +51,38 @@ const COMPRESORES: Compresor[] = [
  */
 let recordado: Compresor | null | undefined;
 
-/** Lanza una orden y resuelve con su código de salida y lo que dijo. */
-function lanzar(orden: string, args: string[]): Promise<{ codigo: number; error: string }> {
+// Comprimir quince minutos de audio tarda unos 2 segundos, así que un
+// compresor que sigue vivo pasado esto no está trabajando, está colgado. Sin
+// este tope un hijo colgado cuelga la petición para siempre y el `finally`
+// de `comprimirAudio` —el que borra la carpeta temporal— nunca llega a correr.
+const TIEMPO_MAXIMO_MS = 5 * 60 * 1000;
+
+/**
+ * Lanza una orden y resuelve con su código de salida, la señal que lo mató
+ * (si lo mató una señal, incluida la del propio tope de tiempo) y lo que
+ * dijo por stderr.
+ */
+function lanzar(
+  orden: string,
+  args: string[],
+): Promise<{ codigo: number | null; senal: NodeJS.Signals | null; error: string }> {
   return new Promise((resolver, rechazar) => {
     const proceso = spawn(orden, args);
     let error = "";
     proceso.stderr.on("data", (trozo) => {
       error += String(trozo);
     });
+    const limite = setTimeout(() => proceso.kill("SIGKILL"), TIEMPO_MAXIMO_MS);
     // ENOENT aquí significa "esa orden no existe en esta máquina", que es
     // justo lo que `buscarCompresor` quiere distinguir de un fallo real.
-    proceso.on("error", rechazar);
-    proceso.on("close", (codigo) => resolver({ codigo: codigo ?? 1, error }));
+    proceso.on("error", (e) => {
+      clearTimeout(limite);
+      rechazar(e);
+    });
+    proceso.on("close", (codigo, senal) => {
+      clearTimeout(limite);
+      resolver({ codigo, senal, error });
+    });
   });
 }
 
@@ -83,7 +108,19 @@ export async function hayCompresor(): Promise<boolean> {
   return (await buscarCompresor()) !== null;
 }
 
-export type AudioComprimido = { datos: Buffer; tipo: string; nombre: string };
+/**
+ * Que no haya compresor es culpa del servidor (falta instalar algo), no del
+ * profesor ni de su archivo. Una clase propia deja que la ruta distinga esto
+ * de "el archivo no es audio" —culpa del cliente— sin tener que adivinarlo
+ * a partir del texto del mensaje.
+ */
+export class CompresorAusenteError extends Error {}
+
+// `Buffer<ArrayBuffer>`, no `Buffer` a secas: la ruta guarda esto en Prisma,
+// que exige la variante estrecha (nunca respaldada por un `SharedArrayBuffer`).
+// Tiparlo aquí, en el origen, deja que la ruta consuma el resultado sin
+// necesitar ninguna aserción propia.
+export type AudioComprimido = { datos: Buffer<ArrayBuffer>; tipo: string; nombre: string };
 
 /**
  * Comprime, o devuelve la entrada intacta si comprimir no la hace más
@@ -94,13 +131,13 @@ export type AudioComprimido = { datos: Buffer; tipo: string; nombre: string };
  * también cuando algo falla.
  */
 export async function comprimirAudio(
-  datos: Buffer,
+  datos: Buffer<ArrayBuffer>,
   nombre: string,
   tipo: string,
 ): Promise<AudioComprimido> {
   const compresor = await buscarCompresor();
   if (!compresor) {
-    throw new Error(
+    throw new CompresorAusenteError(
       "No hay ningún compresor de audio en esta máquina. En macOS viene " +
         "`afconvert`; en otros sistemas hace falta instalar `ffmpeg`.",
     );
@@ -112,8 +149,18 @@ export async function comprimirAudio(
     const salida = join(carpeta, "salida.m4a");
     await writeFile(entrada, datos);
 
-    const { codigo, error } = await lanzar(compresor.orden, compresor.args(entrada, salida));
+    const { codigo, senal, error } = await lanzar(compresor.orden, compresor.args(entrada, salida));
     if (codigo !== 0) {
+      if (senal) {
+        // Una muerte por señal —normalmente la del propio tope de tiempo de
+        // `lanzar`, un proceso colgado al que se mata— no es lo mismo que un
+        // archivo dañado: no hay que culpar al MP3 de que el proceso se
+        // quedara colgado.
+        throw new Error(
+          `El compresor de audio se interrumpió (señal ${senal}); puede que se ` +
+            `quedara colgado. Vuelve a intentarlo.`,
+        );
+      }
       // Pasa con un archivo que no es audio, y con uno corrupto. Los dos
       // tienen que rebotar aquí y no acabar guardados en la base.
       throw new Error(
@@ -122,7 +169,10 @@ export async function comprimirAudio(
       );
     }
 
-    const comprimido = await readFile(salida);
+    // `readFile` devuelve `Buffer<ArrayBufferLike>`: aquí, y solo aquí, hace
+    // falta afirmar que no es un `SharedArrayBuffer` —nunca lo es, porque
+    // sale de leer un archivo propio— para que encaje con `AudioComprimido`.
+    const comprimido = (await readFile(salida)) as Buffer<ArrayBuffer>;
     // Un audio ya comprimido y corto puede salir más grande: recomprimir solo
     // lo empeoraría, así que en ese caso se guarda lo que llegó.
     if (comprimido.length >= datos.length) {
@@ -148,7 +198,7 @@ function conExtensionM4a(nombre: string): string {
  * además es el formato más grande posible, que es lo que conviene para
  * comprobar que comprimir reduce.
  */
-export function generarWav(segundos: number): Buffer {
+export function generarWav(segundos: number): Buffer<ArrayBuffer> {
   const hz = 44100;
   // Redondeado porque se le pasan fracciones: el caso que prueba la rama de
   // "conservar el original" son veinte milisegundos.
