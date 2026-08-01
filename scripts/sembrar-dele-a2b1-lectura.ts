@@ -23,7 +23,15 @@ import { relacionarSchema } from "@/lib/ejercicios/relacionar";
 
 const TITULO = "A2/B1 escolar · Comprensión de lectura (mayo 2015)";
 const CORREO_PROFE = "a.lopez.ele@hotmail.com";
-const CORREO_ALUMNO = "gaspard@hotmail.com";
+
+// Tiene que ser una cuenta que pueda iniciar sesión, o el examen se siembra
+// para nadie: el ejercicio solo se pinta a quien tiene asignación viva, así
+// que con una ficha sin cuenta la página sale en blanco y parece rota.
+//
+// Las fichas creadas desde una lista de correos no valen: nacen sin `clerkId`
+// y ese campo solo se rellena la primera vez que esa persona entra. Lo
+// comprueba `alumnoQuePuedeEntrar`.
+const CORREO_ALUMNO = "ndo.lopez.ele@gmail.com";
 const NIVEL = "A2_B1_ESCOLAR" as const;
 
 /**
@@ -410,11 +418,40 @@ async function comprobarLaClave(recorridoId: string) {
   console.log("\nLa clave oficial puntúa 25/25: contenido y respuestas cuadran.");
 }
 
+/**
+ * El estudiante al que se le asigna, comprobando que pueda entrar de verdad.
+ *
+ * Sin esta comprobación el fallo es mudo y desconcertante: el script dice que
+ * ha sembrado, y al abrir la secuencia sale una página en blanco. La razón es
+ * que el ejercicio solo se pinta a quien tiene asignación viva (o al profesor),
+ * de modo que asignárselo a una ficha sin cuenta equivale a no asignárselo a
+ * nadie. Antes esto no se veía porque el paso llevaba además un bloque de
+ * texto, que sí se pinta para cualquiera.
+ *
+ * Si falla, dice qué cuentas sí sirven en vez de dejar que se adivine.
+ */
+async function alumnoQuePuedeEntrar() {
+  const alumno = await prisma.user.findUnique({ where: { email: CORREO_ALUMNO } });
+  if (!alumno) throw new Error(`No encuentro al estudiante ${CORREO_ALUMNO}`);
+  if (!alumno.clerkId) {
+    const pueden = await prisma.user.findMany({
+      where: { clerkId: { not: null }, role: "STUDENT" },
+      select: { email: true },
+    });
+    throw new Error(
+      `${CORREO_ALUMNO} no tiene cuenta: es una ficha creada desde una lista de ` +
+        `correos y nunca ha iniciado sesión, así que no podría abrir el examen.\n` +
+        `Cuentas de estudiante que sí pueden entrar: ` +
+        (pueden.map((u) => u.email).join(", ") || "ninguna"),
+    );
+  }
+  return alumno;
+}
+
 async function main() {
   const profe = await prisma.user.findUnique({ where: { email: CORREO_PROFE } });
   if (!profe) throw new Error(`No encuentro al profesor ${CORREO_PROFE}`);
-  const alumno = await prisma.user.findUnique({ where: { email: CORREO_ALUMNO } });
-  if (!alumno) throw new Error(`No encuentro al estudiante ${CORREO_ALUMNO}`);
+  const alumno = await alumnoQuePuedeEntrar();
 
   // Se valida todo antes de tocar la base: si la tarea 4 tuviera una errata,
   // no tiene sentido haber creado ya las tres primeras.
