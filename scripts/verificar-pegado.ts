@@ -6,6 +6,9 @@
  */
 import "dotenv/config";
 import { abrirSobre, resumir, sinValla } from "@/lib/pegado/sobre";
+import { Prisma } from "@/lib/generated/prisma/client";
+import { prisma } from "@/lib/prisma";
+import { pasoLibre } from "@/lib/recursos";
 
 function afirmar(condicion: boolean, mensaje: string) {
   if (!condicion) throw new Error(`FALLO: ${mensaje}`);
@@ -25,6 +28,13 @@ const SOBRE_BUENO = {
     sobrantes: ["C. CREA TU BLOG"],
   },
 };
+
+// Los ids de todo lo que se crea, en variables de módulo para poder
+// limpiarlo desde el `.finally()` aunque una afirmación reviente a mitad.
+const marca = `verificar-pegado-${process.pid}`;
+let recorridoId: string | null = null;
+let pasoId: string | null = null;
+let ejercicioId: string | null = null;
 
 /**
  * Ejercicios mínimos y válidos de los otros tres tipos del motor, más una
@@ -210,10 +220,85 @@ async function main() {
     "el resumen de una expresión no cuenta nada: analizar no la conoce",
   );
 
+  // ─── Las negativas del paso ──────────────────────────────────────────
+  const recorrido = await prisma.recorrido.create({
+    data: { titulo: marca, nivel: "B1", tipo: "PREPARACION_DELE", destreza: "CE", orden: 1 },
+    select: { id: true },
+  });
+  recorridoId = recorrido.id;
+
+  const paso = await prisma.paso.create({
+    data: { recorridoId: recorrido.id, orden: 1, ciclo: 1, tipo: "ACTIVIDAD", titulo: "Tarea 1" },
+    select: { id: true },
+  });
+  pasoId = paso.id;
+
+  afirmar((await pasoLibre(paso.id)) === null, "un paso recién creado está libre");
+
+  const ejercicio = await prisma.ejercicio.create({
+    data: {
+      tipo: "RELACIONAR",
+      titulo: marca,
+      nivel: "B1",
+      // El cast es el mismo que usa `guardarEjercicio`: `datos` es `Json` y
+      // Prisma no acepta un objeto literal sin él.
+      datos: SOBRE_BUENO.ejercicio as Prisma.InputJsonValue,
+      publicado: true,
+    },
+    select: { id: true },
+  });
+  ejercicioId = ejercicio.id;
+  await prisma.pasoEjercicio.create({
+    data: { pasoId: paso.id, ejercicioId: ejercicio.id, orden: 1 },
+  });
+
+  const ocupado = await pasoLibre(paso.id);
+  afirmar(
+    ocupado !== null && ocupado.includes("ya tiene un ejercicio"),
+    "un paso que ya tiene ejercicio deja de estar libre",
+  );
+
   console.log("\nTodo en orden.");
 }
 
-main().catch((e) => {
-  console.error(e instanceof Error ? e.message : e);
-  process.exit(1);
-});
+main()
+  .catch((e) => {
+    console.error(e instanceof Error ? e.message : e);
+    process.exitCode = 1;
+  })
+  .finally(async () => {
+    let fallos = 0;
+    const intentar = async (que: string, hacer: () => Promise<unknown>) => {
+      try {
+        await hacer();
+      } catch (e) {
+        fallos++;
+        console.error(`  no se pudo limpiar ${que}: ${e instanceof Error ? e.message : e}`);
+      }
+    };
+
+    // El orden importa: primero lo que apunta al paso, luego el paso.
+    if (pasoId) {
+      const id = pasoId;
+      await intentar("vínculos", () => prisma.pasoEjercicio.deleteMany({ where: { pasoId: id } }));
+      await intentar("bloques", () => prisma.bloque.deleteMany({ where: { pasoId: id } }));
+      await intentar("paso", () => prisma.paso.delete({ where: { id } }));
+    }
+    if (ejercicioId) {
+      const id = ejercicioId;
+      await intentar("ejercicio", () => prisma.ejercicio.delete({ where: { id } }));
+    }
+    if (recorridoId) {
+      const id = recorridoId;
+      await intentar("recorrido", () => prisma.recorrido.delete({ where: { id } }));
+    }
+
+    await intentar("desconectar", () => prisma.$disconnect());
+
+    // Un rechazo sin capturar aquí sería silencioso: nadie lo ve y la basura
+    // se descubre a mano.
+    if (fallos > 0) {
+      console.error(`\nLa limpieza falló en ${fallos} paso(s): puede haber quedado basura en la base.`);
+      process.exitCode = 1;
+    }
+  });

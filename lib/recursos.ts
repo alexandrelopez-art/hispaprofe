@@ -145,10 +145,35 @@ export async function tieneTrabajo(pasoId: string): Promise<boolean> {
 }
 
 /**
+ * Si a este paso se le puede colgar un ejercicio cualquiera, o el motivo del
+ * no. Las dos reglas que no miran a *qué* ejercicio es.
+ *
+ * Extraída de `puedeEngancharse` porque la puerta de pegar por código las
+ * necesita antes de que el ejercicio exista: no hay `ejercicioId` que
+ * pasarle. Extraída y no copiada, que es lo que evita que dentro de un mes
+ * una de las dos puertas empiece a dejar pasar lo que la otra rechaza.
+ */
+export async function pasoLibre(pasoId: string): Promise<string | null> {
+  // La página del paso hace `findFirst` ordenado y descarta el resto, porque
+  // la corrección escribe los puntos del paso entero y dos ejercicios se
+  // pisarían. Sin esta negativa, el segundo se guardaría y no lo vería nadie.
+  const yaHay = await prisma.pasoEjercicio.count({ where: { pasoId } });
+  if (yaHay > 0) {
+    return "Ese paso ya tiene un ejercicio. Quita el que hay antes de poner otro.";
+  }
+
+  if (await tieneTrabajo(pasoId)) {
+    return "Alguien ya trabajó en ese paso. Cambiarle el ejercicio dejaría sin sentido lo que respondió, lo que entregó o lo que ya le corregiste.";
+  }
+  return null;
+}
+
+/**
  * Si a este paso se le puede colgar este ejercicio, o el motivo del no.
  *
  * Tres negativas y las tres tienen la misma raíz: que el estudiante acabe
- * viendo algo distinto de lo que el profesor cree que puso.
+ * viendo algo distinto de lo que el profesor cree que puso. Las dos últimas
+ * viven en `pasoLibre`, que es lo que comparte con la puerta de pegar.
  */
 export async function puedeEngancharse(
   ejercicioId: string,
@@ -163,18 +188,7 @@ export async function puedeEngancharse(
     return "Es un borrador. Publícalo antes de colgarlo de un paso.";
   }
 
-  // La página del paso hace `findFirst` ordenado y descarta el resto, porque
-  // la corrección escribe los puntos del paso entero y dos ejercicios se
-  // pisarían. Sin esta negativa, el segundo se guardaría y no lo vería nadie.
-  const yaHay = await prisma.pasoEjercicio.count({ where: { pasoId } });
-  if (yaHay > 0) {
-    return "Ese paso ya tiene un ejercicio. Quita el que hay antes de poner otro.";
-  }
-
-  if (await tieneTrabajo(pasoId)) {
-    return "Alguien ya trabajó en ese paso. Cambiarle el ejercicio dejaría sin sentido lo que respondió, lo que entregó o lo que ya le corregiste.";
-  }
-  return null;
+  return pasoLibre(pasoId);
 }
 
 /** Si se le puede quitar el ejercicio a este paso, o el motivo del no. */
