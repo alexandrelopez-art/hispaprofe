@@ -418,7 +418,7 @@ export async function POST(peticion: Request) {
 }
 ```
 
-La lista de tipos de audio se copia de `app/api/archivos/route.ts` con su comentario: un mismo formato llega con nombres distintos según el navegador, y grabar produce `audio/webm` en Chrome y Firefox y `audio/mp4` en Safari. Los dos ya están en esa lista.
+**La lista de tipos de audio no se copia: se mueve.** Hoy vive dentro de `app/api/archivos/route.ts` (la constante `AUDIOS`, con su comentario sobre los nombres que da cada navegador). Sácala a `lib/audio.ts`, que es donde vive todo lo demás del audio, y que las dos rutas la importen. Dos listas de tipos aceptados se separan en cuanto alguien añada un formato a una sola. Grabar produce `audio/webm` en Chrome y Firefox y `audio/mp4` en Safari: los dos ya están en ella.
 
 **El nombre del archivo:** una grabación del navegador no trae nombre. Ponle uno legible tú —`grabacion.webm` o lo que diga su tipo— antes de pasárselo a `comprimirAudio`, que lo usa para nombrar el temporal.
 
