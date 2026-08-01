@@ -97,6 +97,15 @@ type Compresor = {
 
 // En el orden en que se prueban. `afconvert` primero porque viene con macOS
 // y es la máquina donde esto corre hoy; `ffmpeg` para cualquier otra.
+//
+// No es una lista de repuestos para máquinas distintas: es una lista de
+// intentos sobre el **mismo** archivo. `afconvert` es CoreAudio, y CoreAudio
+// no sabe abrir WebM/Matroska —`afconvert -hf` lista Ogg, no WebM—, así que
+// una grabación de Chrome (`audio/webm;codecs=opus`) le arranca un
+// «Couldn't open input file ('typ?')» por muy sana que esté. Con `ffmpeg`
+// instalado, ese mismo archivo pasa. Por eso `comprimirAudio` los recorre en
+// vez de quedarse con el primero que exista: elegir uno solo dejaba fuera al
+// navegador de la mayoría.
 const COMPRESORES: Compresor[] = [
   {
     orden: "afconvert",
@@ -114,13 +123,16 @@ const COMPRESORES: Compresor[] = [
 ];
 
 /**
- * El compresor encontrado, recordado tras la primera búsqueda.
+ * Los compresores instalados en esta máquina, recordados tras la primera
+ * búsqueda. `undefined` = todavía no se ha buscado; la lista vacía = se buscó
+ * y no hay ninguno.
  *
- * `undefined` = todavía no se ha buscado; `null` = se buscó y no hay ninguno.
- * Sin esto, cada subida lanzaría un proceso por candidato solo para
+ * Son **todos** los que existen y no el primero: `comprimirAudio` necesita
+ * poder pasar al siguiente cuando el que eligió no sabe abrir un archivo
+ * concreto. Sin esto, cada subida lanzaría un proceso por candidato solo para
  * averiguar algo que no cambia mientras la aplicación esté viva.
  */
-let recordado: Compresor | null | undefined;
+let recordados: Compresor[] | undefined;
 
 // Comprimir quince minutos de audio tarda unos 2 segundos, así que un
 // compresor que sigue vivo pasado esto no está trabajando, está colgado. Sin
@@ -157,26 +169,35 @@ function lanzar(
   });
 }
 
-async function buscarCompresor(): Promise<Compresor | null> {
-  if (recordado !== undefined) return recordado;
+async function buscarCompresores(): Promise<Compresor[]> {
+  if (recordados !== undefined) return recordados;
+  const encontrados: Compresor[] = [];
   for (const compresor of COMPRESORES) {
     try {
       // Sin argumentos las dos órdenes salen con error y escriben su ayuda.
       // Da igual: lo único que se comprueba es que exista el ejecutable, y
       // eso lo dice que `lanzar` no reviente con ENOENT.
       await lanzar(compresor.orden, []);
-      recordado = compresor;
-      return recordado;
+      encontrados.push(compresor);
     } catch {
       // No está en esta máquina; se prueba el siguiente.
     }
   }
-  recordado = null;
-  return recordado;
+  recordados = encontrados;
+  return recordados;
 }
 
 export async function hayCompresor(): Promise<boolean> {
-  return (await buscarCompresor()) !== null;
+  return (await buscarCompresores()).length > 0;
+}
+
+/**
+ * Los nombres de los compresores instalados aquí. Solo para el script: con uno
+ * solo, el paso al siguiente no se puede ejercitar, y eso hay que poder decirlo
+ * en vez de fingir que se probó.
+ */
+export async function compresoresInstalados(): Promise<string[]> {
+  return (await buscarCompresores()).map((c) => c.orden);
 }
 
 /**
@@ -200,14 +221,21 @@ export type AudioComprimido = { datos: Buffer<ArrayBuffer>; tipo: string; nombre
  * Escribe archivos temporales porque `afconvert` no acepta tuberías: pasarle
  * `-` como entrada o salida responde «Unknown option: -». Se borran siempre,
  * también cuando algo falla.
+ *
+ * Prueba **todos** los compresores instalados, en orden, hasta que uno
+ * consiga leer el archivo. No es paranoia: que un compresor exista no
+ * significa que sepa abrir este formato —`afconvert` no abre WebM, que es lo
+ * que graba Chrome—, y rendirse con el primero dejaba a media clase sin poder
+ * entregar. `CompresorAusenteError` sale solo cuando no hay ninguno instalado,
+ * que es lo único que de verdad es culpa del servidor.
  */
 export async function comprimirAudio(
   datos: Buffer<ArrayBuffer>,
   nombre: string,
   tipo: string,
 ): Promise<AudioComprimido> {
-  const compresor = await buscarCompresor();
-  if (!compresor) {
+  const compresores = await buscarCompresores();
+  if (compresores.length === 0) {
     throw new CompresorAusenteError(
       "No hay ningún compresor de audio en esta máquina. En macOS viene " +
         "`afconvert`; en otros sistemas hace falta instalar `ffmpeg`.",
@@ -217,39 +245,54 @@ export async function comprimirAudio(
   const carpeta = await mkdtemp(join(tmpdir(), "hispaprofe-audio-"));
   try {
     const entrada = join(carpeta, "entrada");
-    const salida = join(carpeta, "salida.m4a");
     await writeFile(entrada, datos);
 
-    const { codigo, senal, error } = await lanzar(compresor.orden, compresor.args(entrada, salida));
-    if (codigo !== 0) {
-      if (senal) {
-        // Una muerte por señal —normalmente la del propio tope de tiempo de
-        // `lanzar`, un proceso colgado al que se mata— no es lo mismo que un
-        // archivo dañado: no hay que culpar al MP3 de que el proceso se
-        // quedara colgado.
-        throw new Error(
-          `El compresor de audio se interrumpió (señal ${senal}); puede que se ` +
-            `quedara colgado. Vuelve a intentarlo.`,
+    let ultimoFallo: Error | null = null;
+    for (const [indice, compresor] of compresores.entries()) {
+      // Una salida por candidato: si el anterior dejó un archivo a medias, un
+      // nombre compartido haría que se leyera el suyo en vez del bueno.
+      const salida = join(carpeta, `salida-${indice}.m4a`);
+      const { codigo, senal, error } = await lanzar(compresor.orden, compresor.args(entrada, salida));
+
+      if (codigo !== 0) {
+        if (senal) {
+          // Una muerte por señal —normalmente la del propio tope de tiempo de
+          // `lanzar`, un proceso colgado al que se mata— no es lo mismo que un
+          // archivo dañado: no hay que culpar al MP3 de que el proceso se
+          // quedara colgado. Y no se reintenta con el siguiente: el que se
+          // cuelga ya se llevó cinco minutos, y encadenar otro tanto es dejar
+          // la petición muerta el doble de tiempo.
+          throw new Error(
+            `El compresor de audio se interrumpió (señal ${senal}); puede que se ` +
+              `quedara colgado. Vuelve a intentarlo.`,
+          );
+        }
+        // Pasa con un archivo que no es audio, con uno corrupto y con un
+        // contenedor que **este** compresor no sabe abrir. Los tres se
+        // distinguen entre sí probando el siguiente: si todos fallan, el
+        // archivo es el problema y hay que rebotarlo en vez de guardarlo.
+        ultimoFallo = new Error(
+          `No se pudo comprimir el audio: puede que el archivo esté dañado o no sea audio.` +
+            (error.trim() ? ` (${error.trim().split("\n")[0]})` : ""),
         );
+        continue;
       }
-      // Pasa con un archivo que no es audio, y con uno corrupto. Los dos
-      // tienen que rebotar aquí y no acabar guardados en la base.
-      throw new Error(
-        `No se pudo comprimir el audio: puede que el archivo esté dañado o no sea audio.` +
-          (error.trim() ? ` (${error.trim().split("\n")[0]})` : ""),
-      );
+
+      // `readFile` devuelve `Buffer<ArrayBufferLike>`: aquí, y solo aquí, hace
+      // falta afirmar que no es un `SharedArrayBuffer` —nunca lo es, porque
+      // sale de leer un archivo propio— para que encaje con `AudioComprimido`.
+      const comprimido = (await readFile(salida)) as Buffer<ArrayBuffer>;
+      // Un audio ya comprimido y corto puede salir más grande: recomprimir solo
+      // lo empeoraría, así que en ese caso se guarda lo que llegó.
+      if (comprimido.length >= datos.length) {
+        return { datos, tipo, nombre };
+      }
+      return { datos: comprimido, tipo: TIPO_SALIDA, nombre: conExtensionM4a(nombre) };
     }
 
-    // `readFile` devuelve `Buffer<ArrayBufferLike>`: aquí, y solo aquí, hace
-    // falta afirmar que no es un `SharedArrayBuffer` —nunca lo es, porque
-    // sale de leer un archivo propio— para que encaje con `AudioComprimido`.
-    const comprimido = (await readFile(salida)) as Buffer<ArrayBuffer>;
-    // Un audio ya comprimido y corto puede salir más grande: recomprimir solo
-    // lo empeoraría, así que en ese caso se guarda lo que llegó.
-    if (comprimido.length >= datos.length) {
-      return { datos, tipo, nombre };
-    }
-    return { datos: comprimido, tipo: TIPO_SALIDA, nombre: conExtensionM4a(nombre) };
+    // Ninguno pudo con él. Se cuenta el fallo del último, que es el del
+    // compresor más capaz de los instalados.
+    throw ultimoFallo ?? new Error("No se pudo comprimir el audio.");
   } finally {
     await rm(carpeta, { recursive: true, force: true });
   }

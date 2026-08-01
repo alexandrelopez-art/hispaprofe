@@ -4,7 +4,7 @@
  * No trae ningún audio al repositorio: se fabrica uno.
  * Ejecutar con:  npx tsx scripts/verificar-audio.ts
  */
-import { comprimirAudio, generarWav, hayCompresor } from "@/lib/audio";
+import { compresoresInstalados, comprimirAudio, generarWav, hayCompresor } from "@/lib/audio";
 
 function afirmar(condicion: boolean, mensaje: string) {
   if (!condicion) throw new Error(`FALLO: ${mensaje}`);
@@ -86,6 +86,48 @@ async function main() {
     error?.message.includes("No se pudo comprimir el audio") ?? false,
     `un archivo que no es audio se rechaza con el error correcto (mensaje: ${error?.message})`,
   );
+
+  // 5. El paso de un compresor al siguiente. `comprimirAudio` los recorre
+  //    porque que uno exista no significa que sepa abrir el formato que llega:
+  //    `afconvert` no abre el WebM que graba Chrome. Con un solo compresor
+  //    instalado eso no se puede ejercitar aquí, y se dice en vez de fingir
+  //    una afirmación que pasaría igual con el arreglo y sin él.
+  const instalados = await compresoresInstalados();
+  console.log(`\nCompresores instalados: ${instalados.join(", ")}`);
+  if (instalados.length < 2) {
+    console.log(
+      "AVISO: con uno solo, el paso al siguiente compresor NO queda probado. " +
+        "Hace falta una máquina con `afconvert` y `ffmpeg`, o la prueba a mano " +
+        "en el navegador (grabar en Chrome y entregar).",
+    );
+  } else {
+    // Con los dos: se fabrica un WebM con `ffmpeg` —el único que sabe
+    // hacerlo— y se comprime. `afconvert` va primero y no puede abrirlo, así
+    // que esto solo pasa si de verdad se prueba el siguiente.
+    const { spawn } = await import("node:child_process");
+    const { mkdtemp, readFile, writeFile, rm } = await import("node:fs/promises");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    const carpeta = await mkdtemp(join(tmpdir(), "verificar-audio-"));
+    try {
+      const origen = join(carpeta, "tono.wav");
+      const webm = join(carpeta, "tono.webm");
+      await writeFile(origen, generarWav(2));
+      await new Promise<void>((ok, mal) => {
+        const p = spawn("ffmpeg", ["-y", "-nostdin", "-i", origen, "-c:a", "libopus", webm]);
+        p.on("error", mal);
+        p.on("close", (c) => (c === 0 ? ok() : mal(new Error(`ffmpeg salió con ${c}`))));
+      });
+      const bytes = (await readFile(webm)) as Buffer<ArrayBuffer>;
+      const salida = await comprimirAudio(bytes, "grabacion.webm", "audio/webm");
+      afirmar(
+        salida.tipo === "audio/mp4",
+        "un WebM de Chrome se comprime: el primer compresor no puede abrirlo y se prueba el siguiente",
+      );
+    } finally {
+      await rm(carpeta, { recursive: true, force: true });
+    }
+  }
 
   console.log("\nTodo bien.");
 }

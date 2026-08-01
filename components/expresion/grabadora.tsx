@@ -53,6 +53,34 @@ function nombreDeGrabacion(tipo: string): string {
 }
 
 /**
+ * Los contenedores que se le piden a `MediaRecorder`, en orden de preferencia.
+ *
+ * No es un capricho de formatos: el servidor comprime con `afconvert` cuando
+ * no hay `ffmpeg` —el caso de la máquina de hoy—, y `afconvert` es CoreAudio,
+ * que **no sabe abrir WebM**. Dejar que Chrome elija su contenedor por defecto
+ * (`audio/webm;codecs=opus`) hacía que toda grabación de Chrome, Edge o
+ * Android rebotara en «No se pudo procesar la grabación», siempre, sin ninguna
+ * otra puerta. MP4 y Ogg sí los abre, así que se le pide uno de esos primero.
+ *
+ * No sustituye al reintento del servidor: aquí no se puede saber qué acepta el
+ * navegador de cada alumno, y `isTypeSupported` miente en algunos. Las dos
+ * mitades tienen que estar.
+ */
+const CONTENEDORES = ["audio/mp4", "audio/ogg", "audio/webm"];
+
+/**
+ * El primer contenedor de la lista que este navegador sepa producir, o `null`
+ * si ninguno —o si el navegador no tiene `isTypeSupported`, que existe desde
+ * el primer día pero no está de más comprobarlo—. Con `null` se construye el
+ * `MediaRecorder` sin opciones: mejor grabar y arriesgarse al rechazo del
+ * servidor que dejar al alumno sin botón.
+ */
+function contenedorPreferido(): string | null {
+  if (typeof MediaRecorder.isTypeSupported !== "function") return null;
+  return CONTENEDORES.find((tipo) => MediaRecorder.isTypeSupported(tipo)) ?? null;
+}
+
+/**
  * Si este navegador sabe grabar.
  *
  * Se lee con `useSyncExternalStore` y no en un efecto porque es un dato que en
@@ -272,7 +300,11 @@ export default function Grabadora({
 
       let grabadora: MediaRecorder;
       try {
-        grabadora = new MediaRecorder(pista);
+        // El contenedor se pide, no se acepta el que salga: ver `CONTENEDORES`.
+        const contenedor = contenedorPreferido();
+        grabadora = contenedor
+          ? new MediaRecorder(pista, { mimeType: contenedor })
+          : new MediaRecorder(pista);
 
         const trozos: Blob[] = [];
         grabadora.ondataavailable = (e) => {
@@ -283,10 +315,11 @@ export default function Grabadora({
           // Puede llegar cuando ya nos han sacado de la pantalla: entonces no
           // hay nada que guardar, y crear el `objectURL` sería dejarlo suelto.
           if (desmontadoRef.current) return;
-          // El tipo, el que diga el navegador: `audio/webm;codecs=opus` en
-          // Chrome y `audio/ogg; codecs=opus` en Firefox pasan la puerta tal
-          // cual, que los normaliza el servidor. Inventarle uno aquí sería
-          // mentir sobre lo que hay dentro del archivo.
+          // El tipo, el que diga el navegador —el que se le pidió, si lo
+          // aceptó—: llega con su códec detrás (`audio/mp4;codecs=opus`,
+          // `audio/ogg; codecs=opus`) y pasa la puerta tal cual, que lo
+          // normaliza el servidor. Inventarle uno aquí sería mentir sobre lo
+          // que hay dentro del archivo.
           const tipo = grabadora.mimeType || trozos[0]?.type || "";
           const blob = new Blob(trozos, { type: tipo });
           if (blob.size === 0) {
