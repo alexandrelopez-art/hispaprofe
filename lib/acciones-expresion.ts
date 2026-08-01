@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { getUsuarioActual } from "@/lib/usuario";
 import { exigirProfesor } from "@/lib/profesor";
 import {
-  analizarExpresion,
+  expresionDelPaso,
   puedeEntregar,
   puedeValorarse,
   puntosDe,
@@ -67,7 +67,9 @@ export async function entregar(
     create: { asignacionId: asignacion.id, pasoId, entrega: texto },
   });
 
-  refrescar(pasoId);
+  // Con el id del alumno: es la ficha desde la que el profesor corrige, y
+  // sin refrescarla seguiría enseñando la entrega anterior.
+  refrescar(pasoId, usuario.id);
   return { ok: "Entregado." };
 }
 
@@ -89,12 +91,7 @@ export async function valorar(
   const comentario = String(formData.get("comentario") ?? "").trim();
   if (!asignacionId || !pasoId) return { error: "Falta el alumno o el paso." };
 
-  const vinculo = await prisma.pasoEjercicio.findFirst({
-    where: { pasoId },
-    orderBy: { orden: "asc" },
-    select: { ejercicio: { select: { datos: true } } },
-  });
-  const datos = vinculo ? analizarExpresion(vinculo.ejercicio.datos) : null;
+  const datos = await expresionDelPaso(pasoId);
   if (!datos) return { error: "Este paso no tiene una tarea de expresión." };
 
   // Las notas llegan como `nota-<criterioId>`, una por criterio.
@@ -104,7 +101,15 @@ export async function valorar(
     if (bruto !== "") notas[criterio.id] = Number(bruto);
   }
 
-  const motivo = puedeValorarse(datos, notas);
+  // Hace falta la entrega ya guardada para que `puedeValorarse` pueda negar
+  // una escrita sin texto: sin esto se podía corregir antes de que el
+  // alumno escribiera nada.
+  const previo = await prisma.pasoCompletado.findUnique({
+    where: { asignacionId_pasoId: { asignacionId, pasoId } },
+    select: { entrega: true },
+  });
+
+  const motivo = puedeValorarse(datos, notas, previo?.entrega ?? null);
   if (motivo) return { error: motivo };
 
   const asignacion = await prisma.asignacion.findUnique({
@@ -147,6 +152,14 @@ export async function citarOral(
   const motivo = await puedeCitarse(asignacionId, claseId);
   if (motivo) return { error: motivo };
 
+  // La clase de la que se recita, si había una: al mover la cita deja de
+  // llevar este oral, y sin revalidarla también se quedaría enseñando uno
+  // que ya no está ahí.
+  const anterior = await prisma.citaOral.findUnique({
+    where: { asignacionId_pasoId: { asignacionId, pasoId } },
+    select: { claseId: true },
+  });
+
   await prisma.citaOral.upsert({
     where: { asignacionId_pasoId: { asignacionId, pasoId } },
     update: { claseId },
@@ -154,6 +167,9 @@ export async function citarOral(
   });
 
   revalidatePath(`/profe/clases/${claseId}`);
+  if (anterior && anterior.claseId !== claseId) {
+    revalidatePath(`/profe/clases/${anterior.claseId}`);
+  }
   revalidatePath("/profe/clases");
   const asignacion = await prisma.asignacion.findUnique({
     where: { id: asignacionId },
@@ -173,10 +189,18 @@ export async function descitarOral(
   const pasoId = String(formData.get("pasoId") ?? "");
   if (!asignacionId || !pasoId) return { error: "Falta el alumno o el paso." };
 
+  // `deleteMany` no devuelve la fila que borra: sin leerla antes no habría
+  // forma de saber qué clase dejó de llevar este oral y revalidarla.
+  const cita = await prisma.citaOral.findUnique({
+    where: { asignacionId_pasoId: { asignacionId, pasoId } },
+    select: { claseId: true },
+  });
+
   // `deleteMany` y no `delete`: quitar una cita que otra pestaña ya quitó no
   // es un error, y `delete` reventaría con un P2025 sin capturar.
   await prisma.citaOral.deleteMany({ where: { asignacionId, pasoId } });
 
+  if (cita) revalidatePath(`/profe/clases/${cita.claseId}`);
   revalidatePath("/profe/clases");
   const asignacion = await prisma.asignacion.findUnique({
     where: { id: asignacionId },

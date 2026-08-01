@@ -7,6 +7,7 @@ import "dotenv/config";
 import { clasesParaCitar, puedeCitarse } from "@/lib/citas";
 import {
   analizarExpresion,
+  expresionDelPaso,
   expresionSchema,
   puedeEntregar,
   puedeValorarse,
@@ -28,6 +29,8 @@ let asignacionId: string | null = null;
 const usuarioIds: string[] = [];
 const claseIds: string[] = [];
 const grupoIds: string[] = [];
+const pasoExtraIds: string[] = [];
+const ejercicioIds: string[] = [];
 
 const ESCRITA = {
   ejercicio: "expresion",
@@ -123,15 +126,43 @@ async function main() {
   afirmar(sinCorregir.criterios.length === 2, "los criterios viajan siempre: el alumno ve con qué se le puntúa");
 
   // ─── La rúbrica ─────────────────────────────────────────────────────
-  afirmar(puedeValorarse(datos, { c1: 3, c2: 2 }) === null, "una rúbrica completa se puede guardar");
-  afirmar(puedeValorarse(datos, { c1: 3 }) !== null, "falta un criterio: no se guarda");
-  afirmar(puedeValorarse(datos, { c1: 3, c2: 9 }) !== null, "una nota por encima del máximo se rechaza");
-  afirmar(puedeValorarse(datos, { c1: 3, c2: -1 }) !== null, "una nota negativa se rechaza");
+  // El tercer argumento es la entrega ya guardada: fuera de las pruebas de
+  // esa regla concreta, se manda un texto cualquiera para que no interfiera.
+  afirmar(puedeValorarse(datos, { c1: 3, c2: 2 }, "Algo entregado.") === null, "una rúbrica completa se puede guardar");
+  afirmar(puedeValorarse(datos, { c1: 3 }, "Algo entregado.") !== null, "falta un criterio: no se guarda");
   afirmar(
-    puedeValorarse(datos, { c1: 3, c2: 2, c9: 1 }) !== null,
+    puedeValorarse(datos, { c1: 3, c2: 9 }, "Algo entregado.") !== null,
+    "una nota por encima del máximo se rechaza",
+  );
+  afirmar(
+    puedeValorarse(datos, { c1: 3, c2: -1 }, "Algo entregado.") !== null,
+    "una nota negativa se rechaza",
+  );
+  afirmar(
+    puedeValorarse(datos, { c1: 3, c2: 2, c9: 1 }, "Algo entregado.") !== null,
     "una nota de un criterio que no existe se rechaza",
   );
   afirmar(puntosDe(datos, { c1: 3, c2: 2 }) === 5, "los puntos son la suma de las notas");
+
+  // Una escrita sin entrega no se puede corregir: si no, el profesor podía
+  // valorar antes de que el alumno escribiera nada, y `puedeEntregar` le
+  // cerraría la puerta para siempre con «ya está corregida».
+  afirmar(
+    puedeValorarse(datos, { c1: 3, c2: 2 }, null) !== null,
+    "una escrita sin entrega no se puede corregir",
+  );
+  afirmar(
+    puedeValorarse(datos, { c1: 3, c2: 2 }, "") !== null,
+    "una escrita con entrega vacía tampoco se puede corregir",
+  );
+
+  // En una oral, en cambio, no hay entrega que guardar: valorar sin ella es
+  // lo normal, no una excepción.
+  const datosOral = analizarExpresion(ORAL)!;
+  afirmar(
+    puedeValorarse(datosOral, { c1: 3 }, null) === null,
+    "una oral sin entrega sí se puede corregir",
+  );
 
   // ─── La entrega, contra filas reales ────────────────────────────────
   const estudiante = await prisma.user.create({
@@ -264,6 +295,54 @@ async function main() {
     "la ajena, la anulada y la pasada no salen entre las que se ofrecen",
   );
 
+  // ─── expresionDelPaso: la rúbrica se resuelve en lib/, no en la acción ──
+  const pasoSinEjercicio = await prisma.paso.create({
+    data: { recorridoId: recorrido.id, titulo: "Sin ejercicio", tipo: "MACRO_TAREA", ciclo: 1, orden: 2 },
+  });
+  pasoExtraIds.push(pasoSinEjercicio.id);
+  afirmar(
+    (await expresionDelPaso(pasoSinEjercicio.id)) === null,
+    "un paso sin ningún ejercicio no tiene tarea de expresión",
+  );
+
+  const ejercicioMotor = await prisma.ejercicio.create({
+    data: {
+      tipo: "OPCION_MULTIPLE",
+      titulo: `Del motor ${marca}`,
+      nivel: "B1",
+      datos: { ejercicio: "opcion", consigna: "x", multiple: false, preguntas: [] },
+    },
+  });
+  ejercicioIds.push(ejercicioMotor.id);
+  const pasoDelMotor = await prisma.paso.create({
+    data: { recorridoId: recorrido.id, titulo: "Del motor", tipo: "MACRO_TAREA", ciclo: 1, orden: 3 },
+  });
+  pasoExtraIds.push(pasoDelMotor.id);
+  await prisma.pasoEjercicio.create({
+    data: { pasoId: pasoDelMotor.id, ejercicioId: ejercicioMotor.id, orden: 1 },
+  });
+  afirmar(
+    (await expresionDelPaso(pasoDelMotor.id)) === null,
+    "un paso con un ejercicio del motor tampoco tiene tarea de expresión",
+  );
+
+  const ejercicioExpresion = await prisma.ejercicio.create({
+    data: { tipo: "EXPRESION", titulo: `Escrita ${marca}`, nivel: "B1", datos: ESCRITA },
+  });
+  ejercicioIds.push(ejercicioExpresion.id);
+  const pasoConExpresion = await prisma.paso.create({
+    data: { recorridoId: recorrido.id, titulo: "Con expresión", tipo: "MACRO_TAREA", ciclo: 1, orden: 4 },
+  });
+  pasoExtraIds.push(pasoConExpresion.id);
+  await prisma.pasoEjercicio.create({
+    data: { pasoId: pasoConExpresion.id, ejercicioId: ejercicioExpresion.id, orden: 1 },
+  });
+  const resuelta = await expresionDelPaso(pasoConExpresion.id);
+  afirmar(
+    resuelta !== null && resuelta.consigna === ESCRITA.consigna,
+    "un paso con una tarea de expresión la devuelve",
+  );
+
   console.log("\nTodo bien.");
 }
 
@@ -295,6 +374,15 @@ main()
     if (pasoId) {
       const id = pasoId;
       await intentar("paso", () => prisma.paso.delete({ where: { id } }));
+    }
+    if (pasoExtraIds.length) {
+      // Antes que sus ejercicios y que el recorrido: borrar el paso
+      // arrastra en cascada su `PasoEjercicio`, así que el ejercicio queda
+      // libre para borrarse justo después.
+      await intentar("pasos extra", () => prisma.paso.deleteMany({ where: { id: { in: pasoExtraIds } } }));
+    }
+    if (ejercicioIds.length) {
+      await intentar("ejercicios", () => prisma.ejercicio.deleteMany({ where: { id: { in: ejercicioIds } } }));
     }
     if (recorridoId) {
       const id = recorridoId;

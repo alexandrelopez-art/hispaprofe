@@ -101,16 +101,47 @@ export function versionPublicaExpresion(datos: Expresion, corregida: boolean): E
 }
 
 /**
+ * La tarea de expresión enganchada a este paso, o `null` si el paso no tiene
+ * ejercicio o el que tiene no es de expresión.
+ *
+ * Vive aquí, y no dentro de `valorar`, con el mismo criterio que
+ * `maximoDeEscucha` en `lib/escuchas.ts`: de aquí salen los máximos de cada
+ * criterio, así que es el tope real de la rúbrica. Si viviera en la acción,
+ * ningún script podría comprobar que un criterio inventado no cuela.
+ */
+export async function expresionDelPaso(pasoId: string): Promise<Expresion | null> {
+  const vinculo = await prisma.pasoEjercicio.findFirst({
+    where: { pasoId },
+    orderBy: { orden: "asc" },
+    select: { ejercicio: { select: { datos: true } } },
+  });
+  if (!vinculo) return null;
+  return analizarExpresion(vinculo.ejercicio.datos);
+}
+
+/**
  * Si esta rúbrica se puede guardar, o el motivo del no.
  *
  * Exige que **todos** los criterios tengan nota: media rúbrica guardada
  * sería una tarea que parece corregida y no lo está, y el alumno vería una
  * nota que no es la suya.
+ *
+ * En una escrita exige además que haya entrega: sin texto que corregir, no
+ * hay nada que valorar, y sin este freno el profesor podía corregir antes
+ * de que el alumno escribiera una palabra —`puedeEntregar` le cerraría la
+ * puerta para siempre con «ya está corregida», sin haber entregado nunca—.
+ * En una oral no aplica: ahí no hay entrega que guardar, y valorar sin ella
+ * es justo lo normal.
  */
 export function puedeValorarse(
   datos: Expresion,
   notas: Record<string, number>,
+  entrega: string | null,
 ): string | null {
+  if (datos.modalidad === "escrita" && !entrega) {
+    return "El alumno todavía no ha entregado nada: no se puede corregir.";
+  }
+
   const ids = new Set(datos.criterios.map((c) => c.id));
 
   for (const clave of Object.keys(notas)) {
