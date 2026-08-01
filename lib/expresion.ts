@@ -166,6 +166,26 @@ export function puntosDe(datos: Expresion, notas: Record<string, number>): numbe
 }
 
 /**
+ * Si la asignación es de este profesor.
+ *
+ * `false` también cuando la asignación no existe: la acción que llama a esto
+ * no tiene por qué distinguir «no es tuya» de «no existe», igual que las
+ * páginas de detalle de `profe/` resuelven las dos con el mismo `notFound()`.
+ *
+ * No decide si un administrador puede saltárselo: eso es un asunto de rol,
+ * no de datos, y vive en quien llama —igual que en las páginas de `profe/`,
+ * que comprueban `usuario.role !== "ADMIN"` ellas mismas en vez de
+ * metérselo a esta función—.
+ */
+export async function esDeEsteProfesor(asignacionId: string, profesorId: string): Promise<boolean> {
+  const asignacion = await prisma.asignacion.findUnique({
+    where: { id: asignacionId },
+    select: { profesorId: true },
+  });
+  return asignacion?.profesorId === profesorId;
+}
+
+/**
  * Si el alumno todavía puede entregar o reescribir, o el motivo del no.
  *
  * Puede reescribir hasta que el profesor corrige, y no después: es el

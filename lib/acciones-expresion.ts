@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { getUsuarioActual } from "@/lib/usuario";
 import { exigirProfesor } from "@/lib/profesor";
 import {
+  esDeEsteProfesor,
   expresionDelPaso,
   puedeEntregar,
   puedeValorarse,
@@ -84,12 +85,20 @@ export async function valorar(
   _prev: EstadoExpresion,
   formData: FormData,
 ): Promise<EstadoExpresion> {
-  await exigirProfesor();
+  const usuario = await exigirProfesor();
 
   const asignacionId = String(formData.get("asignacionId") ?? "");
   const pasoId = String(formData.get("pasoId") ?? "");
   const comentario = String(formData.get("comentario") ?? "").trim();
   if (!asignacionId || !pasoId) return { error: "Falta el alumno o el paso." };
+
+  // Una acción de servidor es un endpoint público: la pantalla que la llama
+  // ya filtra por profesor, pero eso no impide que alguien mande el
+  // `asignacionId` de otro directamente. Un administrador se lo salta, igual
+  // que en las páginas de `profe/`.
+  if (usuario.role !== "ADMIN" && !(await esDeEsteProfesor(asignacionId, usuario.id))) {
+    return { error: "Esa asignación no es tuya." };
+  }
 
   const datos = await expresionDelPaso(pasoId);
   if (!datos) return { error: "Este paso no tiene una tarea de expresión." };

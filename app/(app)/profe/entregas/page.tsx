@@ -25,8 +25,15 @@ export default async function EntregasPage() {
 
   // Entregado y sin corregir. Solo las escritas producen entrega, así que
   // filtrar por `entrega` deja fuera las orales sin tener que mirar el tipo.
+  // La partición por profesor es la misma que en `orales/page.tsx` y
+  // `clases/page.tsx`: un profesor solo ve lo suyo, un administrador lo ve
+  // todo. Sin esto, un segundo profesor vería las entregas del primero.
   const pendientes = await prisma.pasoCompletado.findMany({
-    where: { entrega: { not: null }, verificadoEl: null },
+    where: {
+      entrega: { not: null },
+      verificadoEl: null,
+      ...(usuario.role === "ADMIN" ? {} : { asignacion: { profesorId: usuario.id } }),
+    },
     orderBy: { completadoEl: "asc" },
     select: {
       id: true,

@@ -7,6 +7,7 @@ import "dotenv/config";
 import { clasesParaCitar, puedeCitarse } from "@/lib/citas";
 import {
   analizarExpresion,
+  esDeEsteProfesor,
   expresionDelPaso,
   expresionSchema,
   puedeEntregar,
@@ -173,6 +174,12 @@ async function main() {
     data: { email: `profe-${marca}@ejemplo.test`, role: "PROFESOR" },
   });
   usuarioIds.push(profesor.id);
+  // Un segundo profesor, solo para probar que `esDeEsteProfesor` distingue
+  // entre «la asignación es mía» y «existe, pero es de otro».
+  const otroProfesor = await prisma.user.create({
+    data: { email: `otro-profe-${marca}@ejemplo.test`, role: "PROFESOR" },
+  });
+  usuarioIds.push(otroProfesor.id);
 
   const recorrido = await prisma.recorrido.create({
     data: { titulo: `Recorrido ${marca}`, nivel: "B1", orden: 1 },
@@ -186,6 +193,20 @@ async function main() {
     data: { estudianteId: estudiante.id, profesorId: profesor.id, recorridoId: recorrido.id },
   });
   asignacionId = asignacion.id;
+
+  // ─── esDeEsteProfesor: una acción de servidor es un endpoint público ───
+  afirmar(
+    (await esDeEsteProfesor(asignacion.id, profesor.id)) === true,
+    "esDeEsteProfesor acepta la propia asignación",
+  );
+  afirmar(
+    (await esDeEsteProfesor(asignacion.id, otroProfesor.id)) === false,
+    "esDeEsteProfesor rechaza la asignación de otro profesor",
+  );
+  afirmar(
+    (await esDeEsteProfesor("noexiste", profesor.id)) === false,
+    "esDeEsteProfesor rechaza una asignación que no existe",
+  );
 
   afirmar(
     (await puedeEntregar(asignacion.id, paso.id)) === null,

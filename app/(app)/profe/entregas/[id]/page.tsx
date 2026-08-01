@@ -36,11 +36,20 @@ export default async function CorregirPage({
         },
       },
       asignacion: {
-        select: { estudiante: { select: { firstName: true, lastName: true, email: true } } },
+        select: {
+          profesorId: true,
+          estudiante: { select: { firstName: true, lastName: true, email: true } },
+        },
       },
     },
   });
   if (!registro) notFound();
+
+  // Un profesor solo ve las suyas. Un administrador, todas. Mismo patrón
+  // que `clases/[id]/page.tsx` y `orales/[id]/page.tsx`.
+  if (registro.asignacion.profesorId !== usuario.id && usuario.role !== "ADMIN") {
+    notFound();
+  }
 
   const datos = registro.paso.ejercicios[0]
     ? analizarExpresion(registro.paso.ejercicios[0].ejercicio.datos)
