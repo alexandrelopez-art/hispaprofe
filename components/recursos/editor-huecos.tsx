@@ -1,5 +1,6 @@
 "use client";
 
+import { trozos } from "@/lib/ejercicios/tipos";
 import { area, BotonQuitar, campo } from "./campos";
 
 type Hueco = { id: string; acepta: string[] };
@@ -18,11 +19,16 @@ export const HUECOS_VACIO: DatosHuecos = {
   huecos: [],
 };
 
-/** Las marcas {{...}} que hay en el texto, en orden y sin repetir. */
+/**
+ * Las marcas {{...}} que hay en el texto, en orden y sin repetir.
+ *
+ * Sobre `trozos` y no con su propia expresión regular: esta rama consolidó
+ * ahí las otras copias precisamente porque, sueltas, se acaban separando.
+ */
 function marcasDe(texto: string): string[] {
   const vistas = new Set<string>();
-  for (const m of texto.matchAll(/\{\{([^}]+)\}\}/g)) {
-    vistas.add(m[1]);
+  for (const t of trozos(texto)) {
+    if (t.tipo === "hueco") vistas.add(t.valor);
   }
   return [...vistas];
 }
