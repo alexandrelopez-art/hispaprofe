@@ -5,6 +5,62 @@ import { revisarDatos } from "@/lib/recursos";
 // Solo de servidor: `revisarDatos` arrastra `lib/ejercicios/registro.ts`, que
 // importa `node:crypto`. Ningún componente de cliente puede importar esto.
 
+function parsea(texto: string): boolean {
+  try {
+    JSON.parse(texto);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * El primer trozo que empieza en una `{` y parsea como JSON, contando las
+ * llaves de verdad: las que caen dentro de una cadena (entre comillas, con
+ * `\"` como comilla escapada) no cuentan para el equilibrio.
+ *
+ * Hace falta porque este dominio está lleno de llaves sueltas que no
+ * delimitan nada: los ejercicios de huecos usan `{{id}}`, y una IA que
+ * explique el formato en prosa lo menciona antes o después del JSON. Sin
+ * equilibrar de verdad, el recorte ingenuo —de la primera `{` a la última
+ * `}`— empieza o acaba en la llave que no es, y un JSON perfectamente
+ * válido se rechaza con «Eso no es JSON».
+ */
+function primerObjetoEquilibrado(texto: string): string | null {
+  for (let i = 0; i < texto.length; i++) {
+    if (texto[i] !== "{") continue;
+
+    let profundidad = 0;
+    let dentroDeCadena = false;
+    for (let j = i; j < texto.length; j++) {
+      const c = texto[j];
+      if (dentroDeCadena) {
+        if (c === "\\") j++; // la comilla escapada no cierra la cadena
+        else if (c === '"') dentroDeCadena = false;
+        continue;
+      }
+      if (c === '"') dentroDeCadena = true;
+      else if (c === "{") profundidad++;
+      else if (c === "}") {
+        profundidad--;
+        if (profundidad === 0) {
+          const candidato = texto.slice(i, j + 1);
+          if (parsea(candidato)) return candidato;
+          break; // esta `{` no da un objeto válido: prueba con la siguiente
+        }
+      }
+    }
+  }
+  return null;
+}
+
+/** El recorte de siempre, para cuando nada más ha dado un JSON válido. */
+function recorteIngenuo(texto: string): string {
+  const i = texto.indexOf("{");
+  const j = texto.lastIndexOf("}");
+  return i >= 0 && j > i ? texto.slice(i, j + 1) : texto;
+}
+
 /**
  * Quita la valla ```json que las IA ponen alrededor del código, y lo que
  * escriban antes o después.
@@ -15,13 +71,17 @@ import { revisarDatos } from "@/lib/recursos";
  */
 export function sinValla(pegado: string): string {
   const t = pegado.trim();
+
+  // Si el texto entero ya es JSON, no hay nada que recortar.
+  if (parsea(t)) return t;
+
   const valla = /```(?:json)?\s*([\s\S]*?)```/.exec(t);
   if (valla) return valla[1].trim();
-  // Sin valla: desde la primera llave hasta la última. Si no hay ninguna,
-  // se devuelve tal cual para que sea `JSON.parse` quien dé el motivo.
-  const i = t.indexOf("{");
-  const j = t.lastIndexOf("}");
-  return i >= 0 && j > i ? t.slice(i, j + 1) : t;
+
+  // Sin valla: el primer objeto con las llaves equilibradas que parsee. Si
+  // nada parsea, se devuelve el recorte ingenuo de siempre para que sea
+  // `JSON.parse` quien dé el motivo.
+  return primerObjetoEquilibrado(t) ?? recorteIngenuo(t);
 }
 
 /** El sobre ya abierto y con su contenido validado por el motor. */

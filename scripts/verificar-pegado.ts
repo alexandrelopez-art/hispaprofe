@@ -26,6 +26,59 @@ const SOBRE_BUENO = {
   },
 };
 
+/**
+ * Ejercicios mínimos y válidos de los otros tres tipos del motor, más una
+ * expresión: para que `resumir` se ejercite en sus cuatro ramas y en la de
+ * expresión, no solo en la de relacionar.
+ */
+const OPCION_BUENA = {
+  ejercicio: "opcion",
+  consigna: "Elige la opción correcta.",
+  multiple: false,
+  preguntas: [
+    {
+      id: "1",
+      enunciado: "¿Cuál es la capital de España?",
+      opciones: ["Madrid", "Lisboa"],
+      correctas: [0],
+    },
+  ],
+};
+
+/** Su `{{1}}` sirve dos veces: valida `resumir` y, en H1, que sobrevive dentro del JSON. */
+const HUECOS_BUENOS = {
+  ejercicio: "huecos",
+  consigna: "Completa el hueco.",
+  texto: "Ella {{1}} muy feliz.",
+  huecos: [{ id: "1", acepta: ["está"] }],
+};
+
+const ORDENAR_BUENO = {
+  ejercicio: "ordenar",
+  consigna: "Ordena las piezas.",
+  piezas: [
+    { id: "1", texto: "Primero" },
+    { id: "2", texto: "Segundo" },
+  ],
+};
+
+const EXPRESION_BUENA = {
+  ejercicio: "expresion",
+  modalidad: "escrita",
+  consigna: "Escribe una redacción sobre tus vacaciones.",
+  palabras: { minimo: 100, maximo: 150 },
+  criterios: [{ id: "1", nombre: "Adecuación", maximo: 10 }],
+};
+
+/** JSON.parse sin reventar, para comprobar que un texto recuperado sí lo era. */
+function intentaParsear(texto: string): unknown {
+  try {
+    return JSON.parse(texto);
+  } catch {
+    return undefined;
+  }
+}
+
 async function main() {
   // ─── La valla de la IA ───────────────────────────────────────────────
   afirmar(
@@ -40,6 +93,30 @@ async function main() {
     sinValla('Aquí tienes: {"a":1} ¡Espero que sirva!') === '{"a":1}',
     "sinValla recorta desde la primera llave hasta la última cuando no hay valla",
   );
+
+  // ─── Las llaves sueltas de la prosa ───────────────────────────────────
+  // El dominio está lleno de ellas: los huecos usan `{{id}}`, y una IA que
+  // explica el formato antes o después del JSON las menciona. El recorte
+  // ingenuo —primera `{` a última `}`— cortaba por donde no era.
+  const conLlaveAntes =
+    "Aquí tienes el ejercicio de huecos, que usa el formato {{1}} para marcarlos:\n" +
+    JSON.stringify(HUECOS_BUENOS) +
+    "\n¡Suerte!";
+  afirmar(
+    JSON.stringify(intentaParsear(sinValla(conLlaveAntes))) === JSON.stringify(HUECOS_BUENOS),
+    "sinValla no confunde el {{1}} de la prosa de antes con el principio del JSON",
+  );
+
+  const conLlaveDespues =
+    JSON.stringify(HUECOS_BUENOS) +
+    "\nRecuerda usar siempre llaves { } para las variables.";
+  afirmar(
+    JSON.stringify(intentaParsear(sinValla(conLlaveDespues))) === JSON.stringify(HUECOS_BUENOS),
+    "sinValla no confunde la llave suelta de la prosa de después con el final del JSON",
+  );
+  // Las dos comprobaciones anteriores recuperan un JSON cuyo propio `texto`
+  // lleva un `{{1}}` dentro: si el equilibrado no respetara las cadenas,
+  // ese hueco interno también lo habría roto.
 
   // ─── El sobre bueno ──────────────────────────────────────────────────
   const bueno = abrirSobre(JSON.stringify(SOBRE_BUENO));
@@ -109,9 +186,29 @@ async function main() {
   );
 
   // ─── El resumen ──────────────────────────────────────────────────────
-  const dice = resumir(SOBRE_BUENO.ejercicio);
-  afirmar(dice.includes("2"), "el resumen cuenta las parejas");
-  afirmar(dice.includes("1"), "el resumen cuenta los sobrantes");
+  // Se compara contra la frase entera, no contra dígitos sueltos: con 2
+  // parejas y 1 sobrante, un error que intercambiara los dos conteos
+  // seguiría teniendo ambos dígitos en algún sitio de la cadena.
+  afirmar(
+    resumir(SOBRE_BUENO.ejercicio) === "relacionar · 2 parejas · 1 sobrantes",
+    "el resumen de relacionar cuenta las parejas y los sobrantes por separado",
+  );
+  afirmar(
+    resumir(OPCION_BUENA) === "opción · 1 preguntas",
+    "el resumen de opción cuenta las preguntas",
+  );
+  afirmar(
+    resumir(HUECOS_BUENOS) === "huecos · 1 huecos",
+    "el resumen de huecos cuenta los huecos",
+  );
+  afirmar(
+    resumir(ORDENAR_BUENO) === "ordenar · 2 piezas",
+    "el resumen de ordenar cuenta las piezas",
+  );
+  afirmar(
+    resumir(EXPRESION_BUENA) === "tarea de expresión",
+    "el resumen de una expresión no cuenta nada: analizar no la conoce",
+  );
 
   console.log("\nTodo en orden.");
 }
