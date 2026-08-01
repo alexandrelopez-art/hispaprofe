@@ -109,11 +109,24 @@ function enMegas(bytes: number): string {
  * Android rebotara en «No se pudo procesar la grabación», siempre, sin ninguna
  * otra puerta. MP4 y Ogg sí los abre, así que se le pide uno de esos primero.
  *
+ * Y no basta con pedir el envase: hay que pedir también el contenido. Pedir
+ * `audio/mp4` a secas le deja a Chrome elegir el códec, y elige Opus, que
+ * CoreAudio tampoco sabe descodificar aunque el MP4 sí lo abra —el error que
+ * dio en la máquina de Pablo el 01/08/2026 fue
+ * `ExtAudioFileSetProperty ('cfmt') failed ('pck?')`, que es justo eso: envase
+ * entendido, contenido no—. Por eso el primer candidato nombra el códec, AAC,
+ * y el `audio/mp4` pelado se queda detrás para Safari, que con él da AAC.
+ *
  * No sustituye al reintento del servidor: aquí no se puede saber qué acepta el
  * navegador de cada alumno, y `isTypeSupported` miente en algunos. Las dos
  * mitades tienen que estar.
  */
-const CONTENEDORES = ["audio/mp4", "audio/ogg", "audio/webm"];
+const CONTENEDORES = [
+  "audio/mp4;codecs=mp4a.40.2",
+  "audio/mp4",
+  "audio/ogg",
+  "audio/webm",
+];
 
 /**
  * El primer contenedor de la lista que este navegador sepa producir, o `null`
