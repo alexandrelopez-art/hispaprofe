@@ -298,6 +298,9 @@ model Archivo {
   tipo        String // mime, por ejemplo image/webp
   tamano      Int // en bytes, ya redimensionada
   datos       Bytes
+  /// Una entrega de un alumno, no material del profesor: se sirve solo a su
+  /// autor, a su profesor y al administrador, y no se cachea en público.
+  privado     Boolean  @default(false)
   subidoPor   User?    @relation("AutorArchivo", fields: [subidoPorId], references: [id])
   subidoPorId String?
   createdAt   DateTime @default(now())

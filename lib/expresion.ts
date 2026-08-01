@@ -297,3 +297,43 @@ export async function puedeEntregarAudio(
   }
   return null;
 }
+
+/**
+ * Si esta persona puede oír este archivo.
+ *
+ * Un archivo que no es privado se sirve a cualquiera, como hasta ahora: son
+ * las imágenes y los audios de los ejercicios, material del profesor con una
+ * dirección imposible de adivinar.
+ *
+ * Uno privado es la voz de un alumno, y solo lo oyen tres: su autor, el
+ * profesor de la asignación donde está entregado, y un administrador. Al
+ * profesor se le reconoce por dónde está la entrega, que es lo que ata la
+ * grabación a una asignación y esa asignación a un profesor.
+ *
+ * Vive aquí y no dentro de la ruta para que el script pueda ejercitarla con
+ * los cinco casos sin levantar un servidor.
+ */
+export async function puedeOirse(
+  archivoId: string,
+  usuario: { id: string; role: string } | null,
+): Promise<boolean> {
+  const archivo = await prisma.archivo.findUnique({
+    where: { id: archivoId },
+    select: { privado: true, subidoPorId: true },
+  });
+  if (!archivo) return false;
+  if (!archivo.privado) return true;
+  if (!usuario) return false;
+  if (usuario.role === "ADMIN") return true;
+  if (archivo.subidoPorId === usuario.id) return true;
+
+  // El profesor de la asignación donde está entregado. Sin índice sobre
+  // `entrega` a propósito: esa columna guarda redacciones enteras y un índice
+  // btree de Postgres revienta pasados unos 2.700 bytes, así que indexarla
+  // rompería la entrega de un texto largo.
+  const entregado = await prisma.pasoCompletado.findFirst({
+    where: { entrega: `/api/archivos/${archivoId}` },
+    select: { asignacion: { select: { profesorId: true } } },
+  });
+  return entregado?.asignacion.profesorId === usuario.id;
+}

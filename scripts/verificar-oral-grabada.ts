@@ -1,8 +1,8 @@
 /**
  * Verifica el campo `grabada` de una tarea de expresión y las reglas que
  * cambia: el esquema, `esGrabada`, `puedeValorarse`, `puedeEntregar`,
- * `puedeEntregarAudio` y `puedeCitarse`. Crea sus propios datos y los borra
- * al terminar.
+ * `puedeEntregarAudio`, `puedeCitarse` y `puedeOirse`. Crea sus propios datos
+ * y los borra al terminar.
  * Ejecutar con:  npx tsx scripts/verificar-oral-grabada.ts
  */
 import "dotenv/config";
@@ -13,6 +13,7 @@ import {
   expresionSchema,
   puedeEntregar,
   puedeEntregarAudio,
+  puedeOirse,
   puedeValorarse,
 } from "@/lib/expresion";
 import { Prisma } from "@/lib/generated/prisma/client";
@@ -31,6 +32,7 @@ const usuarioIds: string[] = [];
 const claseIds: string[] = [];
 const pasoIds: string[] = [];
 const ejercicioIds: string[] = [];
+const archivoIds: string[] = [];
 
 const ESCRITA = {
   ejercicio: "expresion",
@@ -94,6 +96,21 @@ async function main() {
   });
   usuarioIds.push(profesor.id);
 
+  // Los tres de más son para `puedeOirse`: sin un segundo alumno y un segundo
+  // profesor no hay forma de comprobar a quién se le niega.
+  const otroAlumno = await prisma.user.create({
+    data: { email: `alumno2-${marca}@ejemplo.test`, role: "STUDENT" },
+  });
+  usuarioIds.push(otroAlumno.id);
+  const otroProfesor = await prisma.user.create({
+    data: { email: `profe2-${marca}@ejemplo.test`, role: "PROFESOR" },
+  });
+  usuarioIds.push(otroProfesor.id);
+  const administrador = await prisma.user.create({
+    data: { email: `admin-${marca}@ejemplo.test`, role: "ADMIN" },
+  });
+  usuarioIds.push(administrador.id);
+
   const recorrido = await prisma.recorrido.create({
     data: { titulo: `Recorrido ${marca}`, nivel: "B1", orden: 1 },
   });
@@ -150,10 +167,31 @@ async function main() {
     "puedeEntregarAudio rechaza un paso sin ejercicio",
   );
 
+  // ─── puedeOirse ─────────────────────────────────────────────────────
+  async function archivo(nombre: string, privado: boolean, autorId: string) {
+    const fila = await prisma.archivo.create({
+      data: {
+        nombre: `${nombre} ${marca}`,
+        tipo: "audio/webm",
+        tamano: 3,
+        datos: new Uint8Array([1, 2, 3]),
+        privado,
+        subidoPorId: autorId,
+      },
+    });
+    archivoIds.push(fila.id);
+    return fila;
+  }
+
+  const material = await archivo("material", false, profesor.id);
+  const grabacion = await archivo("grabacion", true, estudiante.id);
+
   await prisma.pasoCompletado.create({
     data: {
       asignacionId: asignacion.id,
       pasoId: pasoGrabada.id,
+      // Es lo que ata la grabación a la asignación, y por ahí al profesor.
+      entrega: `/api/archivos/${grabacion.id}`,
       valoracion: { notas: { c1: 3 }, comentario: "Bien." },
       puntos: 3,
       verificadoEl: new Date(),
@@ -162,6 +200,39 @@ async function main() {
   afirmar(
     (await puedeEntregarAudio(asignacion.id, pasoGrabada.id)) !== null,
     "puedeEntregarAudio rechaza después de corregir",
+  );
+
+  afirmar(
+    (await puedeOirse(material.id, null)) === true,
+    "un archivo NO privado se sirve sin sesión",
+  );
+  afirmar(
+    (await puedeOirse(grabacion.id, null)) === false,
+    "un archivo privado no se sirve sin sesión",
+  );
+  afirmar(
+    (await puedeOirse(grabacion.id, estudiante)) === true,
+    "un archivo privado se le sirve a su autor",
+  );
+  afirmar(
+    (await puedeOirse(grabacion.id, otroAlumno)) === false,
+    "un archivo privado NO se le sirve a otro alumno",
+  );
+  afirmar(
+    (await puedeOirse(grabacion.id, profesor)) === true,
+    "un archivo privado se le sirve al profesor de la asignación donde está entregado",
+  );
+  afirmar(
+    (await puedeOirse(grabacion.id, otroProfesor)) === false,
+    "un archivo privado NO se le sirve a otro profesor",
+  );
+  afirmar(
+    (await puedeOirse(grabacion.id, administrador)) === true,
+    "un archivo privado se le sirve a un administrador",
+  );
+  afirmar(
+    (await puedeOirse("noexiste", administrador)) === false,
+    "un archivo que no existe da falso, sin reventar",
   );
 
   // ─── puedeCitarse ───────────────────────────────────────────────────
@@ -225,6 +296,11 @@ main()
     if (claseIds.length) {
       // Antes que los usuarios: Clase.profesorId es RESTRICT.
       await intentar("clases", () => prisma.clase.deleteMany({ where: { id: { in: claseIds } } }));
+    }
+    if (archivoIds.length) {
+      // Aquí y no confiando en el borrado del usuario: la relación es
+      // opcional, así que borrarlo dejaría el archivo huérfano, no borrado.
+      await intentar("archivos", () => prisma.archivo.deleteMany({ where: { id: { in: archivoIds } } }));
     }
     if (usuarioIds.length) {
       await intentar("usuarios", () => prisma.user.deleteMany({ where: { id: { in: usuarioIds } } }));
