@@ -1,13 +1,15 @@
 /**
  * Verifica el campo `grabada` de una tarea de expresión y las reglas que
  * cambia: el esquema, `esGrabada`, `puedeValorarse`, `puedeEntregar`,
- * `puedeEntregarAudio`, `puedeCitarse`, `puedeOirse`, `esGrabacionEntregada` y
- * lo que hacen las dos rutas: la de la entrega (`asignacionViva` y
- * `anotarEntrega`) y la que sirve el archivo por trozos (`interpretarRango`).
+ * `puedeEntregarAudio`, `puedeCitarse`, `puedeOirse`, `esGrabacionEntregada`,
+ * lo que hacen las dos rutas —la de la entrega (`asignacionViva` y
+ * `anotarEntrega`) y la que sirve el archivo por trozos (`interpretarRango`)—
+ * y lo que `suprimir` hace con la voz de quien se va.
  * Crea sus propios datos y los borra al terminar.
  * Ejecutar con:  npx tsx scripts/verificar-oral-grabada.ts
  */
 import "dotenv/config";
+import { suprimir } from "@/lib/admin";
 import { nombreDeGrabacion, tipoBase, TIPOS_AUDIO } from "@/lib/audio";
 import { puedeCitarse } from "@/lib/citas";
 import {
@@ -202,9 +204,9 @@ async function main() {
 
   const material = await archivo("material", false, profesor.id);
   const grabacion = await archivo("grabacion", true, estudiante.id);
-  // Suprimir una ficha pone `subidoPorId` a null en todos sus archivos
-  // (lib/admin.ts). Esa grabación deja de tener dueño, y sin dueño no hay a
-  // quién reconocerle el permiso.
+  // Una grabación desfirmada, como las que dejó suprimir una ficha antes de
+  // que empezara a borrarlas (lib/admin.ts). Sin dueño no hay a quién
+  // reconocerle el permiso.
   const huerfana = await archivo("grabacion sin dueño", true, null);
 
   await prisma.pasoCompletado.create({
@@ -455,6 +457,41 @@ async function main() {
   afirmar(
     !esGrabacionEntregada("https://otrositio.example/api/archivos/x"),
     "ni una dirección de fuera que acabe pareciéndose",
+  );
+
+  // ─── Suprimir una ficha se lleva la voz ─────────────────────────────
+  // Una madre pide que se borren los datos de su hija. Desfirmar el archivo
+  // —lo que se hacía— dejaba los bytes de su voz en la base para siempre, sin
+  // ninguna pantalla que los enseñara: invisibles e imposibles de encontrar
+  // para borrarlos a mano.
+  const aSuprimir = await prisma.user.create({
+    data: {
+      email: `suprimible-${marca}@ejemplo.test`,
+      role: "STUDENT",
+      bloqueadoEl: new Date(),
+    },
+  });
+  usuarioIds.push(aSuprimir.id);
+  const suVoz = await archivo("grabacion de quien se va", true, aSuprimir.id);
+  const suMaterial = await archivo("material de quien se va", false, aSuprimir.id);
+
+  await suprimir(aSuprimir.id);
+
+  afirmar(
+    (await prisma.archivo.count({ where: { id: suVoz.id } })) === 0,
+    "suprimir una ficha borra sus archivos privados: la voz no se queda en la base",
+  );
+  const trasSuprimir = await prisma.archivo.findUnique({
+    where: { id: suMaterial.id },
+    select: { subidoPorId: true },
+  });
+  afirmar(
+    trasSuprimir !== null && trasSuprimir.subidoPorId === null,
+    "y lo que no era privado sigue ahí, solo que sin firma",
+  );
+  afirmar(
+    (await prisma.archivo.count({ where: { subidoPorId: aSuprimir.id, privado: true } })) === 0,
+    "no queda ningún archivo privado suyo",
   );
 
   // ─── Los trozos, que es lo que hace sonar el audio en Safari ────────

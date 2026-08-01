@@ -417,14 +417,18 @@ export async function guardarGrabacion(
  * Uno privado es la voz de un alumno, y solo lo oyen tres: quien lo grabó, un
  * profesor que tenga asignado a quien lo grabó, y un administrador.
  *
- * El matiz, dicho a propósito: el profesor lo es **del alumno**, no de una
- * entrega concreta. Quien tenga asignada a esa persona puede oír cualquier
- * grabación suya, no solo la del recorrido donde la mandó. Es lo que queremos
- * —es su profesor—, pero conviene que esté escrito.
+ * El matiz, dicho a propósito, y es más ancho de lo que suena: el profesor lo
+ * es **del alumno**, no de una entrega concreta, y aquí no se mira
+ * `Asignacion.archivada`. Quien haya tenido *alguna vez* una asignación con
+ * esa persona —aunque el recorrido esté cerrado desde hace un año— oye
+ * *todas* sus grabaciones, también las de recorridos que lleva otro profesor.
+ * Es lo que queremos —es su profesor—, pero conviene que esté escrito, porque
+ * el efecto pasa de lo que el diseño describe.
  *
  * Y una grabación privada sin autor no la oye nadie salvo el administrador.
- * No es hipotético: suprimir una ficha pone `subidoPorId` a null en todos sus
- * archivos, y a partir de ahí esa voz ya no es de nadie.
+ * Hoy suprimir una ficha **borra** sus archivos privados (`lib/admin.ts`), así
+ * que esto cubre solo las que quedaran desfirmadas antes de aquel arreglo: esa
+ * voz ya no es de nadie y no hay a quién reconocerle el permiso.
  *
  * Vive aquí y no dentro de la ruta para que el script pueda ejercitarla con
  * todos sus casos sin levantar un servidor.

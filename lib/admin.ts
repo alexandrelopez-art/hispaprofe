@@ -170,6 +170,9 @@ export async function puedeSuprimirse(
  *
  * Todo en una transacción: una supresión a medias dejaría a alguien con la
  * ficha vaciada pero el progreso intacto, que es lo peor de los dos mundos.
+ *
+ * Y se lleva sus grabaciones: los archivos privados son la voz de esa persona
+ * y desaparecen con ella. Ver el porqué junto al `deleteMany`.
  */
 export async function suprimir(usuarioId: string): Promise<void> {
   const ahora = new Date();
@@ -191,8 +194,19 @@ export async function suprimir(usuarioId: string): Promise<void> {
       where: { autorId: usuarioId },
       data: { autorId: null },
     }),
+    // Un archivo privado es la voz de un alumno, no material del profesor:
+    // se borra, no se desfirma. Desfirmarlo dejaba los bytes en la base para
+    // siempre —y en cada copia de seguridad— sin que ninguna pantalla los
+    // enseñara y sin nadie a quien devolvérselos, que es justo lo contrario
+    // de lo que pide quien manda borrar los datos de su hija. Va antes que el
+    // desfirmado, y los dos filtran por `privado`, para que el orden no
+    // decida nada.
+    prisma.archivo.deleteMany({
+      where: { subidoPorId: usuarioId, privado: true },
+    }),
+    // Lo que subió el profesor sobrevive; la firma no.
     prisma.archivo.updateMany({
-      where: { subidoPorId: usuarioId },
+      where: { subidoPorId: usuarioId, privado: false },
       data: { subidoPorId: null },
     }),
 
