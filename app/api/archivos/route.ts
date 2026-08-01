@@ -1,3 +1,4 @@
+import { comprimirAudio } from "@/lib/audio";
 import { prisma } from "@/lib/prisma";
 import { getUsuarioActual } from "@/lib/usuario";
 
@@ -5,16 +6,11 @@ import { getUsuarioActual } from "@/lib/usuario";
 // a WebP baja de 400 KB, así que 4 MB solo salta con algo muy raro.
 const MAXIMO_IMAGEN = 4 * 1024 * 1024;
 
-// El audio no se puede reducir en el navegador como una imagen, así que este
-// tope no se salta solo: hay que recomprimir antes de subir.
-//
-// Los MP3 del Cervantes vienen en mono a 320 kbps, siete veces más calidad de
-// la que necesita una voz: la tarea 1 del A2/B1 escolar dura casi quince
-// minutos y pesa 35,7 MB. A 48 kbps baja a 5,8 MB sin diferencia audible
-// (`afconvert -f mp4f -d aac -b 48000 -s 3 entrada.mp3 salida.m4a`, que ya
-// viene en macOS). Doce megas dejan pasar eso y rechazan el original, que es
-// justo lo que se busca: el mensaje de error tiene que enseñar a recomprimir.
-const MAXIMO_AUDIO = 12 * 1024 * 1024;
+// Lo que aceptamos **recibir**, no lo que guardamos: el audio se comprime
+// antes de entrar en la base, así que lo guardado es mucho más pequeño.
+// Cien megas dejan pasar de sobra el peor caso conocido —los 35,7 MB de la
+// tarea 1 del A2/B1 escolar— sin abrir la puerta a subir una película.
+const MAXIMO_AUDIO = 100 * 1024 * 1024;
 
 const IMAGENES = [
   "image/webp",
@@ -73,18 +69,49 @@ export async function POST(peticion: Request) {
       {
         error: esImagen
           ? "La imagen pesa demasiado incluso después de reducirla."
-          : "El audio pesa demasiado. El tope son 12 MB: recomprímelo a 48 kbps en mono, que para voz suena igual y ocupa una séptima parte.",
+          : "El audio pesa demasiado. El tope son 100 MB.",
       },
       { status: 400 },
     );
   }
 
-  const datos = Buffer.from(await archivo.arrayBuffer());
+  const recibido = Buffer.from(await archivo.arrayBuffer());
+
+  // El audio se comprime aquí, durante la subida: quince minutos tardan unos
+  // segundos. Si algún día esto corre en una máquina con límite de tiempo por
+  // petición, habrá que sacarlo fuera y enseñar un estado «procesando».
+  let datos = recibido;
+  let tipo = archivo.type;
+  let nombre = archivo.name;
+  if (esAudio) {
+    try {
+      // Devuelve los tres campos ya resueltos, comprima o no: aquí no hay
+      // nada que interpretar.
+      //
+      // El `as` es solo de tipos: `comprimirAudio` declara `datos: Buffer`
+      // a secas, que con este `@types/node` significa "podría venir de un
+      // `SharedArrayBuffer`". Nunca es así —sale de `readFile` o es el mismo
+      // buffer que entró—, pero hace falta decírselo a TypeScript para que
+      // encaje con lo que `prisma.archivo.create` exige guardar.
+      ({ datos, tipo, nombre } = (await comprimirAudio(recibido, archivo.name, archivo.type)) as {
+        datos: Buffer<ArrayBuffer>;
+        tipo: string;
+        nombre: string;
+      });
+    } catch (e) {
+      // Se rechaza en vez de guardar el original de 36 MB callando: si esto
+      // pasara en silencio, se descubriría con cincuenta audios ya dentro.
+      return Response.json(
+        { error: e instanceof Error ? e.message : "No se pudo comprimir el audio." },
+        { status: 400 },
+      );
+    }
+  }
 
   const guardado = await prisma.archivo.create({
     data: {
-      nombre: archivo.name.slice(0, 200),
-      tipo: archivo.type,
+      nombre: nombre.slice(0, 200),
+      tipo,
       tamano: datos.length,
       datos,
       subidoPorId: usuario.id,

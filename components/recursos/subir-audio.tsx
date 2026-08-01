@@ -8,9 +8,9 @@ import { campo } from "./campos";
  * dirección. Las dos vías acaban siendo lo mismo —una dirección en el campo
  * `audio`—, así que subir solo añade una forma de generarla.
  *
- * No reduce nada antes de subir, a diferencia de `subir-imagen.tsx`:
- * recomprimir audio en el navegador estropea la voz, que es justo lo que
- * hay que entender.
+ * No reduce nada en el navegador, a diferencia de `subir-imagen.tsx`:
+ * recomprimir audio en el navegador estropea la voz. Lo hace el servidor al
+ * recibirlo, que es la parte lenta de la espera y por eso el botón lo dice.
  */
 export default function SubirAudio({
   valor,
@@ -69,7 +69,7 @@ export default function SubirAudio({
           onClick={() => entrada.current?.click()}
           className="h-9 rounded-full border border-hp-200 px-4 text-sm font-bold text-tinta transition-colors hover:border-hp-400 disabled:opacity-40"
         >
-          {subiendo ? "Subiendo…" : "Subir un archivo"}
+          {subiendo ? "Subiendo y comprimiendo…" : "Subir un archivo"}
         </button>
 
         <input
