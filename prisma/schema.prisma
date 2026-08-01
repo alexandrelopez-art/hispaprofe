@@ -235,8 +235,10 @@ model PasoCompletado {
   // qué contestó, no solo cuánto sacó.
   respuestas Json?
 
-  /// Lo que escribió el alumno en una tarea de expresión escrita. Null en
-  /// todo lo demás, y en las orales, que no tienen entrega.
+  /// Lo que entregó el alumno en una tarea de expresión: el texto de una
+  /// escrita, o la dirección de su grabación (`/api/archivos/<id>`) en una
+  /// oral grabada. Null en todo lo demás, y en la oral de clase, que se hace
+  /// delante del profesor y no se entrega.
   entrega String?
 
   /// La rúbrica rellenada: `{ notas: { [criterioId]: number }, comentario }`.

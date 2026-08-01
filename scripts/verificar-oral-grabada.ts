@@ -1,14 +1,18 @@
 /**
  * Verifica el campo `grabada` de una tarea de expresión y las reglas que
  * cambia: el esquema, `esGrabada`, `puedeValorarse`, `puedeEntregar`,
- * `puedeEntregarAudio`, `puedeCitarse` y `puedeOirse`. Crea sus propios datos
- * y los borra al terminar.
+ * `puedeEntregarAudio`, `puedeCitarse`, `puedeOirse` y lo que hace la ruta de
+ * la entrega (`asignacionViva` y `anotarEntrega`). Crea sus propios datos y
+ * los borra al terminar.
  * Ejecutar con:  npx tsx scripts/verificar-oral-grabada.ts
  */
 import "dotenv/config";
+import { nombreDeGrabacion, TIPOS_AUDIO } from "@/lib/audio";
 import { puedeCitarse } from "@/lib/citas";
 import {
   analizarExpresion,
+  anotarEntrega,
+  asignacionViva,
   esGrabada,
   expresionSchema,
   puedeEntregar,
@@ -201,7 +205,8 @@ async function main() {
     data: {
       asignacionId: asignacion.id,
       pasoId: pasoGrabada.id,
-      // Es lo que ata la grabación a la asignación, y por ahí al profesor.
+      // Lo que ve el alumno en su paso; el permiso para oírla no sale de aquí,
+      // sino de quién subió el archivo.
       entrega: `/api/archivos/${grabacion.id}`,
       valoracion: { notas: { c1: 3 }, comentario: "Bien." },
       puntos: 3,
@@ -299,6 +304,76 @@ async function main() {
   afirmar(
     (await puedeCitarse(asignacion.id, pasoClase.id, suya.id, profesor.id)) === null,
     "puedeCitarse acepta una oral de clase en una clase suya",
+  );
+
+  // ─── La puerta de la entrega ────────────────────────────────────────
+  // La ruta no se puede llamar sin levantar un servidor, así que se afirma lo
+  // que la ruta usa, que por eso vive en `lib/`.
+
+  afirmar(
+    TIPOS_AUDIO.includes("audio/webm") && TIPOS_AUDIO.includes("audio/mp4"),
+    "la lista de tipos admite lo que graba el navegador: webm y mp4",
+  );
+  afirmar(
+    nombreDeGrabacion("audio/webm") === "grabacion.webm",
+    "una grabación sin nombre sale de aquí con uno legible",
+  );
+
+  // La asignación se deriva de la sesión y del paso: si viniera del
+  // formulario, un alumno entregaría en la de otro.
+  const derivadaSuya = await asignacionViva(estudiante.id, recorrido.id);
+  afirmar(derivadaSuya?.id === asignacion.id, "de la sesión y el recorrido sale la asignación propia");
+  const derivadaAjena = await asignacionViva(otroAlumno.id, recorrido.id);
+  afirmar(
+    derivadaAjena !== null && derivadaAjena.id !== asignacion.id,
+    "y a otro alumno le sale la suya, nunca la del primero",
+  );
+
+  // El freno de «ya está corregida» es por asignación, no por paso: el paso
+  // grabado sigue abierto para el otro alumno aunque el primero ya esté
+  // corregido. Por eso la asignación con la que se pregunta tiene que salir
+  // del servidor y no del formulario.
+  afirmar(
+    (await puedeEntregarAudio(otraAsignacion.id, pasoGrabada.id)) === null,
+    "puedeEntregarAudio mira solo la asignación por la que se pregunta",
+  );
+
+  const pasoOtraGrabada = await pasoConEjercicio("Otra oral grabada", 5, ORAL_GRABADA);
+  await anotarEntrega(asignacion.id, pasoOtraGrabada.id, `/api/archivos/${grabacion.id}`);
+  const primera = await prisma.pasoCompletado.findUnique({
+    where: { asignacionId_pasoId: { asignacionId: asignacion.id, pasoId: pasoOtraGrabada.id } },
+    select: { entrega: true },
+  });
+  // La página del paso lee `hecho = Boolean(registro)`: entregar la grabación
+  // crea la fila, y con ella el paso queda hecho.
+  afirmar(Boolean(primera), "una grabación entregada deja el paso hecho");
+  afirmar(primera?.entrega === `/api/archivos/${grabacion.id}`, "y la entrega apunta a la grabación");
+
+  // Corregida en medio, para comprobar lo que la segunda entrega NO pisa.
+  await prisma.pasoCompletado.update({
+    where: { asignacionId_pasoId: { asignacionId: asignacion.id, pasoId: pasoOtraGrabada.id } },
+    data: { valoracion: { notas: { c1: 2 }, comentario: "Vale." } },
+  });
+
+  await anotarEntrega(asignacion.id, pasoOtraGrabada.id, `/api/archivos/${otraGrabacion.id}`);
+  afirmar(
+    (await prisma.pasoCompletado.count({
+      where: { asignacionId: asignacion.id, pasoId: pasoOtraGrabada.id },
+    })) === 1,
+    "una segunda entrega cae en la misma fila, no crea otra",
+  );
+  const segunda = await prisma.pasoCompletado.findUnique({
+    where: { asignacionId_pasoId: { asignacionId: asignacion.id, pasoId: pasoOtraGrabada.id } },
+    select: { entrega: true, valoracion: true },
+  });
+  afirmar(segunda?.entrega === `/api/archivos/${otraGrabacion.id}`, "y se queda la última grabación");
+  afirmar(segunda?.valoracion !== null, "sin borrar la valoración que ya hubiera");
+
+  // Un recorrido archivado se cierra también por este lado.
+  await prisma.asignacion.update({ where: { id: otraAsignacion.id }, data: { archivada: true } });
+  afirmar(
+    (await asignacionViva(otroAlumno.id, recorrido.id)) === null,
+    "una asignación archivada ya no sirve para entregar",
   );
 
   console.log("\nTodo bien.");
