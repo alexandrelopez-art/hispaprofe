@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  useTransition,
+} from "react";
 import { useRouter } from "next/navigation";
 
 /**
@@ -71,7 +78,14 @@ function reloj(segundos: number): string {
  */
 type Pendiente = { blob: Blob; nombre: string; url: string };
 
-type Estado = "inicio" | "grabando" | "grabado" | "enviando";
+/**
+ * `"entregado"` no es un paso más del ciclo de grabar: es la pantalla que
+ * sostiene el «ya está mandado» mientras el servidor vuelve. Sin él, entre el
+ * clic y el refresco la pantalla volvía a su estado inicial —el botón
+ * «Grabar», sin ninguna señal de haber entregado— y con la conexión lenta eso
+ * se lee como «no ha entrado»: el alumno graba otra vez y manda dos.
+ */
+type Estado = "inicio" | "grabando" | "grabado" | "enviando" | "entregado";
 
 /**
  * El alumno graba su tarea oral, se escucha, repite si quiere y la entrega.
@@ -96,6 +110,8 @@ export default function Grabadora({
   cerrada: boolean;
 }) {
   const router = useRouter();
+  /** El refresco de la página, para poder decir que aún está en camino. */
+  const [refrescando, empezarTransicion] = useTransition();
 
   const [estado, setEstado] = useState<Estado>("inicio");
   const [segundos, setSegundos] = useState(0);
@@ -127,6 +143,21 @@ export default function Grabadora({
   // El `url` del pendiente, aparte, para poder revocarlo al desmontar sin
   // colgar el efecto de limpieza de un estado que cambia.
   const urlRef = useRef<string | null>(null);
+  /**
+   * Ya se está pidiendo el micrófono. `getUserMedia` es una espera, y hasta
+   * que vuelve el botón sigue pintado: sin esta guarda, un segundo clic
+   * —normal en un móvil, y con el permiso ya concedido la espera es de dos
+   * décimas— abría una segunda pista que pisaba a la primera en `pistaRef`, y
+   * la primera se quedaba encendida hasta recargar la página.
+   */
+  const arrancandoRef = useRef(false);
+  /**
+   * El componente ya no está en pantalla. `onstop` puede llegar después de la
+   * limpieza, y entonces no debe crear un `objectURL` que ya nadie va a
+   * revocar: la navegación de Next es de cliente, así que el documento no se
+   * recrea y ese Blob se queda anclado en memoria.
+   */
+  const desmontadoRef = useRef(false);
 
   /**
    * Suelta el micrófono. Sin esto el punto rojo del navegador se queda
@@ -146,9 +177,17 @@ export default function Grabadora({
   }, [soltarPista]);
 
   // Al desmontar: el micrófono se suelta y el objeto se revoca. Si no, cambiar
-  // de paso a media grabación deja el micrófono abierto.
+  // de paso a media grabación deja el micrófono abierto. No depende de que
+  // `onstop` llegue: para las pistas él mismo.
+  //
+  // La bandera se apaga al montar y no solo al desmontar: en desarrollo React
+  // monta, desmonta y vuelve a montar, y una bandera que solo se encendiera
+  // dejaría el segundo montaje creyéndose muerto —ninguna grabación se
+  // guardaría—.
   useEffect(() => {
+    desmontadoRef.current = false;
     return () => {
+      desmontadoRef.current = true;
       if (grabadoraRef.current?.state === "recording") grabadoraRef.current.stop();
       pistaRef.current?.getTracks().forEach((t) => t.stop());
       if (urlRef.current) URL.revokeObjectURL(urlRef.current);
@@ -187,64 +226,82 @@ export default function Grabadora({
   }
 
   async function empezar() {
+    // Guarda de reentrada: hasta que `getUserMedia` vuelva, el botón sigue en
+    // pantalla y un segundo clic abriría una segunda pista que la primera no
+    // sobreviviría. Ver `arrancandoRef`.
+    if (arrancandoRef.current) return;
+    arrancandoRef.current = true;
     setError(null);
     setAviso(null);
 
-    let pista: MediaStream;
     try {
-      pista = await navigator.mediaDevices.getUserMedia({ audio: true });
-    } catch {
-      // Permiso denegado o sin micrófono. No hay segundo intento que valga la
-      // pena: se le ofrece el rodeo, que es lo que sí puede hacer.
-      setSinMicrofono(true);
-      setError(
-        "No hemos podido usar tu micrófono. Puedes grabarte con otra aplicación y subir el archivo aquí.",
-      );
-      return;
-    }
-
-    let grabadora: MediaRecorder;
-    try {
-      grabadora = new MediaRecorder(pista);
-    } catch {
-      pista.getTracks().forEach((t) => t.stop());
-      setSinMicrofono(true);
-      setError(
-        "Este navegador no sabe grabar. Puedes grabarte con otra aplicación y subir el archivo aquí.",
-      );
-      return;
-    }
-
-    const trozos: Blob[] = [];
-    grabadora.ondataavailable = (e) => {
-      if (e.data.size > 0) trozos.push(e.data);
-    };
-    grabadora.onstop = () => {
-      soltarPista();
-      // El tipo, el que diga el navegador: `audio/webm;codecs=opus` en Chrome
-      // y `audio/ogg; codecs=opus` en Firefox pasan la puerta tal cual, que
-      // los normaliza el servidor. Inventarle uno aquí sería mentir sobre lo
-      // que hay dentro del archivo.
-      const tipo = grabadora.mimeType || trozos[0]?.type || "";
-      const blob = new Blob(trozos, { type: tipo });
-      if (blob.size === 0) {
-        // Parar antes de que llegue el primer trozo, o un micrófono mudo. Se
-        // dice aquí: mandarlo vacío solo consigue que el compresor del
-        // servidor conteste «no se pudo procesar», que no explica nada.
-        setError("No se ha grabado nada. Comprueba tu micrófono y vuelve a intentarlo.");
-        setEstado("inicio");
+      let pista: MediaStream;
+      try {
+        pista = await navigator.mediaDevices.getUserMedia({ audio: true });
+      } catch {
+        // Permiso denegado o sin micrófono. No hay segundo intento que valga
+        // la pena: se le ofrece el rodeo, que es lo que sí puede hacer.
+        setSinMicrofono(true);
+        setError(
+          "No hemos podido usar tu micrófono. Puedes grabarte con otra aplicación y subir el archivo aquí.",
+        );
         return;
       }
-      guardarPendiente(blob, nombreDeGrabacion(tipo));
-    };
 
-    pistaRef.current = pista;
-    grabadoraRef.current = grabadora;
-    inicioRef.current = Date.now();
-    setPendiente(null);
-    setSegundos(0);
-    grabadora.start();
-    setEstado("grabando");
+      let grabadora: MediaRecorder;
+      try {
+        grabadora = new MediaRecorder(pista);
+
+        const trozos: Blob[] = [];
+        grabadora.ondataavailable = (e) => {
+          if (e.data.size > 0) trozos.push(e.data);
+        };
+        grabadora.onstop = () => {
+          soltarPista();
+          // Puede llegar cuando ya nos han sacado de la pantalla: entonces no
+          // hay nada que guardar, y crear el `objectURL` sería dejarlo suelto.
+          if (desmontadoRef.current) return;
+          // El tipo, el que diga el navegador: `audio/webm;codecs=opus` en
+          // Chrome y `audio/ogg; codecs=opus` en Firefox pasan la puerta tal
+          // cual, que los normaliza el servidor. Inventarle uno aquí sería
+          // mentir sobre lo que hay dentro del archivo.
+          const tipo = grabadora.mimeType || trozos[0]?.type || "";
+          const blob = new Blob(trozos, { type: tipo });
+          if (blob.size === 0) {
+            // Parar antes de que llegue el primer trozo, o un micrófono mudo.
+            // Se dice aquí: mandarlo vacío solo consigue que el compresor del
+            // servidor conteste «no se pudo procesar», que no explica nada.
+            setError("No se ha grabado nada. Comprueba tu micrófono y vuelve a intentarlo.");
+            setEstado("inicio");
+            return;
+          }
+          guardarPendiente(blob, nombreDeGrabacion(tipo));
+        };
+
+        // Dentro del mismo `try` que el constructor: `start()` también lanza
+        // —un contenedor que el navegador no sabe producir—, y fuera de aquí
+        // se iba sin mensaje y dejando la pista encendida.
+        inicioRef.current = Date.now();
+        grabadora.start();
+      } catch {
+        pista.getTracks().forEach((t) => t.stop());
+        setSinMicrofono(true);
+        setError(
+          "Este navegador no ha podido empezar a grabar. Puedes grabarte con otra aplicación y subir el archivo aquí.",
+        );
+        return;
+      }
+
+      // Solo cuando ya está grabando de verdad: guardar las referencias antes
+      // dejaría apuntando a una grabadora que no llegó a arrancar.
+      pistaRef.current = pista;
+      grabadoraRef.current = grabadora;
+      setPendiente(null);
+      setSegundos(0);
+      setEstado("grabando");
+    } finally {
+      arrancandoRef.current = false;
+    }
   }
 
   function repetir() {
@@ -255,6 +312,11 @@ export default function Grabadora({
     setError(null);
     setAviso(null);
     setEstado("inicio");
+    // Y se deshace el «Volver a grabar»: repetir es arrepentirse de esta toma,
+    // así que vuelve al punto de partida, que con una entrega hecha es el
+    // reproductor de lo que ya entregó. Sin esto no había forma de volver a
+    // oírlo sin recargar la página.
+    setRegrabando(false);
   }
 
   async function entregarAudio() {
@@ -289,16 +351,32 @@ export default function Grabadora({
       return;
     }
 
+    // Nada se limpia aquí: lo grabado se queda en pantalla, ya como entregado,
+    // con su reproductor. Es lo que impide que entre el clic y el refresco
+    // haya un instante en el que parezca que no se ha entregado nada.
+    setAviso(null);
+    setEstado("entregado");
+    // Para que la página vuelva del servidor con la entrega ya guardada: de
+    // ahí salen el reproductor de arriba y el estado del paso. Dentro de una
+    // transición para poder decir que todavía está en camino; el refresco no
+    // se lleva por delante el estado del cliente.
+    empezarTransicion(() => router.refresh());
+  }
+
+  /**
+   * Vuelve a la grabadora desde una entrega hecha —la que trae la prop o la
+   * que se acaba de mandar—. `regrabando` es lo que impide que la pantalla
+   * salte otra vez al reproductor de lo entregado.
+   */
+  function volverAGrabar() {
     if (urlRef.current) URL.revokeObjectURL(urlRef.current);
     urlRef.current = null;
     setPendiente(null);
     setSegundos(0);
+    setError(null);
     setAviso(null);
     setEstado("inicio");
-    setRegrabando(false);
-    // Para que la página vuelva del servidor con la entrega ya guardada: es de
-    // ahí de donde sale el reproductor de arriba, y el estado del paso.
-    router.refresh();
+    setRegrabando(true);
   }
 
   function elegirArchivo(archivo: File) {
@@ -344,22 +422,41 @@ export default function Grabadora({
         {minutos > 0 ? `: la tarea dura unos ${minutos} minutos` : ""}.
       </p>
 
-      {/* Con una entrega hecha, lo primero que se ve es esa grabación. La
-          grabadora solo vuelve si él la pide. */}
-      {grabacionEntregada && !regrabando ? (
+      {/*
+        Recién entregado: se enseña lo que acaba de mandar, y no lo que traiga
+        la prop `entrega`, que hasta que aterrice el refresco es todavía la
+        entrega anterior —o nada, en la primera—. Esta pantalla no se va sola:
+        se queda hasta que él pida grabar otra vez.
+      */}
+      {estado === "entregado" ? (
+        <div className="mt-3">
+          <p className="text-sm font-bold text-tinta">Entregado ✓ Ya lo tiene tu profe.</p>
+          {pendiente && (
+            <audio controls preload="none" src={pendiente.url} className="mt-2 w-full max-w-sm">
+              Tu navegador no puede reproducir este audio.
+            </audio>
+          )}
+          {refrescando && (
+            <p className="mt-2 text-sm text-tinta-suave">Actualizando la página…</p>
+          )}
+          <button
+            type="button"
+            onClick={volverAGrabar}
+            className="mt-3 h-11 rounded-full border-2 border-hp-200 px-6 text-sm font-bold text-hp-600 transition-colors hover:border-hp-400"
+          >
+            Volver a grabar
+          </button>
+        </div>
+      ) : /* Con una entrega hecha, lo primero que se ve es esa grabación. La
+             grabadora solo vuelve si él la pide. */
+      grabacionEntregada && !regrabando ? (
         <div className="mt-3">
           <audio controls preload="none" src={grabacionEntregada} className="w-full max-w-sm">
             Tu navegador no puede reproducir este audio.
           </audio>
           <button
             type="button"
-            onClick={() => {
-              setError(null);
-              setAviso(null);
-              setSegundos(0);
-              setEstado("inicio");
-              setRegrabando(true);
-            }}
+            onClick={volverAGrabar}
             className="mt-3 h-11 rounded-full border-2 border-hp-200 px-6 text-sm font-bold text-hp-600 transition-colors hover:border-hp-400"
           >
             Volver a grabar
