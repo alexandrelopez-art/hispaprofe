@@ -347,6 +347,37 @@ async function main() {
     "la versión pública del cloze no lleva las correctas",
   );
 
+  // Con pasaje, una pregunta con audio no se puede oír: la cara del cloze
+  // pinta un desplegable, no un reproductor.
+  afirmar(
+    !opcionSchema.safeParse({
+      ...CLOZE,
+      preguntas: [{ ...CLOZE.preguntas[0], audio: "audio.mp3" }, CLOZE.preguntas[1]],
+    }).success,
+    "con pasaje, una pregunta con audio se rechaza",
+  );
+
+  // Con pasaje, `multiple: true` deja un ejercicio imposible de acertar: el
+  // desplegable del cloze solo elige una opción.
+  afirmar(
+    !opcionSchema.safeParse({ ...CLOZE, multiple: true }).success,
+    "con pasaje, multiple se rechaza",
+  );
+
+  // Lo de siempre sigue valiendo: sin pasaje, audio y multiple son válidos
+  // —hay ejercicios así guardados, con lista y botones—.
+  afirmar(
+    opcionSchema.safeParse({
+      ejercicio: "opcion",
+      consigna: "Escucha y elige.",
+      multiple: true,
+      preguntas: [
+        { id: "a", enunciado: "¿?", opciones: ["sí", "no"], correctas: [0, 1], audio: "audio.mp3" },
+      ],
+    }).success,
+    "sin pasaje, audio y multiple siguen siendo válidos juntos",
+  );
+
   // `trozos` es la misma para los dos tipos desde la Task 1.
   const partesCloze = trozos(CLOZE.texto);
   afirmar(

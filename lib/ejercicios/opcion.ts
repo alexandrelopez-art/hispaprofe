@@ -86,7 +86,21 @@ export const opcionSchema = z
       message:
         "Las marcas {{...}} del pasaje no coinciden con los ids de las preguntas.",
     },
-  );
+  )
+  .refine(
+    (d) => d.texto === undefined || d.preguntas.every((p) => p.audio === undefined),
+    {
+      // La cara del cloze pinta un desplegable, no un reproductor: con
+      // pasaje, un audio ahí no se puede oír y la pregunta queda sin forma
+      // de contestarse.
+      message: "Con pasaje, ninguna pregunta puede llevar audio: el cloze no pinta reproductor.",
+    },
+  )
+  .refine((d) => d.texto === undefined || !d.multiple, {
+    // El desplegable del cloze solo deja elegir una opción: con `multiple`,
+    // una pregunta con dos respuestas correctas no se podría acertar nunca.
+    message: "Con pasaje, el ejercicio no puede ser de opción múltiple: el desplegable solo elige una.",
+  });
 
 export type PreguntaOpcion = z.infer<typeof preguntaOpcionSchema>;
 export type Opcion = z.infer<typeof opcionSchema>;
