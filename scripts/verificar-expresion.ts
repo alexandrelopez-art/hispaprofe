@@ -10,11 +10,13 @@ import {
   esDeEsteProfesor,
   expresionDelPaso,
   expresionSchema,
+  MAXIMO_ENTREGA,
   puedeEntregar,
   puedeValorarse,
   puntosDe,
   versionPublicaExpresion,
 } from "@/lib/expresion";
+import { desmarcarSiNoRevisado } from "@/lib/progreso";
 import { prisma } from "@/lib/prisma";
 
 function afirmar(condicion: boolean, mensaje: string) {
@@ -109,9 +111,57 @@ async function main() {
   afirmar(analizarExpresion({ ejercicio: "opcion" }) === null, "no reconoce un ejercicio del motor");
   afirmar(analizarExpresion(null) === null, "no reconoce null");
 
-  const { tipoDeEjercicio } = await import("@/lib/recursos");
+  const {
+    tipoDeEjercicio,
+    revisarDatos,
+    tieneTrabajo,
+    puedeDesengancharse,
+    puedeEditarse,
+    puedeEngancharse,
+  } = await import("@/lib/recursos");
   afirmar(tipoDeEjercicio(ESCRITA) === "EXPRESION", "una escrita se guarda como EXPRESION");
   afirmar(tipoDeEjercicio(ORAL) === "EXPRESION", "una oral también");
+
+  // ─── El portero de Recursos ─────────────────────────────────────────
+  // `guardarEjercicio` y `publicarEjercicio` preguntan a esto antes de tocar
+  // la base. Mientras solo preguntaba al motor, ninguna expresión se podía
+  // guardar ni publicar: contestaba «al ejercicio le falta el tipo».
+  const revisada = revisarDatos(ESCRITA);
+  afirmar(
+    "tipo" in revisada && revisada.tipo === "EXPRESION",
+    "una expresión válida pasa el portero de guardarEjercicio",
+  );
+  afirmar(
+    "tipo" in revisarDatos({ ...ORAL }),
+    "una oral válida también lo pasa",
+  );
+
+  // Y el motivo del no lo escribe su propio esquema, en castellano: es el
+  // único sitio del proyecto donde esos errores se traducen.
+  const sinCriterios = revisarDatos({ ...ESCRITA, criterios: [] });
+  afirmar(
+    "error" in sinCriterios && sinCriterios.error.includes("al menos un criterio"),
+    "una expresión sin criterios se rechaza con el motivo del esquema, no con uno genérico",
+  );
+  const alReves = revisarDatos({ ...ESCRITA, palabras: { minimo: 200, maximo: 100 } });
+  afirmar(
+    "error" in alReves && alReves.error.includes("no puede ser mayor que el máximo"),
+    "un mínimo de palabras mayor que el máximo llega a la pantalla con su mensaje propio",
+  );
+  const sinMarca = revisarDatos({ consigna: "x" });
+  afirmar(
+    "error" in sinMarca && sinMarca.error.includes("le falta el tipo"),
+    "algo sin discriminante sigue diciendo que le falta el tipo",
+  );
+  afirmar(
+    "tipo" in revisarDatos({
+      ejercicio: "opcion",
+      consigna: "Elige.",
+      multiple: false,
+      preguntas: [{ id: "p1", enunciado: "¿Cuál?", opciones: ["a", "b"], correctas: [0] }],
+    }),
+    "el portero sigue aceptando los del motor",
+  );
 
   // ─── La versión pública: el modelo no viaja antes de tiempo ─────────
   const datos = analizarExpresion(ESCRITA)!;
@@ -194,6 +244,17 @@ async function main() {
   });
   asignacionId = asignacion.id;
 
+  // El paso lleva la escrita colgada desde el principio: `puedeEntregar`
+  // exige que el paso pida de verdad una redacción, así que sin ejercicio
+  // todo lo de abajo diría que no por el motivo equivocado.
+  const escritaDelPaso = await prisma.ejercicio.create({
+    data: { tipo: "EXPRESION", titulo: `Escrita del paso ${marca}`, nivel: "B1", datos: ESCRITA },
+  });
+  ejercicioIds.push(escritaDelPaso.id);
+  await prisma.pasoEjercicio.create({
+    data: { pasoId: paso.id, ejercicioId: escritaDelPaso.id, orden: 1 },
+  });
+
   // ─── esDeEsteProfesor: una acción de servidor es un endpoint público ───
   afirmar(
     (await esDeEsteProfesor(asignacion.id, profesor.id)) === true,
@@ -209,16 +270,60 @@ async function main() {
   );
 
   afirmar(
-    (await puedeEntregar(asignacion.id, paso.id)) === null,
+    (await puedeEntregar(asignacion.id, paso.id, "Un texto normal.")) === null,
     "sin nada entregado todavía, se puede entregar",
+  );
+
+  // El tope de tamaño: `entregar` es un endpoint público y nadie tiene por
+  // qué mandar dos megas de texto a una tarea de 120 palabras.
+  afirmar(
+    (await puedeEntregar(asignacion.id, paso.id, "a".repeat(MAXIMO_ENTREGA))) === null,
+    "un texto justo en el tope todavía entra",
+  );
+  afirmar(
+    (await puedeEntregar(asignacion.id, paso.id, "a".repeat(MAXIMO_ENTREGA + 1))) !== null,
+    "un carácter más y se rechaza",
+  );
+  afirmar(
+    MAXIMO_ENTREGA > 250 * 8,
+    "el tope no le estorba a una tarea de 250 palabras, que es la más larga del examen",
   );
 
   await prisma.pasoCompletado.create({
     data: { asignacionId: asignacion.id, pasoId: paso.id, entrega: "Un primer intento." },
   });
   afirmar(
-    (await puedeEntregar(asignacion.id, paso.id)) === null,
+    (await puedeEntregar(asignacion.id, paso.id, "Otro intento.")) === null,
     "entregado pero sin corregir, todavía se puede reescribir",
+  );
+
+  // ─── Desmarcar no borra una entrega ─────────────────────────────────
+  // El botón «Hecho ✓» de la página del paso llama a esto. La fila de arriba
+  // tiene entrega y no está verificada: sin el freno, un clic del alumno le
+  // borraba su redacción de la base y la tiraba de la bandeja del profesor.
+  afirmar(
+    (await desmarcarSiNoRevisado(asignacion.id, paso.id)) === false,
+    "una fila con entrega no se desmarca",
+  );
+  afirmar(
+    (await prisma.pasoCompletado.count({
+      where: { asignacionId: asignacion.id, pasoId: paso.id },
+    })) === 1,
+    "y sigue ahí: la entrega no se ha ido a ninguna parte",
+  );
+
+  // El otro extremo, que es el que discrimina: sin entrega y sin corregir,
+  // desmarcar sigue borrando como siempre.
+  const pasoSuelto = await prisma.paso.create({
+    data: { recorridoId: recorrido.id, titulo: "Suelto", tipo: "ACTIVIDAD", ciclo: 1, orden: 9 },
+  });
+  pasoExtraIds.push(pasoSuelto.id);
+  await prisma.pasoCompletado.create({
+    data: { asignacionId: asignacion.id, pasoId: pasoSuelto.id },
+  });
+  afirmar(
+    (await desmarcarSiNoRevisado(asignacion.id, pasoSuelto.id)) === true,
+    "un paso corriente marcado a mano sí se desmarca",
   );
 
   await prisma.pasoCompletado.updateMany({
@@ -226,7 +331,7 @@ async function main() {
     data: { puntos: 5, verificadoEl: new Date() },
   });
   afirmar(
-    (await puedeEntregar(asignacion.id, paso.id)) !== null,
+    (await puedeEntregar(asignacion.id, paso.id, "Otro más.")) !== null,
     "una vez corregida, ya no se puede reescribir",
   );
 
@@ -411,6 +516,115 @@ async function main() {
   afirmar(
     resuelta !== null && resuelta.consigna === ESCRITA.consigna,
     "un paso con una tarea de expresión la devuelve",
+  );
+
+  // ─── Un paso que no pide redacción no admite entrega ────────────────
+  // `entregar` es un endpoint público: con un `pasoId` cualquiera se creaba
+  // una fila, el paso quedaba «hecho» y la bandeja listaba algo que al
+  // abrirlo contestaba `notFound()`.
+  afirmar(
+    (await puedeEntregar(asignacion.id, pasoSinEjercicio.id, "Hola.")) !== null,
+    "un paso sin ejercicio no admite entrega",
+  );
+  afirmar(
+    (await puedeEntregar(asignacion.id, pasoDelMotor.id, "Hola.")) !== null,
+    "un paso con un ejercicio del motor tampoco",
+  );
+
+  const ejercicioOral = await prisma.ejercicio.create({
+    data: { tipo: "EXPRESION", titulo: `Oral ${marca}`, nivel: "B1", datos: ORAL },
+  });
+  ejercicioIds.push(ejercicioOral.id);
+  const pasoOral = await prisma.paso.create({
+    data: { recorridoId: recorrido.id, titulo: "El oral", tipo: "MACRO_TAREA", ciclo: 1, orden: 5 },
+  });
+  pasoExtraIds.push(pasoOral.id);
+  await prisma.pasoEjercicio.create({
+    data: { pasoId: pasoOral.id, ejercicioId: ejercicioOral.id, orden: 1 },
+  });
+  afirmar(
+    (await puedeEntregar(asignacion.id, pasoOral.id, "Hola.")) !== null,
+    "un oral tampoco: se evalúa en clase, no se escribe aquí",
+  );
+  afirmar(
+    (await puedeEntregar(asignacion.id, pasoConExpresion.id, "Hola.")) === null,
+    "y el paso que sí pide una redacción la sigue admitiendo",
+  );
+
+  // ─── Quitar o editar un ejercicio con entregas ──────────────────────
+  // Las tres reglas miraban solo `respuestas`, y una expresión no escribe ahí
+  // nunca: escribe en `entrega` y en `valoracion`.
+  const publicado = await prisma.ejercicio.create({
+    data: {
+      tipo: "EXPRESION",
+      titulo: `Publicado ${marca}`,
+      nivel: "B1",
+      datos: ESCRITA,
+      publicado: true,
+    },
+  });
+  ejercicioIds.push(publicado.id);
+
+  // Antes de que nadie trabaje: las tres puertas están abiertas. Esta mitad
+  // es la que discrimina, porque prohibir siempre también pasaría el resto.
+  afirmar(!(await tieneTrabajo(pasoConExpresion.id)), "un paso sin nada del alumno no tiene trabajo");
+  afirmar(
+    (await puedeDesengancharse(pasoConExpresion.id)) === null,
+    "y se le puede quitar el ejercicio",
+  );
+  afirmar(
+    (await puedeEditarse(ejercicioExpresion.id)) === null,
+    "y el ejercicio se puede editar",
+  );
+
+  await prisma.pasoCompletado.create({
+    data: { asignacionId: asignacion.id, pasoId: pasoConExpresion.id, entrega: "Mi redacción." },
+  });
+  afirmar(
+    await tieneTrabajo(pasoConExpresion.id),
+    "una entrega cuenta como trabajo, aunque `respuestas` esté vacía",
+  );
+  afirmar(
+    (await puedeDesengancharse(pasoConExpresion.id)) !== null,
+    "con una entrega no se desengancha: la redacción se quedaría sin ninguna pantalla",
+  );
+  afirmar(
+    (await puedeEditarse(ejercicioExpresion.id)) !== null,
+    "con una entrega no se editan los criterios: las notas guardadas apuntan a sus ids",
+  );
+
+  // Solo la valoración, sin entrega ni respuestas: es el oral ya corregido.
+  await prisma.pasoCompletado.create({
+    data: {
+      asignacionId: asignacion.id,
+      pasoId: pasoOral.id,
+      valoracion: { notas: { c1: 3 }, comentario: "Bien." },
+      puntos: 3,
+      verificadoEl: new Date(),
+    },
+  });
+  afirmar(await tieneTrabajo(pasoOral.id), "una valoración sola también cuenta como trabajo");
+  afirmar(
+    (await puedeEditarse(ejercicioOral.id)) !== null,
+    "un oral ya corregido no se edita: quitarle un criterio dejaría la nota apuntando a nada",
+  );
+
+  // La tercera puerta, sobre un paso al que ya le quitaron el ejercicio pero
+  // que conserva la entrega: no se le cuelga otro encima.
+  const pasoHuerfano = await prisma.paso.create({
+    data: { recorridoId: recorrido.id, titulo: "Huérfano", tipo: "MACRO_TAREA", ciclo: 1, orden: 6 },
+  });
+  pasoExtraIds.push(pasoHuerfano.id);
+  afirmar(
+    (await puedeEngancharse(publicado.id, pasoHuerfano.id)) === null,
+    "a un paso vacío sí se le cuelga un ejercicio",
+  );
+  await prisma.pasoCompletado.create({
+    data: { asignacionId: asignacion.id, pasoId: pasoHuerfano.id, entrega: "Lo que escribí." },
+  });
+  afirmar(
+    (await puedeEngancharse(publicado.id, pasoHuerfano.id)) !== null,
+    "con una entrega guardada, ya no",
   );
 
   console.log("\nTodo bien.");
