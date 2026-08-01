@@ -2,9 +2,10 @@ import { prisma } from "@/lib/prisma";
 import { getUsuarioActual } from "@/lib/usuario";
 import { puedeEditarse } from "@/lib/recursos";
 import { analizar } from "@/lib/ejercicios/registro";
+import { analizarExpresion } from "@/lib/expresion";
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
-import Editor from "@/components/recursos/editor";
+import Editor, { type MarcaRecurso } from "@/components/recursos/editor";
 
 export const dynamic = "force-dynamic";
 
@@ -23,9 +24,14 @@ export default async function RecursoPage({
   if (!fila) notFound();
 
   // La marca sale del propio `datos`, no de la columna `tipo`: es el
-  // discriminante que lee el motor, y el editor tiene que casar con él.
+  // discriminante que lee el motor, y el editor tiene que casar con él. La
+  // expresión no pasa por `analizar` —no es uno de los cuatro tipos del
+  // motor—, así que a la primera vez que falla se le pregunta a su propio
+  // esquema antes de rendirse.
   const analizado = analizar(fila.datos);
-  if (!analizado) notFound();
+  const expresion = analizado ? null : analizarExpresion(fila.datos);
+  if (!analizado && !expresion) notFound();
+  const marca: MarcaRecurso = analizado ? analizado.tipo : "expresion";
 
   const bloqueado = await puedeEditarse(id);
 
@@ -47,7 +53,7 @@ export default async function RecursoPage({
             datos: fila.datos,
             publicado: fila.publicado,
           }}
-          marca={analizado.tipo}
+          marca={marca}
           bloqueado={bloqueado}
         />
       </div>

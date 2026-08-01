@@ -14,6 +14,8 @@ import Reproductor from "@/components/ejercicios/reproductor";
 import { esRacionado, escuchasDelPaso } from "@/lib/escuchas";
 import { numeroDeTarea, tareaDe } from "@/lib/dele";
 import { TIPO_DE_EJERCICIO } from "@/lib/recursos";
+import { analizarExpresion, versionPublicaExpresion } from "@/lib/expresion";
+import Entrega from "@/components/expresion/entrega";
 
 // Fuerza render dinámico: lee de la base en cada visita.
 export const dynamic = "force-dynamic";
@@ -271,7 +273,14 @@ export default async function PasoPage({
             pasoId: paso.id,
           },
         },
-        select: { completadoEl: true, verificadoEl: true, puntos: true, respuestas: true },
+        select: {
+          completadoEl: true,
+          verificadoEl: true,
+          puntos: true,
+          respuestas: true,
+          entrega: true,
+          valoracion: true,
+        },
       })
     : null;
 
@@ -290,6 +299,34 @@ export default async function PasoPage({
   });
   const analizado = vinculo ? analizar(vinculo.ejercicio.datos) : null;
   const hayEjercicio = analizado !== null;
+
+  // La expresión es hermana del motor: si `analizar` no lo reconoce, puede
+  // ser una tarea de expresión.
+  const expresion = analizado ? null : vinculo ? analizarExpresion(vinculo.ejercicio.datos) : null;
+  const corregida = Boolean(registro?.verificadoEl);
+
+  // En una escrita, entregar es lo que marca el paso: el par
+  // «marcar / Hecho ✓» sobra, y peor que sobrar, porque «Hecho ✓» desmarca y
+  // desmarcar borraba la redacción. En las orales se queda: ahí marcar sigue
+  // siendo la única señal que da el alumno.
+  const escrita = expresion?.modalidad === "escrita";
+  const marcable = puedeMarcar && !escrita;
+
+  // Si el oral ya está citado, cuándo. El diseño se lo promete al alumno y
+  // hasta ahora la cita solo se veía en dos pantallas de profesor: llegaba a
+  // clase sin saber que ese día se examinaba. Una clase anulada no cuenta:
+  // decir una fecha que no va a pasar es peor que no decir nada.
+  const cita =
+    asignacion && expresion?.modalidad === "oral"
+      ? await prisma.citaOral.findFirst({
+          where: {
+            asignacionId: asignacion.id,
+            pasoId: paso.id,
+            clase: { estado: { not: "ANULADA" } },
+          },
+          select: { clase: { select: { empiezaEl: true } } },
+        })
+      : null;
 
   // Qué tarea del examen es este paso. La regla vive en `lib/dele` porque la
   // comparte con el panel de tareas sugeridas, que necesita contar como
@@ -512,6 +549,31 @@ export default async function PasoPage({
         />
       )}
 
+      {/*
+        La tarea de expresión: hermana del ejercicio autocorregible de
+        arriba, pero sin corrección automática. `versionPublicaExpresion` es
+        lo que impide que el texto modelo viaje al navegador antes de que el
+        profesor corrija — no basta con esconderlo en el JSX, porque lo que
+        el servidor manda se lee entero en el código fuente de la página.
+      */}
+      {expresion && asignacion && (
+        <Entrega
+          pasoId={paso.id}
+          publica={versionPublicaExpresion(expresion, corregida)}
+          entrega={registro?.entrega ?? null}
+          valoracion={
+            (registro?.valoracion as { notas: Record<string, number>; comentario: string } | null) ??
+            null
+          }
+          // Con la asignación archivada se sigue viendo lo escrito y la
+          // corrección —son un hecho pasado, igual que la línea de estado—,
+          // pero sin botón: `entregar` lo rechazaría de todas formas, y un
+          // botón que solo sirve para recibir un no no es un botón.
+          cerrada={corregida || !puedeMarcar}
+          citada={cita?.clase.empiezaEl ?? null}
+        />
+      )}
+
       {analizado && esProfe && !asignacion && (
         <section className="mt-8 rounded-tarjeta border border-hp-100 bg-white p-6 shadow-suave">
           <p className="text-xs font-bold uppercase tracking-wider text-tinta-suave">
@@ -526,11 +588,11 @@ export default async function PasoPage({
       {/*
         La línea de estado se muestra si hay registro, viva o archivada la
         asignación: el estado es un hecho pasado, no una acción. Los dos
-        botones ("Marcar como hecho" y "Hecho ✓") siguen bloqueados detrás
-        de puedeMarcar, que sigue significando lo mismo que antes: solo una
-        asignación viva permite tocar el paso.
+        botones ("Marcar como hecho" y "Hecho ✓") van detrás de `marcable`:
+        asignación viva —solo así se puede tocar el paso— y que el paso no
+        sea una expresión escrita, que se marca sola al entregar.
       */}
-      {(registro || puedeMarcar) && (
+      {(registro || marcable) && (
         <div className="mt-10 flex flex-col items-center gap-3">
           {registro && !(hayEjercicio && revisado) && (
             <p className="text-sm text-tinta-suave">
@@ -544,7 +606,7 @@ export default async function PasoPage({
             <span className="rounded-full bg-sol-300 px-6 py-3 text-sm font-extrabold text-tinta">
               Revisado ✓
             </span>
-          ) : puedeMarcar ? (
+          ) : marcable ? (
             hecho ? (
               <form action={desmarcarPasoHecho}>
                 <input type="hidden" name="pasoId" value={paso.id} />

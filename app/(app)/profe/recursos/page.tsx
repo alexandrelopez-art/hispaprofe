@@ -16,6 +16,10 @@ const tipoLabel: Record<string, string> = {
   HUECOS: "Huecos",
   RELACIONAR: "Relacionar",
   ORDENAR: "Ordenar",
+  // Recursos sí la gestiona: tiene editor propio y su fila se lista como las
+  // demás. Sin esta entrada se leía «EXPRESION · B1» y `?tipo=EXPRESION` se
+  // descartaba como si no existiera.
+  EXPRESION: "Expresión",
 };
 
 // Solo para pintar el desplegable: los valores válidos salen del enum

@@ -547,6 +547,11 @@ export async function borrarPaso(formData: FormData) {
 
   await prisma.$transaction([
     prisma.pasoCompletado.deleteMany({ where: { pasoId } }),
+    // `CitaOral.pasoId` no tiene relación —está razonado en el esquema—, así
+    // que nada la borra en cascada: sin esto, la clase seguía pintando una
+    // línea con el nombre del alumno y sin título para siempre, y
+    // `descitarOral` necesita el paso desde la ficha, que ya no lo pinta.
+    prisma.citaOral.deleteMany({ where: { pasoId } }),
     prisma.bloque.deleteMany({ where: { pasoId } }),
     prisma.paso.delete({ where: { id: pasoId } }),
   ]);

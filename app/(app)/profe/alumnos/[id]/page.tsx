@@ -10,6 +10,10 @@ import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { horas, totalesDeClases } from "@/lib/clases";
 import { servicioLabel } from "@/lib/servicios";
+import { analizarExpresion } from "@/lib/expresion";
+import { clasesParaCitar } from "@/lib/citas";
+import Rubrica from "@/components/expresion/rubrica";
+import CitarOral from "./citar-oral";
 
 export const dynamic = "force-dynamic";
 
@@ -50,16 +54,36 @@ export default async function AlumnoPage({
             tipo: true,
             pasos: {
               orderBy: { orden: "asc" },
-              select: { id: true, orden: true, titulo: true },
+              select: {
+                id: true,
+                orden: true,
+                titulo: true,
+                // Para saber si el paso es una tarea de expresión y de qué
+                // modalidad. El primero por orden, igual que hace la página
+                // del paso: un paso solo enseña un ejercicio.
+                ejercicios: {
+                  orderBy: { orden: "asc" },
+                  take: 1,
+                  select: { ejercicio: { select: { datos: true } } },
+                },
+              },
             },
           },
         },
         completados: {
           select: {
+            // El id es a lo que enlaza la pantalla de corrección.
+            id: true,
             pasoId: true,
             puntos: true,
             verificadoEl: true,
             completadoEl: true,
+            // Solo para saber si hay algo que corregir: una escrita sin
+            // entrega no se puede puntuar con la rúbrica, así que en esa fila
+            // va el campo de puntos a mano. El texto no sale de aquí —esto es
+            // un componente de servidor y no se lo pasa a ninguno de cliente—;
+            // se lee entero en `/profe/entregas/[id]`.
+            entrega: true,
           },
         },
       },
@@ -70,6 +94,30 @@ export default async function AlumnoPage({
     }),
     totalesDeClases({ profesorId: usuario.id, estudianteId: id }),
   ]);
+
+  // Fuera del bucle de pasos: dos consultas para toda la página y no una por
+  // paso, que en una secuencia de nueve serían nueve. Las clases citables se
+  // piden una sola vez porque todas las asignaciones de esta ficha son del
+  // mismo alumno, y `clasesParaCitar` mira justamente eso: de qué alumno es
+  // la asignación. Solo las de este profesor; un administrador las ve todas.
+  const soloDeEsteProfesor = usuario.role === "ADMIN" ? null : usuario.id;
+  const [clasesCitables, citas] = await Promise.all([
+    asignaciones.length > 0
+      ? clasesParaCitar(asignaciones[0].id, soloDeEsteProfesor)
+      : [],
+    prisma.citaOral.findMany({
+      where: { asignacionId: { in: asignaciones.map((a) => a.id) } },
+      select: {
+        asignacionId: true,
+        pasoId: true,
+        clase: { select: { id: true, empiezaEl: true } },
+      },
+    }),
+  ]);
+  // La clave lleva la asignación además del paso: dos asignaciones distintas
+  // no comparten pasos hoy, pero la cita es de las dos cosas y la unicidad de
+  // la tabla también.
+  const citaDe = new Map(citas.map((c) => [`${c.asignacionId}:${c.pasoId}`, c.clase]));
 
   // La ficha se sigue enseñando aunque esté suprimida —las horas y el
   // historial son del profesor y no se esconden—, pero sin nada que hacerle
@@ -140,6 +188,11 @@ export default async function AlumnoPage({
               (suma, c) => suma + (c.puntos ?? 0),
               0,
             );
+            // Esta ficha lista las asignaciones de todos los profesores, pero
+            // citar y corregir solo valen sobre las propias: un control que
+            // siempre iba a contestar «esa asignación no es tuya» no se pinta.
+            const mia =
+              usuario.role === "ADMIN" || asignacion.profesorId === usuario.id;
 
             return (
               <li
@@ -199,66 +252,159 @@ export default async function AlumnoPage({
 
                 <details className="mt-3">
                   <summary className="cursor-pointer text-xs font-bold text-tinta-suave hover:text-hp-500">
-                    Ver pasos y otorgar puntos
+                    Ver pasos, otorgar puntos y citar orales
                   </summary>
                   <ul className="mt-3 space-y-1.5">
                     {asignacion.recorrido.pasos.map((paso) => {
                       const registro = porPaso.get(paso.id);
+                      const expresion = paso.ejercicios[0]
+                        ? analizarExpresion(paso.ejercicios[0].ejercicio.datos)
+                        : null;
+                      const oral = expresion?.modalidad === "oral";
+                      /*
+                        Qué control lleva la fila, y solo uno:
+
+                        - la rúbrica cuando hay algo que puntuar con ella: un
+                          oral siempre, y una escrita solo si el alumno entregó
+                          —`valorar` rechaza a propósito una escrita sin texto,
+                          así que el enlace llevaría a un callejón sin salida—;
+                        - el campo de puntos a mano en todo lo demás, incluida
+                          la escrita sin entrega: la redacción hecha en papel,
+                          en clase, se sigue puntuando como cualquier paso del
+                          proyecto.
+                      */
+                      const conRubrica = oral || Boolean(registro?.entrega);
+                      // Un oral sin registro no tiene fila a la que enlazar,
+                      // pero sí se puede corregir: `valorar` hace `upsert`, así
+                      // que la fila nace al guardar la rúbrica. Se monta aquí
+                      // mismo, plegada, en vez de dejar el paso sin puerta.
+                      const rubricaEnLinea = conRubrica && !registro && mia;
                       return (
                         <li
                           key={paso.id}
-                          className="flex items-center gap-2 rounded-lg bg-fondo px-3 py-1.5"
+                          className="rounded-lg bg-fondo px-3 py-1.5"
                         >
-                          <span
-                            className={`shrink-0 text-sm ${
-                              registro ? "text-hp-500" : "text-hp-200"
-                            }`}
-                          >
-                            {registro ? "✓" : "○"}
-                          </span>
-                          <Link
-                            href={`/pasos/${paso.id}`}
-                            className="min-w-0 flex-1 truncate text-sm text-tinta hover:text-hp-500"
-                          >
-                            {paso.orden}. {paso.titulo}
-                          </Link>
-                          {registro?.verificadoEl && (
+                          <div className="flex items-center gap-2">
                             <span
-                              className="shrink-0 text-xs"
-                              title="Puntos verificados por el profesor"
+                              className={`shrink-0 text-sm ${
+                                registro ? "text-hp-500" : "text-hp-200"
+                              }`}
                             >
-                              ★
+                              {registro ? "✓" : "○"}
                             </span>
-                          )}
-                          <form
-                            action={otorgarPuntos}
-                            className="flex shrink-0 items-center gap-1"
-                          >
-                            <input
-                              type="hidden"
-                              name="asignacionId"
-                              value={asignacion.id}
-                            />
-                            <input
-                              type="hidden"
-                              name="pasoId"
-                              value={paso.id}
-                            />
-                            <input
-                              type="number"
-                              name="puntos"
-                              min={0}
-                              defaultValue={registro?.puntos ?? ""}
-                              placeholder="pts"
-                              className="h-7 w-16 rounded-full border border-hp-200 bg-white px-2 text-center text-xs text-tinta outline-none focus:border-hp-400"
-                            />
-                            <button
-                              type="submit"
-                              className="h-7 rounded-full border border-hp-200 px-2 text-[11px] font-bold text-tinta-suave transition-colors hover:border-hp-400 hover:text-hp-600"
+                            <Link
+                              href={`/pasos/${paso.id}`}
+                              className="min-w-0 flex-1 truncate text-sm text-tinta hover:text-hp-500"
                             >
-                              Guardar
-                            </button>
-                          </form>
+                              {paso.orden}. {paso.titulo}
+                            </Link>
+                            {registro?.verificadoEl && (
+                              <span
+                                className="shrink-0 text-xs"
+                                title="Puntos verificados por el profesor"
+                              >
+                                ★
+                              </span>
+                            )}
+                            {/*
+                              Una asignación de otro profesor solo enseña el
+                              estado: corregir la abriría en una pantalla que
+                              contesta `notFound()`, y puntuarla a mano no es
+                              suyo. El rótulo se queda porque el estado sí es
+                              información.
+                            */}
+                            {!mia ? (
+                              <span className="shrink-0 text-xs text-tinta-suave">
+                                {registro?.verificadoEl
+                                  ? `${registro.puntos ?? 0} pts`
+                                  : registro
+                                    ? "Sin corregir"
+                                    : oral
+                                      ? "Sin evaluar"
+                                      : expresion
+                                        ? "Sin entregar"
+                                        : "Pendiente"}
+                              </span>
+                            ) : conRubrica ? (
+                              // Los puntos de una rúbrica no se escriben a
+                              // mano: el enlace lleva a la pantalla que sabe
+                              // puntuarla. Sin fila todavía no hay adónde
+                              // enlazar, y ahí entra la rúbrica en línea de
+                              // abajo, que no repite rótulo aquí.
+                              registro ? (
+                                <Link
+                                  href={`/profe/entregas/${registro.id}`}
+                                  className="shrink-0 text-xs font-semibold text-tinta-suave underline hover:text-hp-500"
+                                >
+                                  {registro.verificadoEl
+                                    ? "Ver la corrección"
+                                    : "Corregir"}
+                                </Link>
+                              ) : null
+                            ) : (
+                              <form
+                                action={otorgarPuntos}
+                                className="flex shrink-0 items-center gap-1"
+                              >
+                                <input
+                                  type="hidden"
+                                  name="asignacionId"
+                                  value={asignacion.id}
+                                />
+                                <input
+                                  type="hidden"
+                                  name="pasoId"
+                                  value={paso.id}
+                                />
+                                <input
+                                  type="number"
+                                  name="puntos"
+                                  min={0}
+                                  defaultValue={registro?.puntos ?? ""}
+                                  placeholder="pts"
+                                  className="h-7 w-16 rounded-full border border-hp-200 bg-white px-2 text-center text-xs text-tinta outline-none focus:border-hp-400"
+                                />
+                                <button
+                                  type="submit"
+                                  className="h-7 rounded-full border border-hp-200 px-2 text-[11px] font-bold text-tinta-suave transition-colors hover:border-hp-400 hover:text-hp-600"
+                                >
+                                  Guardar
+                                </button>
+                              </form>
+                            )}
+                          </div>
+
+                          {oral && mia && (
+                            <CitarOral
+                              asignacionId={asignacion.id}
+                              pasoId={paso.id}
+                              citada={
+                                citaDe.get(`${asignacion.id}:${paso.id}`) ?? null
+                              }
+                              clases={clasesCitables}
+                            />
+                          )}
+
+                          {expresion && rubricaEnLinea && (
+                            <details className="mt-2">
+                              <summary className="cursor-pointer text-xs font-bold text-tinta-suave hover:text-hp-500">
+                                Corregir el oral
+                              </summary>
+                              {/*
+                                Plegada por defecto: la fila del paso no puede
+                                crecer con una rúbrica abierta por cada oral de
+                                la secuencia.
+                              */}
+                              <div className="mt-2">
+                                <Rubrica
+                                  asignacionId={asignacion.id}
+                                  pasoId={paso.id}
+                                  criterios={expresion.criterios}
+                                  valoracion={null}
+                                />
+                              </div>
+                            </details>
+                          )}
                         </li>
                       );
                     })}

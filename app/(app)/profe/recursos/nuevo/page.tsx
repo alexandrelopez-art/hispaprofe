@@ -1,8 +1,7 @@
 import { getUsuarioActual } from "@/lib/usuario";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import Editor, { VACIO } from "@/components/recursos/editor";
-import type { MarcaEjercicio } from "@/lib/ejercicios/tipos";
+import Editor, { VACIO, type MarcaRecurso } from "@/components/recursos/editor";
 import { sobrantesDe, tareaDe, type TareaDele } from "@/lib/dele";
 import type { Destreza, Nivel } from "@/lib/generated/prisma/enums";
 
@@ -11,16 +10,17 @@ import type { Destreza, Nivel } from "@/lib/generated/prisma/enums";
  * tienen editor: así esta lista puede estar completa desde el principio sin
  * ofrecer una puerta que no lleva a ninguna parte.
  */
-const TODOS_LOS_TIPOS: { marca: MarcaEjercicio; nombre: string; explica: string }[] = [
+const TODOS_LOS_TIPOS: { marca: MarcaRecurso; nombre: string; explica: string }[] = [
   { marca: "opcion", nombre: "Opción", explica: "Preguntas con opciones. Una correcta, o varias." },
   { marca: "huecos", nombre: "Huecos", explica: "Un texto con palabras que faltan y hay que escribir." },
   { marca: "relacionar", nombre: "Relacionar", explica: "Dos columnas que se emparejan arrastrando." },
   { marca: "ordenar", nombre: "Ordenar", explica: "Piezas desordenadas que hay que poner en su sitio." },
+  { marca: "expresion", nombre: "Expresión", explica: "Una redacción o una tarea oral, que corriges tú con una rúbrica." },
 ];
 
 // Aparte de `TODOS_LOS_TIPOS` para que la anotación de tipo se aplique al
 // literal del array: encadenado con `.filter` en la misma expresión, TS
-// infería `marca` como `string` y no como `MarcaEjercicio`.
+// infería `marca` como `string` y no como `MarcaRecurso`.
 const TIPOS = TODOS_LOS_TIPOS.filter((t) => VACIO[t.marca] !== undefined);
 
 /** El nombre del nivel tal y como se escribe en pantalla. */

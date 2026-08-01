@@ -90,7 +90,7 @@ export default async function ClasePage({
   // Un profesor solo ve las suyas. Un administrador, todas.
   if (clase.profesorId !== usuario.id && usuario.role !== "ADMIN") notFound();
 
-  const [estudiantes, grupos] = await Promise.all([
+  const [estudiantes, grupos, citas] = await Promise.all([
     listarEstudiantesElegibles({
       // `suprimidoEl` viaja aunque la lista nunca traiga lápidas: abajo se le
       // añade el destinatario de esta clase, que sí puede serlo.
@@ -107,7 +107,43 @@ export default async function ClasePage({
       orderBy: { nombre: "asc" },
       select: { id: true, nombre: true },
     }),
+    prisma.citaOral.findMany({
+      where: { claseId: clase.id },
+      orderBy: { createdAt: "asc" },
+      select: {
+        id: true,
+        pasoId: true,
+        asignacion: {
+          select: {
+            estudianteId: true,
+            estudiante: {
+              select: {
+                firstName: true,
+                lastName: true,
+                email: true,
+                suprimidoEl: true,
+              },
+            },
+          },
+        },
+      },
+    }),
   ]);
+
+  /*
+   * `CitaOral` no tiene relación con `Paso`: guarda su id a secas, porque un
+   * paso no es dueño de la cita y darle una relación obligaría a decidir qué
+   * pasa al borrar un paso que tiene orales citados. Así que el título se lee
+   * aparte, y por eso `tituloDe` puede no encontrar un paso ya borrado: la
+   * cita huérfana se pinta igual, con el nombre del alumno.
+   */
+  const pasosCitados = citas.length
+    ? await prisma.paso.findMany({
+        where: { id: { in: citas.map((c) => c.pasoId) } },
+        select: { id: true, titulo: true, recorrido: { select: { titulo: true } } },
+      })
+    : [];
+  const tituloDe = new Map(pasosCitados.map((p) => [p.id, p]));
 
   const destinatarioActual = clase.estudiante
     ? `alumno:${clase.estudiante.id}`
@@ -292,6 +328,38 @@ export default async function ClasePage({
             ))}
           </ul>
         </>
+      )}
+
+      {citas.length > 0 && (
+        <section className="mt-8 rounded-tarjeta border border-hp-100 bg-white p-5 shadow-suave">
+          <p className="text-xs font-bold uppercase tracking-wider text-tinta-suave">
+            Orales citados en esta clase
+          </p>
+          <ul className="mt-3 space-y-2">
+            {citas.map((c) => {
+              const paso = tituloDe.get(c.pasoId);
+              const alumno = c.asignacion.estudiante;
+              return (
+                <li key={c.id} className="flex flex-wrap items-center gap-3">
+                  <span className="min-w-0 flex-1 text-sm text-tinta">
+                    <strong>
+                      {estaSuprimido(alumno)
+                        ? "Estudiante suprimido"
+                        : nombreDe(alumno)}
+                    </strong>
+                    {paso ? ` · ${paso.recorrido.titulo} · ${paso.titulo}` : ""}
+                  </span>
+                  <Link
+                    href={`/profe/alumnos/${c.asignacion.estudianteId}`}
+                    className="shrink-0 text-xs font-semibold text-tinta-suave underline hover:text-hp-500"
+                  >
+                    Evaluar
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
       )}
 
       <h2 className="mt-10 text-lg font-bold text-tinta">Cambiar los datos</h2>

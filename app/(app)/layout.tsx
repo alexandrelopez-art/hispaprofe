@@ -84,6 +84,14 @@ export default async function AppLayout({
             )}
             {esProfe && (
               <Link
+                href="/profe/entregas"
+                className="hover:text-hp-500 transition-colors"
+              >
+                Entregas
+              </Link>
+            )}
+            {esProfe && (
+              <Link
                 href="/profe/orales"
                 className="hover:text-hp-500 transition-colors"
               >

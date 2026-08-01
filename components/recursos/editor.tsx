@@ -17,7 +17,16 @@ import EditorOpcion, { OPCION_VACIA } from "./editor-opcion";
 import EditorHuecos, { HUECOS_VACIO } from "./editor-huecos";
 import EditorRelacionar, { RELACIONAR_VACIO } from "./editor-relacionar";
 import EditorOrdenar, { ORDENAR_VACIO } from "./editor-ordenar";
+import EditorExpresion, { EXPRESION_VACIA } from "./editor-expresion";
 import { campo } from "./campos";
+
+/**
+ * Lo que el editor de Recursos sabe editar: los cuatro tipos del motor más
+ * la expresión, que no se corrige sola. `MarcaEjercicio` se queda con los
+ * cuatro a propósito: es lo que el motor entiende, y ampliarla allí obligaría
+ * a `corregir()` a tener un caso que no puede implementar.
+ */
+export type MarcaRecurso = MarcaEjercicio | "expresion";
 
 const NIVELES = ["A1", "A2", "B1", "B2", "C1", "A2_B1_ESCOLAR"] as const;
 const DESTREZAS: Record<string, string> = {
@@ -35,11 +44,12 @@ const DESTREZAS: Record<string, string> = {
  * están los cuatro, así que `Partial` no tapa nada ahora mismo: se deja
  * porque un tipo futuro volverá a entrar por aquí antes de tener editor.
  */
-export const VACIO: Partial<Record<MarcaEjercicio, unknown>> = {
+export const VACIO: Partial<Record<MarcaRecurso, unknown>> = {
   opcion: OPCION_VACIA,
   huecos: HUECOS_VACIO,
   relacionar: RELACIONAR_VACIO,
   ordenar: ORDENAR_VACIO,
+  expresion: EXPRESION_VACIA,
 };
 
 /**
@@ -82,7 +92,7 @@ export default function Editor({
   tarea,
 }: {
   inicial: FilaEjercicio | null;
-  marca: MarcaEjercicio;
+  marca: MarcaRecurso;
   /** El motivo por el que no se puede editar, si lo hay. */
   bloqueado: string | null;
   /**
@@ -228,8 +238,17 @@ export default function Editor({
    */
   const aviso = tarea ? avisoDeItems(tarea, datos) : null;
 
+  /**
+   * La previsualización corrige con el motor, y la expresión no se corrige
+   * sola: `previsualizar` le contestaría «El ejercicio todavía no está
+   * completo» para siempre, y una ida y vuelta al servidor por cada tecla.
+   * No hay vista previa del estímulo a cambio, y a propósito: no hace falta
+   * ninguna para escribir una consigna y cuatro criterios.
+   */
+  const conPrevisualizacion = marca !== "expresion";
+
   return (
-    <div className="grid gap-8 lg:grid-cols-2">
+    <div className={`grid gap-8 ${conPrevisualizacion ? "lg:grid-cols-2" : ""}`}>
       <form action={guardar} className="space-y-6">
         <input type="hidden" name="id" value={inicial?.id ?? ""} />
         <input type="hidden" name="datos" value={JSON.stringify(datos)} />
@@ -329,6 +348,7 @@ export default function Editor({
           {marca === "huecos" && <EditorHuecos datos={datos} alCambiar={setDatos} />}
           {marca === "relacionar" && <EditorRelacionar datos={datos} alCambiar={setDatos} />}
           {marca === "ordenar" && <EditorOrdenar datos={datos} alCambiar={setDatos} />}
+          {marca === "expresion" && <EditorExpresion datos={datos} alCambiar={setDatos} />}
           {/*
             No es una lista de negaciones (una por marca) porque eso se
             desincroniza en cuanto se añade un tipo nuevo: se comprueba
@@ -407,7 +427,7 @@ export default function Editor({
         </div>
       </form>
 
-      <Previsualizacion datos={datos} />
+      {conPrevisualizacion && <Previsualizacion datos={datos} />}
     </div>
   );
 }

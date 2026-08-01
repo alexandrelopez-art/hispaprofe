@@ -12,7 +12,7 @@ import {
   puedeEditarse,
   puedeEngancharse,
   tipoDeEjercicio,
-  tieneRespuestas,
+  tieneTrabajo,
 } from "@/lib/recursos";
 import { prisma } from "@/lib/prisma";
 import { corregirRelacionar, relacionarSchema, versionPublicaRelacionar } from "@/lib/ejercicios/relacionar";
@@ -165,8 +165,8 @@ async function main() {
   //    es la que discrimina: sin ella, una implementación que prohibiera por
   //    "está enganchado" en vez de por "tiene respuestas" pasaría igual todo
   //    lo demás.
-  afirmar(!(await tieneRespuestas(paso.id)), "un paso recién hecho no tiene respuestas");
-  afirmar((await puedeDesengancharse(paso.id)) === null, "sin respuestas sí se desengancha");
+  afirmar(!(await tieneTrabajo(paso.id)), "un paso recién hecho no tiene trabajo");
+  afirmar((await puedeDesengancharse(paso.id)) === null, "sin trabajo sí se desengancha");
   afirmar((await puedeEditarse(publicado.id)) === null, "enganchado pero sin responder sí se edita");
 
   // 6. Reglas 4, 5 y 6: con respuestas guardadas, las tres puertas se cierran.
@@ -186,7 +186,7 @@ async function main() {
     data: { asignacionId: asignacion.id, pasoId: paso.id, respuestas: { a: "0" } },
   });
 
-  afirmar(await tieneRespuestas(paso.id), "con un PasoCompletado que las guarda, sí tiene respuestas");
+  afirmar(await tieneTrabajo(paso.id), "con un PasoCompletado que las guarda, sí tiene trabajo");
   afirmar((await puedeDesengancharse(paso.id)) !== null, "con respuestas no se desengancha");
   afirmar((await puedeEngancharse(otro.id, paso.id)) !== null, "con respuestas no se cambia el ejercicio");
   afirmar((await puedeEditarse(publicado.id)) !== null, "un ejercicio respondido no se edita");
