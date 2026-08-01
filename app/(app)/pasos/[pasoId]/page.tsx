@@ -395,8 +395,11 @@ export default async function PasoPage({
         {tipoDescripcion[paso.tipo] ?? ""}
       </p>
 
-      {/* Contenido: bloques ordenados, o área reservada si aún no hay. */}
-      {paso.bloques.length > 0 ? (
+      {/* Contenido: bloques ordenados, o área reservada si aún no hay ni
+          bloques ni ejercicio. La Tarea 4 del examen no lleva bloque —su
+          texto vive dentro del cloze—, así que hace falta la segunda
+          condición: si no, un paso solo-ejercicio se ve como vacío. */}
+      {paso.bloques.length > 0 || hayEjercicio ? (
         <div className="mt-8 space-y-6">
           {paso.bloques.map((bloque, i) =>
             esProfe ? (
