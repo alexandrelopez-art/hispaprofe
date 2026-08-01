@@ -164,18 +164,21 @@ export function seOyeLaEntrega(datos: Expresion, entrega: string | null): boolea
 export const MAXIMO_AUDIO_RECIBIDO = 50 * 1024 * 1024;
 
 /**
- * Lo que aceptamos guardar, ya comprimido. Quince minutos rondan los 5 MB, así
- * que diez son holgados: está para que un audio que el compresor no logre
- * encoger no entre entero en la base.
+ * Lo que aceptamos guardar de un alumno, ya comprimido. Quince minutos rondan
+ * los 5 MB, así que diez son holgados: está para que una grabación que el
+ * compresor no logre encoger no entre entera en la base.
+ *
+ * El nombre dice «grabación» y no «audio» a propósito: `app/api/archivos/`
+ * tiene su propio tope de guardado, de 20 MB, para el material que sube el
+ * profesor. Se llamaban igual y valían distinto, que es una trampa puesta para
+ * el próximo que pase e intente unificarlas.
+ *
+ * Y es el único tope de verdad de una grabación: el servidor **no** mira
+ * cuántos minutos dura. Los quince minutos de la grabadora los corta el
+ * cliente y nada más; quien mande un archivo por el rodeo puede traer lo que
+ * quiera de largo, y lo que lo frena es esto y `MAXIMO_AUDIO_RECIBIDO`.
  */
-export const MAXIMO_AUDIO_GUARDADO = 10 * 1024 * 1024;
-
-/**
- * El tope duro de la grabadora. Los minutos de la tarea solo avisan —pasarse
- * es un error que puntúa el profesor, y cortar a media frase es la peor forma
- * de enterarse—; esto es lo que impide una grabación de dos horas.
- */
-export const MINUTOS_MAXIMOS_GRABACION = 15;
+export const MAXIMO_GRABACION_GUARDADA = 10 * 1024 * 1024;
 
 /**
  * La tarea de expresión enganchada a este paso, o `null` si el paso no tiene
@@ -412,7 +415,7 @@ export async function guardarGrabacion(
   pasoId: string,
   audio: { datos: Buffer<ArrayBuffer>; tipo: string; nombre: string },
 ): Promise<string | null> {
-  if (audio.datos.length > MAXIMO_AUDIO_GUARDADO) {
+  if (audio.datos.length > MAXIMO_GRABACION_GUARDADA) {
     // Comprobado sobre lo ya comprimido: el tope de recepción no basta,
     // porque un audio que el compresor no logre encoger entraría entero.
     return "La grabación comprimida sigue pesando demasiado. Prueba con una más corta.";

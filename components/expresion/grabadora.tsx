@@ -13,11 +13,13 @@ import { useRouter } from "next/navigation";
 /**
  * El tope duro de la grabadora, en minutos.
  *
- * Es el mismo número que `MINUTOS_MAXIMOS_GRABACION` en `lib/expresion.ts`,
- * copiado aquí a mano y no importado: ese módulo importa `prisma`, y esto es
- * un componente de cliente, así que un import de valor se llevaría media base
- * de datos al navegador. Son dos copias del mismo tope y tienen que moverse
- * juntas: si allí sube a veinte, aquí también.
+ * Vive solo aquí, y no tiene gemelo en el servidor: **el servidor no comprueba
+ * la duración de nada**. Lo tuvo, en forma de constante que no consumía nadie,
+ * y eso era peor que no tenerlo —parecía un tope y no frenaba—. Esto es una
+ * cortesía con el alumno, para que la grabadora no se quede corriendo dos
+ * horas; el tope real de lo que entra en la base es el tamaño, y lo ponen
+ * `MAXIMO_AUDIO_RECIBIDO` y `MAXIMO_GRABACION_GUARDADA` en `lib/expresion.ts`.
+ * Cambiar este número no exige tocar el servidor.
  */
 const MINUTOS_MAXIMOS = 15;
 

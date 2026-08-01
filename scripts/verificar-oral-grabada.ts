@@ -20,7 +20,7 @@ import {
   esGrabada,
   expresionSchema,
   guardarGrabacion,
-  MAXIMO_AUDIO_GUARDADO,
+  MAXIMO_GRABACION_GUARDADA,
   PREFIJO_GRABACION,
   puedeEntregar,
   puedeEntregarAudio,
@@ -395,7 +395,7 @@ async function main() {
   // grabación se sirve a cualquiera con la dirección; si `subidoPorId` no es
   // el del alumno, su profesor no puede oírla.
   const tope = await guardarGrabacion(estudiante.id, asignacion.id, pasoOtraGrabada.id, {
-    datos: Buffer.alloc(MAXIMO_AUDIO_GUARDADO + 1),
+    datos: Buffer.alloc(MAXIMO_GRABACION_GUARDADA + 1),
     tipo: "audio/mp4",
     nombre: "grabacion.m4a",
   });
