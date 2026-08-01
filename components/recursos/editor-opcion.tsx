@@ -9,6 +9,7 @@ import {
   CampoTexto,
 } from "./campos";
 import SubirAudio from "./subir-audio";
+import { marcasCuadran } from "@/lib/ejercicios/tipos";
 
 type Pregunta = {
   id: string;
@@ -24,6 +25,7 @@ type DatosOpcion = {
   multiple: boolean;
   opcionesComunes?: string[];
   presentacion: "botones" | "desplegable";
+  texto?: string;
   preguntas: Pregunta[];
   /** Opcional, igual que en `relacionar`: una fila guardada antes de que el
    *  campo existiera no lo trae. Ver `CampoEscuchas`. */
@@ -200,6 +202,35 @@ export default function EditorOpcion({
           Con muchas preguntas, «desplegable» evita un muro de botones.
         </span>
       </label>
+
+      {/*
+        El pasaje va después de «Cómo se enseña» porque lo anula: con texto,
+        el control es siempre el desplegable. No se esconde el selector para
+        no hacer aparecer y desaparecer campos mientras se escribe.
+      */}
+      <label className="block text-sm font-semibold text-tinta">
+        Pasaje con huecos (opcional)
+        <textarea
+          rows={6}
+          value={d.texto ?? ""}
+          // Vacío es no tener pasaje, no tener uno en blanco: una cadena
+          // vacía pasaría el `.optional()` del esquema y la cara intentaría
+          // pintar un cloze sin texto.
+          onChange={(e) => cambiar({ texto: e.target.value || undefined })}
+          className={area}
+        />
+        <span className="mt-1 block text-xs font-normal text-tinta-suave">
+          Escribe {"{{"}id{"}}"} donde vaya cada hueco, con el id de su pregunta. Con pasaje,
+          las opciones se pintan dentro del texto y siempre en desplegable.
+        </span>
+      </label>
+
+      {d.texto && !marcasCuadran(d.texto, d.preguntas.map((p) => p.id)) && (
+        <p className="rounded-tarjeta bg-sol-100 px-4 py-3 text-sm text-tinta">
+          Las marcas del pasaje no coinciden con los ids de las preguntas. Así no se
+          puede guardar: cada hueco necesita su pregunta y cada pregunta su hueco.
+        </p>
+      )}
 
       {d.preguntas.some((p) => p.audio) && (
         <CampoEscuchas
