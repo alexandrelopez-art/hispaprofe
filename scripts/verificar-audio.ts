@@ -63,13 +63,21 @@ async function main() {
 
   // 4. Lo que no es audio se rechaza. Si esto no lanzara, la ruta guardaría
   //    en la base cualquier cosa que le manden con un tipo de audio.
-  let lanzo = false;
+  //
+  //    No basta con que lance: si mañana un bug hace que `comprimirAudio`
+  //    reviente siempre (un `mkdtemp` roto, un ENOENT mal propagado...), esta
+  //    afirmación seguiría en verde sin haber probado nunca el rechazo de
+  //    "no es audio". Por eso se guarda el error y se comprueba su mensaje.
+  let error: Error | undefined;
   try {
     await comprimirAudio(Buffer.from("esto no es audio, es texto plano"), "falso.mp3", "audio/mpeg");
-  } catch {
-    lanzo = true;
+  } catch (e) {
+    error = e instanceof Error ? e : undefined;
   }
-  afirmar(lanzo, "un archivo que no es audio se rechaza con un error");
+  afirmar(
+    error?.message.includes("No se pudo comprimir el audio") ?? false,
+    `un archivo que no es audio se rechaza con el error correcto (mensaje: ${error?.message})`,
+  );
 
   console.log("\nTodo bien.");
 }
