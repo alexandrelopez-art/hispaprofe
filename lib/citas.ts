@@ -1,16 +1,20 @@
 import { prisma } from "@/lib/prisma";
+import { esGrabada, expresionDelPaso } from "@/lib/expresion";
 
 // Solo de servidor. Fuera de las acciones, para que el script las ejercite.
+// `lib/expresion.ts` también es de servidor, así que importarlo aquí no
+// cruza ninguna frontera.
 
 /**
  * Si el oral se puede citar en esta clase, o el motivo del no.
  *
- * Cuatro negativas: la clase tiene que ser de ese alumno —suya directamente, o
- * de un grupo al que pertenezca—, tiene que ser de este profesor, no puede
- * estar anulada, y no puede haber pasado ya. `claseId` llega tal cual del
- * formulario, sin pasar por `clasesParaCitar`, así que aquí se revalidan las
- * mismas cuatro cosas que esa función usó para decidir qué ofrecer: un tope
- * que decide no puede confiar en lo que mandó el cliente.
+ * Cuatro negativas: que no sea una tarea grabada —esa no se agenda—, que la
+ * clase sea de ese alumno —suya directamente, o de un grupo al que
+ * pertenezca—, que sea de este profesor, que no esté anulada, y que no haya
+ * pasado ya. `claseId` llega tal cual del formulario, sin pasar por
+ * `clasesParaCitar`, así que aquí se revalidan las mismas cosas que esa
+ * función usó para decidir qué ofrecer: un tope que decide no puede confiar
+ * en lo que mandó el cliente.
  *
  * `profesorId` en `null` significa «sin filtrar por profesor»: es lo que manda
  * un administrador, que ve las clases de todos igual que en las páginas de
@@ -18,9 +22,16 @@ import { prisma } from "@/lib/prisma";
  */
 export async function puedeCitarse(
   asignacionId: string,
+  pasoId: string,
   claseId: string,
   profesorId: string | null,
 ): Promise<string | null> {
+  // Una grabada no se agenda: se entrega cuando el alumno quiera.
+  const tarea = await expresionDelPaso(pasoId);
+  if (tarea && esGrabada(tarea)) {
+    return "Esa tarea se entrega grabada: no hay nada que citar.";
+  }
+
   const asignacion = await prisma.asignacion.findUnique({
     where: { id: asignacionId },
     select: { estudianteId: true },

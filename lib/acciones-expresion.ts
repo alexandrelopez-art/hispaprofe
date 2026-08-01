@@ -168,6 +168,7 @@ export async function citarOral(
 
   const motivo = await puedeCitarse(
     asignacionId,
+    pasoId,
     claseId,
     usuario.role === "ADMIN" ? null : usuario.id,
   );

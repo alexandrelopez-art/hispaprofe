@@ -397,42 +397,42 @@ async function main() {
   claseIds.push(deOtroProfesor.id);
 
   afirmar(
-    (await puedeCitarse(asignacion.id, suya.id, profesor.id)) === null,
+    (await puedeCitarse(asignacion.id, paso.id, suya.id, profesor.id)) === null,
     "se puede citar en una clase suya",
   );
   afirmar(
-    (await puedeCitarse(asignacion.id, ajena.id, profesor.id)) !== null,
+    (await puedeCitarse(asignacion.id, paso.id, ajena.id, profesor.id)) !== null,
     "no se puede citar en la clase de otro alumno",
   );
   afirmar(
-    (await puedeCitarse(asignacion.id, anulada.id, profesor.id)) !== null,
+    (await puedeCitarse(asignacion.id, paso.id, anulada.id, profesor.id)) !== null,
     "no se puede citar en una clase anulada",
   );
   afirmar(
-    (await puedeCitarse(asignacion.id, "noexiste", profesor.id)) !== null,
+    (await puedeCitarse(asignacion.id, paso.id, "noexiste", profesor.id)) !== null,
     "no se puede citar en una clase que no existe",
   );
   afirmar(
-    (await puedeCitarse(asignacion.id, deGrupo.id, profesor.id)) === null,
+    (await puedeCitarse(asignacion.id, paso.id, deGrupo.id, profesor.id)) === null,
     "se puede citar en la clase de un grupo del alumno",
   );
   afirmar(
-    (await puedeCitarse(asignacion.id, pasada.id, profesor.id)) !== null,
+    (await puedeCitarse(asignacion.id, paso.id, pasada.id, profesor.id)) !== null,
     "no se puede citar en una clase que ya pasó",
   );
 
   // Los dos extremos de la cuarta negativa: la misma clase, un profesor a cada
   // lado. Sin el filtro, esa clase se citaba igual desde la ficha del alumno.
   afirmar(
-    (await puedeCitarse(asignacion.id, deOtroProfesor.id, profesor.id)) !== null,
+    (await puedeCitarse(asignacion.id, paso.id, deOtroProfesor.id, profesor.id)) !== null,
     "no se puede citar en la clase que el alumno tiene con otro profesor",
   );
   afirmar(
-    (await puedeCitarse(asignacion.id, deOtroProfesor.id, otroProfesor.id)) === null,
+    (await puedeCitarse(asignacion.id, paso.id, deOtroProfesor.id, otroProfesor.id)) === null,
     "esa misma clase sí se cita desde el profesor que la da",
   );
   afirmar(
-    (await puedeCitarse(asignacion.id, deOtroProfesor.id, null)) === null,
+    (await puedeCitarse(asignacion.id, paso.id, deOtroProfesor.id, null)) === null,
     "sin profesor no se filtra: es lo que manda un administrador",
   );
 

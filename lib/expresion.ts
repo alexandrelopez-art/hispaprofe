@@ -50,6 +50,12 @@ export const expresionSchema = z
       .int({ message: "Los minutos tienen que ser un número entero." })
       .min(1, { message: "Una tarea oral dura al menos un minuto." })
       .optional(),
+    /**
+     * Solo en las orales: si el alumno la graba y la manda en vez de hacerla
+     * en clase. Con valor por defecto para que las orales ya guardadas sigan
+     * siendo lo que eran cuando se crearon: de clase.
+     */
+    grabada: z.boolean().default(false),
     criterios: z.array(criterioSchema).min(1, { message: "La tarea necesita al menos un criterio." }),
     /** Se le enseña al alumno solo después de corregir. */
     modelo: z.string().optional(),
@@ -71,6 +77,9 @@ export const expresionSchema = z
   })
   .refine((d) => new Set(d.criterios.map((c) => c.id)).size === d.criterios.length, {
     message: "Dos criterios no pueden compartir el mismo id: sus notas se pisarían.",
+  })
+  .refine((d) => d.modalidad === "oral" || !d.grabada, {
+    message: "Solo una tarea oral se puede grabar: en una escrita eso no significa nada.",
   });
 
 export type Expresion = z.infer<typeof expresionSchema>;
@@ -100,6 +109,31 @@ export function versionPublicaExpresion(datos: Expresion, corregida: boolean): E
   return corregida ? { ...resto, modelo } : resto;
 }
 
+/** Si esta tarea se graba y se entrega, en vez de hacerse en clase. */
+export function esGrabada(datos: Expresion): boolean {
+  return datos.modalidad === "oral" && datos.grabada;
+}
+
+/**
+ * Lo que aceptamos recibir de un alumno, antes de comprimir. Cincuenta megas
+ * dejan pasar un archivo del móvil sin abrir la puerta a una película.
+ */
+export const MAXIMO_AUDIO_RECIBIDO = 50 * 1024 * 1024;
+
+/**
+ * Lo que aceptamos guardar, ya comprimido. Quince minutos rondan los 5 MB, así
+ * que diez son holgados: está para que un audio que el compresor no logre
+ * encoger no entre entero en la base.
+ */
+export const MAXIMO_AUDIO_GUARDADO = 10 * 1024 * 1024;
+
+/**
+ * El tope duro de la grabadora. Los minutos de la tarea solo avisan —pasarse
+ * es un error que puntúa el profesor, y cortar a media frase es la peor forma
+ * de enterarse—; esto es lo que impide una grabación de dos horas.
+ */
+export const MINUTOS_MAXIMOS_GRABACION = 15;
+
 /**
  * La tarea de expresión enganchada a este paso, o `null` si el paso no tiene
  * ejercicio o el que tiene no es de expresión.
@@ -126,19 +160,21 @@ export async function expresionDelPaso(pasoId: string): Promise<Expresion | null
  * sería una tarea que parece corregida y no lo está, y el alumno vería una
  * nota que no es la suya.
  *
- * En una escrita exige además que haya entrega: sin texto que corregir, no
- * hay nada que valorar, y sin este freno el profesor podía corregir antes
- * de que el alumno escribiera una palabra —`puedeEntregar` le cerraría la
- * puerta para siempre con «ya está corregida», sin haber entregado nunca—.
- * En una oral no aplica: ahí no hay entrega que guardar, y valorar sin ella
- * es justo lo normal.
+ * En una escrita, y en una oral grabada, exige además que haya entrega: sin
+ * texto o sin audio que corregir, no hay nada que valorar, y sin este freno
+ * el profesor podía corregir antes de que el alumno mandara nada —`puedeEntregar`
+ * o `puedeEntregarAudio` le cerrarían la puerta para siempre con «ya está
+ * corregida», sin haber entregado nunca—. La excepción es la oral de clase:
+ * ahí no hay entrega que guardar, y valorar sin ella es justo lo normal.
  */
 export function puedeValorarse(
   datos: Expresion,
   notas: Record<string, number>,
   entrega: string | null,
 ): string | null {
-  if (datos.modalidad === "escrita" && !entrega) {
+  // Se puntúa lo que se ha leído o lo que se ha oído. Una oral de clase es la
+  // excepción a propósito: ahí no hay entrega y valorar sin ella es lo normal.
+  if ((datos.modalidad === "escrita" || esGrabada(datos)) && !entrega) {
     return "El alumno todavía no ha entregado nada: no se puede corregir.";
   }
 
@@ -216,9 +252,40 @@ export async function puedeEntregar(
     return `Eso es demasiado largo: caben ${MAXIMO_ENTREGA.toLocaleString("es-ES")} caracteres.`;
   }
 
+  // Tres negativas separadas y no encadenadas: `datos` puede ser `null` y
+  // `esGrabada(null)` reventaría, y el alumno que manda un texto a una tarea
+  // grabada merece que se lo digan, no un «este paso no pide ninguna
+  // redacción» que no describe lo que pasa.
   const datos = await expresionDelPaso(pasoId);
-  if (!datos || datos.modalidad !== "escrita") {
-    return "Este paso no pide ninguna redacción.";
+  if (!datos) return "Este paso no pide ninguna redacción.";
+  if (esGrabada(datos)) return "Esta tarea se entrega grabada, no escrita.";
+  if (datos.modalidad !== "escrita") return "Este paso no pide ninguna redacción.";
+
+  const registro = await prisma.pasoCompletado.findUnique({
+    where: { asignacionId_pasoId: { asignacionId, pasoId } },
+    select: { verificadoEl: true },
+  });
+  if (registro?.verificadoEl) {
+    return "Esta tarea ya está corregida: no se puede cambiar lo entregado.";
+  }
+  return null;
+}
+
+/**
+ * Si el alumno todavía puede mandar una grabación en este paso, o el motivo
+ * del no.
+ *
+ * Las mismas dos negativas que la escrita, menos la del tamaño: ahí lo que
+ * llega es un archivo, y su tope lo comprueba la ruta con `MAXIMO_AUDIO_RECIBIDO`
+ * antes de leerlo entero en memoria.
+ */
+export async function puedeEntregarAudio(
+  asignacionId: string,
+  pasoId: string,
+): Promise<string | null> {
+  const datos = await expresionDelPaso(pasoId);
+  if (!datos || !esGrabada(datos)) {
+    return "Este paso no pide ninguna grabación.";
   }
 
   const registro = await prisma.pasoCompletado.findUnique({
