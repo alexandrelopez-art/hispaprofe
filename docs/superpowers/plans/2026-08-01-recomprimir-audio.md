@@ -56,7 +56,7 @@ Todo el trabajo de verdad. Al terminar, `lib/audio.ts` comprime y su script lo d
 **Interfaces:**
 - Produces, desde `@/lib/audio`:
   - `type AudioComprimido = { datos: Buffer; tipo: string; nombre: string }`
-  - `async function comprimirAudio(datos: Buffer, nombre: string): Promise<AudioComprimido>` — devuelve el resultado comprimido, o el original si comprimir no lo hace más pequeño. Lanza `Error` si no hay compresor o si el archivo no es audio.
+  - `async function comprimirAudio(datos: Buffer, nombre: string, tipo: string): Promise<AudioComprimido>` — devuelve el resultado comprimido, o los tres campos que entraron si comprimir no lo hace más pequeño. Lanza `Error` si no hay compresor o si el archivo no es audio.
   - `async function hayCompresor(): Promise<boolean>`
   - `function generarWav(segundos: number): Buffer` — un WAV de prueba, para que el script no necesite traer un archivo al repositorio.
 
@@ -82,19 +82,21 @@ async function main() {
   // Sin compresor no se puede verificar nada, y decirlo claro evita
   // interpretar el fallo como un error del código.
   if (!(await hayCompresor())) {
+    // No es `afirmar(...)`: una afirmación que solo puede ser verdad no
+    // comprueba nada, y esto no es un fallo del código sino de la máquina.
+    // Merece un mensaje que diga qué hacer, no un "FALLO:".
     throw new Error(
       "No hay compresor de audio en esta máquina (ni afconvert ni ffmpeg), " +
         "así que no se puede verificar nada. En macOS afconvert viene puesto.",
     );
   }
-  afirmar(true, "hay un compresor disponible");
 
   // 1. Comprimir reduce. Veinte segundos de WAV son 1,7 MB; comprimidos no
   //    llegan a 200 KB.
   const wav = generarWav(20);
   afirmar(wav.length > 1_000_000, `el WAV de prueba es grande (${wav.length} bytes)`);
 
-  const comprimido = await comprimirAudio(wav, "tono.wav");
+  const comprimido = await comprimirAudio(wav, "tono.wav", "audio/wav");
   afirmar(
     comprimido.datos.length < wav.length / 5,
     `comprimir reduce a menos de una quinta parte (${wav.length} → ${comprimido.datos.length})`,
@@ -104,7 +106,7 @@ async function main() {
 
   // 2. Lo devuelto es audio de verdad, no bytes cualesquiera. La prueba es
   //    que el compresor lo puede volver a leer: si fuera basura, fallaría.
-  const otraVez = await comprimirAudio(comprimido.datos, "tono.m4a");
+  const otraVez = await comprimirAudio(comprimido.datos, "tono.m4a", "audio/mp4");
   afirmar(otraVez.datos.length > 0, "el resultado se puede volver a comprimir: es audio válido");
 
   // 3. Cuando comprimir engordaría, se conserva la entrada tal cual.
@@ -118,19 +120,19 @@ async function main() {
   //    Se compara byte a byte y no por tamaño: lo que se promete es que
   //    devuelve *la entrada*, no algo que casualmente mide lo mismo.
   const brevisimo = generarWav(0.02);
-  const sinTocar = await comprimirAudio(brevisimo, "brevisimo.wav");
+  const sinTocar = await comprimirAudio(brevisimo, "brevisimo.wav", "audio/wav");
   afirmar(
     sinTocar.datos.equals(brevisimo),
     `un audio que engordaría al comprimirse se devuelve idéntico (${brevisimo.length} bytes)`,
   );
-  afirmar(sinTocar.tipo === "", "y se marca como no comprimido con el tipo vacío");
+  afirmar(sinTocar.tipo === "audio/wav", "y conserva el tipo que traía");
   afirmar(sinTocar.nombre === "brevisimo.wav", "y conserva su nombre original");
 
   // 4. Lo que no es audio se rechaza. Si esto no lanzara, la ruta guardaría
   //    en la base cualquier cosa que le manden con un tipo de audio.
   let lanzo = false;
   try {
-    await comprimirAudio(Buffer.from("esto no es audio, es texto plano"), "falso.mp3");
+    await comprimirAudio(Buffer.from("esto no es audio, es texto plano"), "falso.mp3", "audio/mpeg");
   } catch {
     lanzo = true;
   }
@@ -251,6 +253,7 @@ export type AudioComprimido = { datos: Buffer; tipo: string; nombre: string };
 export async function comprimirAudio(
   datos: Buffer,
   nombre: string,
+  tipo: string,
 ): Promise<AudioComprimido> {
   const compresor = await buscarCompresor();
   if (!compresor) {
@@ -280,7 +283,7 @@ export async function comprimirAudio(
     // Un audio ya comprimido y corto puede salir más grande: recomprimir solo
     // lo empeoraría, así que en ese caso se guarda lo que llegó.
     if (comprimido.length >= datos.length) {
-      return { datos, tipo: "", nombre };
+      return { datos, tipo, nombre };
     }
     return { datos: comprimido, tipo: TIPO_SALIDA, nombre: conExtensionM4a(nombre) };
   } finally {
@@ -331,7 +334,7 @@ export function generarWav(segundos: number): Buffer {
 }
 ```
 
-**Sobre el `tipo: ""` cuando no se comprime:** significa «no lo cambies, quédate con el que traía». Quien llama ya conoce el tipo original —se lo dijo el navegador— y no tiene por qué recibirlo de vuelta. El paso siguiente lo usa así.
+**Por qué recibe también el `tipo` y no solo los bytes:** para poder devolver siempre los tres campos ya resueltos, comprima o no. La alternativa —devolver el tipo vacío para decir «no lo cambies»— obliga a quien llama a interpretar un centinela, y ese `if` se olvida el día que alguien añada otra llamada.
 
 - [ ] **Step 4: Ejecutar hasta que pase**
 
@@ -394,14 +397,9 @@ Y sustituye el bloque que va desde `const datos = Buffer.from(...)` hasta el `pr
   let nombre = archivo.name;
   if (esAudio) {
     try {
-      const comprimido = await comprimirAudio(recibido, archivo.name);
-      datos = comprimido.datos;
-      // `tipo` vacío significa que no se comprimió y hay que conservar el
-      // que traía. Ver el comentario de `comprimirAudio`.
-      if (comprimido.tipo) {
-        tipo = comprimido.tipo;
-        nombre = comprimido.nombre;
-      }
+      // Devuelve los tres campos ya resueltos, comprima o no: aquí no hay
+      // nada que interpretar.
+      ({ datos, tipo, nombre } = await comprimirAudio(recibido, archivo.name, archivo.type));
     } catch (e) {
       // Se rechaza en vez de guardar el original de 36 MB callando: si esto
       // pasara en silencio, se descubriría con cincuenta audios ya dentro.
@@ -502,7 +500,7 @@ Sin huecos.
 
 **Marcadores de posición:** ninguno. Todos los pasos llevan el código real.
 
-**Consistencia de tipos:** `comprimirAudio(datos: Buffer, nombre: string): Promise<AudioComprimido>` se declara en Task 1, Step 3 y se consume en Task 2, Step 2 con esa firma. `AudioComprimido` tiene `datos`, `tipo` y `nombre`, y los tres se usan en la ruta. `generarWav(segundos: number): Buffer` y `hayCompresor(): Promise<boolean>` se declaran en Task 1, Step 3 y se consumen en Task 1, Step 1.
+**Consistencia de tipos:** `comprimirAudio(datos: Buffer, nombre: string, tipo: string): Promise<AudioComprimido>` se declara en Task 1, Step 3 y se consume en Task 2, Step 2 con esa firma. `AudioComprimido` tiene `datos`, `tipo` y `nombre`, y los tres se usan en la ruta. `generarWav(segundos: number): Buffer` y `hayCompresor(): Promise<boolean>` se declaran en Task 1, Step 3 y se consumen en Task 1, Step 1.
 
 **Una nota sobre el orden:** Task 2 depende de Task 1 y no al revés. No las reordenes.
 
