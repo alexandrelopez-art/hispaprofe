@@ -6,6 +6,8 @@ import { prisma } from "@/lib/prisma";
 import { getUsuarioActual } from "@/lib/usuario";
 import { exigirProfesor } from "@/lib/profesor";
 import {
+  anotarEntrega,
+  asignacionViva,
   esDeEsteProfesor,
   expresionDelPaso,
   puedeEntregar,
@@ -49,25 +51,16 @@ export async function entregar(
   });
   if (!paso) return { error: "Ese paso no existe." };
 
-  const asignacion = await prisma.asignacion.findUnique({
-    where: {
-      estudianteId_recorridoId: {
-        estudianteId: usuario.id,
-        recorridoId: paso.recorridoId,
-      },
-    },
-    select: { id: true, archivada: true },
-  });
-  if (!asignacion || asignacion.archivada) return { error: "No tienes este recorrido asignado." };
+  // Derivar la asignación y escribir la entrega son los dos mismos pasos que
+  // da la ruta de la grabación, así que viven en `lib/expresion.ts`: una copia
+  // de cada uno, y el script las ejercita sin levantar un servidor.
+  const asignacion = await asignacionViva(usuario.id, paso.recorridoId);
+  if (!asignacion) return { error: "No tienes este recorrido asignado." };
 
   const motivo = await puedeEntregar(asignacion.id, pasoId, texto);
   if (motivo) return { error: motivo };
 
-  await prisma.pasoCompletado.upsert({
-    where: { asignacionId_pasoId: { asignacionId: asignacion.id, pasoId } },
-    update: { entrega: texto },
-    create: { asignacionId: asignacion.id, pasoId, entrega: texto },
-  });
+  await anotarEntrega(asignacion.id, pasoId, texto);
 
   // Con el id del alumno: es la ficha desde la que el profesor corrige, y
   // sin refrescarla seguiría enseñando la entrega anterior.

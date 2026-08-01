@@ -1,4 +1,4 @@
-import { comprimirAudio, CompresorAusenteError } from "@/lib/audio";
+import { comprimirAudio, CompresorAusenteError, TIPOS_AUDIO } from "@/lib/audio";
 import { prisma } from "@/lib/prisma";
 import { getUsuarioActual } from "@/lib/usuario";
 
@@ -36,27 +36,6 @@ const IMAGENES = [
   "image/svg+xml",
 ];
 
-// Un mismo formato llega con nombres distintos según el navegador, y la lista
-// tiene que aceptarlos todos o el profesor se choca con «Solo se admiten
-// imágenes y audios» subiendo un archivo perfectamente válido:
-//
-// - `audio/x-m4a` es lo que dice Safari de un `.m4a` — justo el formato que
-//   este archivo le recomienda generar con `afconvert`, y él trabaja en macOS.
-// - `audio/wave` y `audio/x-wav` son los nombres viejos del WAV, todavía en
-//   uso; `audio/mp3` lo dicen algunos navegadores en vez de `audio/mpeg`.
-const AUDIOS = [
-  "audio/mpeg",
-  "audio/mp3",
-  "audio/mp4",
-  "audio/m4a",
-  "audio/x-m4a",
-  "audio/ogg",
-  "audio/wav",
-  "audio/wave",
-  "audio/x-wav",
-  "audio/webm",
-];
-
 export async function POST(peticion: Request) {
   const usuario = await getUsuarioActual();
   if (!usuario || (usuario.role !== "PROFESOR" && usuario.role !== "ADMIN")) {
@@ -83,7 +62,7 @@ export async function POST(peticion: Request) {
     return Response.json({ error: "No llegó ningún archivo." }, { status: 400 });
   }
   const esImagen = IMAGENES.includes(archivo.type);
-  const esAudio = AUDIOS.includes(archivo.type);
+  const esAudio = TIPOS_AUDIO.includes(archivo.type);
 
   if (!esImagen && !esAudio) {
     return Response.json(

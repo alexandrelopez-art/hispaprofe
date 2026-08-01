@@ -299,6 +299,47 @@ export async function puedeEntregarAudio(
 }
 
 /**
+ * La asignación viva de este alumno en este recorrido, o `null`.
+ *
+ * Es lo que impide que la entrega la mande quien no la tiene asignada: quien
+ * entrega llega por un endpoint público, así que la asignación no puede venir
+ * del formulario —ahí basta con escribir la de otro— sino de la sesión y del
+ * paso, que es lo único que el servidor sabe de verdad. Una archivada tampoco
+ * vale: ese recorrido ya se cerró.
+ */
+export async function asignacionViva(
+  estudianteId: string,
+  recorridoId: string,
+): Promise<{ id: string } | null> {
+  const asignacion = await prisma.asignacion.findUnique({
+    where: { estudianteId_recorridoId: { estudianteId, recorridoId } },
+    select: { id: true, archivada: true },
+  });
+  if (!asignacion || asignacion.archivada) return null;
+  return { id: asignacion.id };
+}
+
+/**
+ * Escribe lo entregado, sea un texto o la dirección de una grabación.
+ *
+ * `upsert` y no `create`: reescribir es normal —hasta que el profesor
+ * corrige— y cada entrega tiene que caer en la misma fila, la que dice que el
+ * paso está hecho. Y el `update` toca solo `entrega` a propósito: escribir
+ * también `valoracion: null` borraría una corrección hecha en medio.
+ */
+export async function anotarEntrega(
+  asignacionId: string,
+  pasoId: string,
+  entrega: string,
+): Promise<void> {
+  await prisma.pasoCompletado.upsert({
+    where: { asignacionId_pasoId: { asignacionId, pasoId } },
+    update: { entrega },
+    create: { asignacionId, pasoId, entrega },
+  });
+}
+
+/**
  * Si esta persona puede oír este archivo.
  *
  * Un archivo que no es privado se sirve a cualquiera, como hasta ahora: son

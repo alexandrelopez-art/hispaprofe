@@ -18,6 +18,59 @@ import { join } from "node:path";
 /** AAC de 48 kbps en mono: lo entienden todos los navegadores. */
 const TIPO_SALIDA = "audio/mp4";
 
+/**
+ * Los tipos que aceptamos como audio. Vive aquí, con el resto del audio, y no
+ * dentro de una ruta: dos listas se separan en cuanto alguien añade un formato
+ * a una sola, y entonces el mismo archivo entra por una puerta y rebota en la
+ * otra.
+ *
+ * Un mismo formato llega con nombres distintos según el navegador, y la lista
+ * tiene que aceptarlos todos o el profesor se choca con «Solo se admiten
+ * imágenes y audios» subiendo un archivo perfectamente válido:
+ *
+ * - `audio/x-m4a` es lo que dice Safari de un `.m4a` — justo el formato que
+ *   este archivo le recomienda generar con `afconvert`, y él trabaja en macOS.
+ * - `audio/wave` y `audio/x-wav` son los nombres viejos del WAV, todavía en
+ *   uso; `audio/mp3` lo dicen algunos navegadores en vez de `audio/mpeg`.
+ *
+ * Grabar dentro de la aplicación produce `audio/webm` en Chrome y Firefox y
+ * `audio/mp4` en Safari: los dos ya estaban.
+ */
+export const TIPOS_AUDIO = [
+  "audio/mpeg",
+  "audio/mp3",
+  "audio/mp4",
+  "audio/m4a",
+  "audio/x-m4a",
+  "audio/ogg",
+  "audio/wav",
+  "audio/wave",
+  "audio/x-wav",
+  "audio/webm",
+];
+
+const EXTENSIONES: Record<string, string> = {
+  "audio/mpeg": "mp3",
+  "audio/mp3": "mp3",
+  "audio/mp4": "m4a",
+  "audio/m4a": "m4a",
+  "audio/x-m4a": "m4a",
+  "audio/ogg": "ogg",
+  "audio/wav": "wav",
+  "audio/wave": "wav",
+  "audio/x-wav": "wav",
+  "audio/webm": "webm",
+};
+
+/**
+ * Un nombre legible para lo que graba el navegador, que llega sin ninguno.
+ * `comprimirAudio` nombra con él el archivo temporal, y acaba en la columna
+ * `Archivo.nombre`, que es lo que ve el profesor.
+ */
+export function nombreDeGrabacion(tipo: string): string {
+  return `grabacion.${EXTENSIONES[tipo] ?? "audio"}`;
+}
+
 type Compresor = {
   orden: string;
   /** Los argumentos, dados el archivo de entrada y el de salida. */
