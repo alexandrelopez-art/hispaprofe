@@ -45,8 +45,9 @@ function refrescar(ejercicioId?: string) {
 
 /**
  * Crea o actualiza un ejercicio. El `datos` no se guarda sin pasar por
- * `analizar`, que es el mismo portero que valida lo que siembra un script y
- * lo que responde un estudiante.
+ * `revisarDatos`, que pregunta a los dos porteros: `analizar`, el mismo que
+ * valida lo que siembra un script y lo que responde un estudiante, y
+ * `analizarExpresion`, que es hermano suyo y no miembro.
  */
 export async function guardarEjercicio(
   _prev: EstadoRecurso,

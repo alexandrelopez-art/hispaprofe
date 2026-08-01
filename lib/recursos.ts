@@ -172,7 +172,7 @@ export async function puedeEngancharse(
   }
 
   if (await tieneTrabajo(pasoId)) {
-    return "Alguien ya trabajó en ese paso. Cambiarle el ejercicio dejaría sin sentido lo que respondió o lo que entregó.";
+    return "Alguien ya trabajó en ese paso. Cambiarle el ejercicio dejaría sin sentido lo que respondió, lo que entregó o lo que ya le corregiste.";
   }
   return null;
 }
@@ -180,7 +180,7 @@ export async function puedeEngancharse(
 /** Si se le puede quitar el ejercicio a este paso, o el motivo del no. */
 export async function puedeDesengancharse(pasoId: string): Promise<string | null> {
   if (await tieneTrabajo(pasoId)) {
-    return "Alguien ya trabajó en ese paso. Quitarle el ejercicio dejaría lo que respondió o lo que entregó sin ninguna pantalla que lo enseñe.";
+    return "Alguien ya trabajó en ese paso. Quitarle el ejercicio dejaría lo que respondió, lo que entregó o su corrección sin ninguna pantalla que lo enseñe.";
   }
   return null;
 }
@@ -238,7 +238,7 @@ export async function puedeEditarse(ejercicioId: string): Promise<string | null>
   });
   for (const v of vinculos) {
     if (await tieneTrabajo(v.pasoId)) {
-      return "Alguien ya lo respondió o ya lo entregó. Duplícalo y edita la copia.";
+      return "Alguien ya lo respondió, ya lo entregó o ya se le corrigió. Duplícalo y edita la copia.";
     }
   }
   return null;

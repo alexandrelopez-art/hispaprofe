@@ -123,6 +123,13 @@ export default function Entrega({
             cuando se piden cien es un error del alumno que el profesor va a
             puntuar, no algo que la aplicación deba impedirle.
           */}
+          {/* Cerrada y sin nada escrito: el recuadro gris no dice por qué. */}
+          {cerrada && !entrega && (
+            <p className="mt-2 text-sm text-tinta-suave">
+              Esta tarea ya no admite entregas.
+            </p>
+          )}
+
           {fuera && !cerrada && (
             <p className="mt-2 text-sm text-tinta-suave">
               Estás fuera del número de palabras que pide la tarea. Puedes
