@@ -23,8 +23,9 @@ export default async function EntregasPage() {
     redirect("/dashboard");
   }
 
-  // Entregado y sin corregir. Solo las escritas producen entrega, así que
-  // filtrar por `entrega` deja fuera las orales sin tener que mirar el tipo.
+  // Entregado y sin corregir. Producen entrega las escritas y las orales que
+  // el alumno graba, así que filtrar por `entrega` deja fuera justo lo que no
+  // se corrige aquí —la oral de clase— sin tener que mirar el tipo.
   // La partición por profesor es la misma que en `orales/page.tsx` y
   // `clases/page.tsx`: un profesor solo ve lo suyo, un administrador lo ve
   // todo. Sin esto, un segundo profesor vería las entregas del primero.
@@ -51,8 +52,9 @@ export default async function EntregasPage() {
     <div className="mx-auto max-w-3xl px-6 py-12">
       <h1 className="text-3xl font-extrabold tracking-tight text-tinta">Entregas</h1>
       <p className="mt-2 text-tinta-suave">
-        Lo que está esperando corrección. Las tareas orales no salen aquí: no
-        hay entrega, se corrigen desde la ficha del alumno o desde la clase.
+        Lo que está esperando corrección. Las orales que el alumno graba y
+        manda salen aquí; las de clase no, porque no hay entrega y se corrigen
+        desde la ficha del alumno o desde la clase.
       </p>
 
       {pendientes.length === 0 ? (

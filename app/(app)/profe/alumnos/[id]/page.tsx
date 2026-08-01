@@ -10,7 +10,7 @@ import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { horas, totalesDeClases } from "@/lib/clases";
 import { servicioLabel } from "@/lib/servicios";
-import { analizarExpresion } from "@/lib/expresion";
+import { analizarExpresion, esGrabada } from "@/lib/expresion";
 import { clasesParaCitar } from "@/lib/citas";
 import Rubrica from "@/components/expresion/rubrica";
 import CitarOral from "./citar-oral";
@@ -260,24 +260,33 @@ export default async function AlumnoPage({
                       const expresion = paso.ejercicios[0]
                         ? analizarExpresion(paso.ejercicios[0].ejercicio.datos)
                         : null;
-                      const oral = expresion?.modalidad === "oral";
+                      // La oral de clase es la que se hace con el profesor
+                      // delante: no deja entrega y se cita. La grabada llega
+                      // entregada, así que en esta fila se comporta igual que
+                      // una escrita.
+                      const oralDeClase =
+                        expresion?.modalidad === "oral" && !esGrabada(expresion);
                       /*
                         Qué control lleva la fila, y solo uno:
 
                         - la rúbrica cuando hay algo que puntuar con ella: un
-                          oral siempre, y una escrita solo si el alumno entregó
-                          —`valorar` rechaza a propósito una escrita sin texto,
-                          así que el enlace llevaría a un callejón sin salida—;
+                          oral de clase siempre, y una escrita —o una oral
+                          grabada— solo si el alumno entregó; `valorar` rechaza
+                          a propósito una escrita sin texto y una grabada sin
+                          audio, así que el enlace llevaría a un callejón sin
+                          salida;
                         - el campo de puntos a mano en todo lo demás, incluida
                           la escrita sin entrega: la redacción hecha en papel,
                           en clase, se sigue puntuando como cualquier paso del
                           proyecto.
                       */
-                      const conRubrica = oral || Boolean(registro?.entrega);
-                      // Un oral sin registro no tiene fila a la que enlazar,
-                      // pero sí se puede corregir: `valorar` hace `upsert`, así
-                      // que la fila nace al guardar la rúbrica. Se monta aquí
-                      // mismo, plegada, en vez de dejar el paso sin puerta.
+                      const conRubrica = oralDeClase || Boolean(registro?.entrega);
+                      // Un oral de clase sin registro no tiene fila a la que
+                      // enlazar, pero sí se puede corregir: `valorar` hace
+                      // `upsert`, así que la fila nace al guardar la rúbrica. Se
+                      // monta aquí mismo, plegada, en vez de dejar el paso sin
+                      // puerta. Una grabada nunca cae aquí: solo lleva rúbrica
+                      // si entregó, y entonces ya tiene registro.
                       const rubricaEnLinea = conRubrica && !registro && mia;
                       return (
                         <li
@@ -319,7 +328,7 @@ export default async function AlumnoPage({
                                   ? `${registro.puntos ?? 0} pts`
                                   : registro
                                     ? "Sin corregir"
-                                    : oral
+                                    : oralDeClase
                                       ? "Sin evaluar"
                                       : expresion
                                         ? "Sin entregar"
@@ -374,7 +383,15 @@ export default async function AlumnoPage({
                             )}
                           </div>
 
-                          {oral && mia && (
+                          {/*
+                            Solo la de clase se cita: una grabada no ocupa
+                            hueco en ninguna. El tope de verdad lo pone
+                            `puedeCitarse` en el servidor, pero `clasesParaCitar`
+                            no mira la modalidad y seguiría ofreciendo clases,
+                            así que aquí quedaría un desplegable que solo sirve
+                            para recibir un no.
+                          */}
+                          {oralDeClase && mia && (
                             <CitarOral
                               asignacionId={asignacion.id}
                               pasoId={paso.id}
