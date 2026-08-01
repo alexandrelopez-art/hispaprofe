@@ -12,6 +12,7 @@ import { horas, totalesDeClases } from "@/lib/clases";
 import { servicioLabel } from "@/lib/servicios";
 import { analizarExpresion } from "@/lib/expresion";
 import { clasesParaCitar } from "@/lib/citas";
+import Rubrica from "@/components/expresion/rubrica";
 import CitarOral from "./citar-oral";
 
 export const dynamic = "force-dynamic";
@@ -92,9 +93,12 @@ export default async function AlumnoPage({
   // paso, que en una secuencia de nueve serían nueve. Las clases citables se
   // piden una sola vez porque todas las asignaciones de esta ficha son del
   // mismo alumno, y `clasesParaCitar` mira justamente eso: de qué alumno es
-  // la asignación.
+  // la asignación. Solo las de este profesor; un administrador las ve todas.
+  const soloDeEsteProfesor = usuario.role === "ADMIN" ? null : usuario.id;
   const [clasesCitables, citas] = await Promise.all([
-    asignaciones.length > 0 ? clasesParaCitar(asignaciones[0].id) : [],
+    asignaciones.length > 0
+      ? clasesParaCitar(asignaciones[0].id, soloDeEsteProfesor)
+      : [],
     prisma.citaOral.findMany({
       where: { asignacionId: { in: asignaciones.map((a) => a.id) } },
       select: {
@@ -178,6 +182,11 @@ export default async function AlumnoPage({
               (suma, c) => suma + (c.puntos ?? 0),
               0,
             );
+            // Esta ficha lista las asignaciones de todos los profesores, pero
+            // citar y corregir solo valen sobre las propias: un control que
+            // siempre iba a contestar «esa asignación no es tuya» no se pinta.
+            const mia =
+              usuario.role === "ADMIN" || asignacion.profesorId === usuario.id;
 
             return (
               <li
@@ -245,6 +254,12 @@ export default async function AlumnoPage({
                       const expresion = paso.ejercicios[0]
                         ? analizarExpresion(paso.ejercicios[0].ejercicio.datos)
                         : null;
+                      // Un oral sin registro no tiene fila a la que enlazar,
+                      // pero sí se puede corregir: `valorar` hace `upsert`, así
+                      // que la fila nace al guardar la rúbrica. Se monta aquí
+                      // mismo, plegada, en vez de dejar el paso sin puerta.
+                      const rubricaEnLinea =
+                        expresion?.modalidad === "oral" && !registro && mia;
                       return (
                         <li
                           key={paso.id}
@@ -277,8 +292,10 @@ export default async function AlumnoPage({
                               rúbrica, no de un número escrito a mano: el campo
                               suelto se sustituye por un enlace a la pantalla
                               que sí sabe puntuarla. Sin fila que corregir no
-                              hay adónde enlazar, así que ahí solo se dice en
-                              qué estado está.
+                              hay adónde enlazar: el oral se corrige en el
+                              desplegable de abajo y no repite rótulo aquí; la
+                              escrita sin entrega solo dice en qué estado está,
+                              porque `valorar` la rechaza a propósito.
                             */}
                             {expresion ? (
                               registro ? (
@@ -290,7 +307,7 @@ export default async function AlumnoPage({
                                     ? "Ver la corrección"
                                     : "Corregir"}
                                 </Link>
-                              ) : (
+                              ) : rubricaEnLinea ? null : (
                                 <span className="shrink-0 text-xs text-tinta-suave">
                                   {expresion.modalidad === "oral"
                                     ? "Sin evaluar"
@@ -330,7 +347,7 @@ export default async function AlumnoPage({
                             )}
                           </div>
 
-                          {expresion?.modalidad === "oral" && (
+                          {expresion?.modalidad === "oral" && mia && (
                             <CitarOral
                               asignacionId={asignacion.id}
                               pasoId={paso.id}
@@ -339,6 +356,27 @@ export default async function AlumnoPage({
                               }
                               clases={clasesCitables}
                             />
+                          )}
+
+                          {expresion && rubricaEnLinea && (
+                            <details className="mt-2">
+                              <summary className="cursor-pointer text-xs font-bold text-tinta-suave hover:text-hp-500">
+                                Corregir el oral
+                              </summary>
+                              {/*
+                                Plegada por defecto: la fila del paso no puede
+                                crecer con una rúbrica abierta por cada oral de
+                                la secuencia.
+                              */}
+                              <div className="mt-2">
+                                <Rubrica
+                                  asignacionId={asignacion.id}
+                                  pasoId={paso.id}
+                                  criterios={expresion.criterios}
+                                  valoracion={null}
+                                />
+                              </div>
+                            </details>
                           )}
                         </li>
                       );

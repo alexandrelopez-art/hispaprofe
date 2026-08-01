@@ -151,14 +151,25 @@ export async function citarOral(
   _prev: EstadoExpresion,
   formData: FormData,
 ): Promise<EstadoExpresion> {
-  await exigirProfesor();
+  const usuario = await exigirProfesor();
 
   const asignacionId = String(formData.get("asignacionId") ?? "");
   const pasoId = String(formData.get("pasoId") ?? "");
   const claseId = String(formData.get("claseId") ?? "");
   if (!asignacionId || !pasoId || !claseId) return { error: "Falta el alumno, el paso o la clase." };
 
-  const motivo = await puedeCitarse(asignacionId, claseId);
+  // Las dos mitades, igual que en `valorar`: una acción de servidor es un
+  // endpoint público, y aquí se tocan dos cosas de otro —la asignación y la
+  // clase—. Un administrador se salta las dos.
+  if (usuario.role !== "ADMIN" && !(await esDeEsteProfesor(asignacionId, usuario.id))) {
+    return { error: "Esa asignación no es tuya." };
+  }
+
+  const motivo = await puedeCitarse(
+    asignacionId,
+    claseId,
+    usuario.role === "ADMIN" ? null : usuario.id,
+  );
   if (motivo) return { error: motivo };
 
   // La clase de la que se recita, si había una: al mover la cita deja de
@@ -192,18 +203,28 @@ export async function descitarOral(
   _prev: EstadoExpresion,
   formData: FormData,
 ): Promise<EstadoExpresion> {
-  await exigirProfesor();
+  const usuario = await exigirProfesor();
 
   const asignacionId = String(formData.get("asignacionId") ?? "");
   const pasoId = String(formData.get("pasoId") ?? "");
   if (!asignacionId || !pasoId) return { error: "Falta el alumno o el paso." };
 
+  // La misma mitad que en `citarOral`: la asignación tiene que ser suya.
+  if (usuario.role !== "ADMIN" && !(await esDeEsteProfesor(asignacionId, usuario.id))) {
+    return { error: "Esa asignación no es tuya." };
+  }
+
   // `deleteMany` no devuelve la fila que borra: sin leerla antes no habría
-  // forma de saber qué clase dejó de llevar este oral y revalidarla.
+  // forma de saber qué clase dejó de llevar este oral y revalidarla. Aquí no
+  // llega ningún `claseId` del formulario, así que la clase que hay que
+  // comprobar es justo la de la cita que se va a quitar.
   const cita = await prisma.citaOral.findUnique({
     where: { asignacionId_pasoId: { asignacionId, pasoId } },
-    select: { claseId: true },
+    select: { claseId: true, clase: { select: { profesorId: true } } },
   });
+  if (cita && usuario.role !== "ADMIN" && cita.clase.profesorId !== usuario.id) {
+    return { error: "Esa clase no es tuya." };
+  }
 
   // `deleteMany` y no `delete`: quitar una cita que otra pestaña ya quitó no
   // es un error, y `delete` reventaría con un P2025 sin capturar.

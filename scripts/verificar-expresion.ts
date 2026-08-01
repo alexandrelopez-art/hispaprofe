@@ -278,29 +278,60 @@ async function main() {
   });
   claseIds.push(pasada.id);
 
-  afirmar((await puedeCitarse(asignacion.id, suya.id)) === null, "se puede citar en una clase suya");
+  // Del mismo alumno, pero con otro profesor: un alumno puede dar clase con
+  // varios, y las de los demás no son de este ni para ofrecerlas.
+  const deOtroProfesor = await prisma.clase.create({
+    data: {
+      profesorId: otroProfesor.id,
+      estudianteId: estudiante.id,
+      empiezaEl: manana,
+      minutos: 60,
+      donde: "el aula del otro",
+    },
+  });
+  claseIds.push(deOtroProfesor.id);
+
   afirmar(
-    (await puedeCitarse(asignacion.id, ajena.id)) !== null,
+    (await puedeCitarse(asignacion.id, suya.id, profesor.id)) === null,
+    "se puede citar en una clase suya",
+  );
+  afirmar(
+    (await puedeCitarse(asignacion.id, ajena.id, profesor.id)) !== null,
     "no se puede citar en la clase de otro alumno",
   );
   afirmar(
-    (await puedeCitarse(asignacion.id, anulada.id)) !== null,
+    (await puedeCitarse(asignacion.id, anulada.id, profesor.id)) !== null,
     "no se puede citar en una clase anulada",
   );
   afirmar(
-    (await puedeCitarse(asignacion.id, "noexiste")) !== null,
+    (await puedeCitarse(asignacion.id, "noexiste", profesor.id)) !== null,
     "no se puede citar en una clase que no existe",
   );
   afirmar(
-    (await puedeCitarse(asignacion.id, deGrupo.id)) === null,
+    (await puedeCitarse(asignacion.id, deGrupo.id, profesor.id)) === null,
     "se puede citar en la clase de un grupo del alumno",
   );
   afirmar(
-    (await puedeCitarse(asignacion.id, pasada.id)) !== null,
+    (await puedeCitarse(asignacion.id, pasada.id, profesor.id)) !== null,
     "no se puede citar en una clase que ya pasó",
   );
 
-  const ofrecidas = await clasesParaCitar(asignacion.id);
+  // Los dos extremos de la cuarta negativa: la misma clase, un profesor a cada
+  // lado. Sin el filtro, esa clase se citaba igual desde la ficha del alumno.
+  afirmar(
+    (await puedeCitarse(asignacion.id, deOtroProfesor.id, profesor.id)) !== null,
+    "no se puede citar en la clase que el alumno tiene con otro profesor",
+  );
+  afirmar(
+    (await puedeCitarse(asignacion.id, deOtroProfesor.id, otroProfesor.id)) === null,
+    "esa misma clase sí se cita desde el profesor que la da",
+  );
+  afirmar(
+    (await puedeCitarse(asignacion.id, deOtroProfesor.id, null)) === null,
+    "sin profesor no se filtra: es lo que manda un administrador",
+  );
+
+  const ofrecidas = await clasesParaCitar(asignacion.id, profesor.id);
   afirmar(
     ofrecidas.some((c) => c.id === suya.id),
     "la clase suya sale entre las que se ofrecen",
@@ -314,6 +345,24 @@ async function main() {
       (c) => c.id === ajena.id || c.id === anulada.id || c.id === pasada.id,
     ),
     "la ajena, la anulada y la pasada no salen entre las que se ofrecen",
+  );
+  afirmar(
+    !ofrecidas.some((c) => c.id === deOtroProfesor.id),
+    "la clase del alumno con otro profesor no se ofrece: ni ella ni su «donde»",
+  );
+
+  const ofrecidasAlOtro = await clasesParaCitar(asignacion.id, otroProfesor.id);
+  afirmar(
+    ofrecidasAlOtro.some((c) => c.id === deOtroProfesor.id) &&
+      !ofrecidasAlOtro.some((c) => c.id === suya.id),
+    "al otro profesor se le ofrece la suya y no la de este",
+  );
+
+  const ofrecidasSinFiltro = await clasesParaCitar(asignacion.id, null);
+  afirmar(
+    ofrecidasSinFiltro.some((c) => c.id === suya.id) &&
+      ofrecidasSinFiltro.some((c) => c.id === deOtroProfesor.id),
+    "sin profesor salen las de los dos: es lo que ve un administrador",
   );
 
   // ─── expresionDelPaso: la rúbrica se resuelve en lib/, no en la acción ──
