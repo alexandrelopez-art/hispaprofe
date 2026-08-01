@@ -3,12 +3,12 @@ import {
   comprimirAudio,
   CompresorAusenteError,
   nombreDeGrabacion,
+  tipoBase,
   TIPOS_AUDIO,
 } from "@/lib/audio";
 import {
-  anotarEntrega,
   asignacionViva,
-  MAXIMO_AUDIO_GUARDADO,
+  guardarGrabacion,
   MAXIMO_AUDIO_RECIBIDO,
   puedeEntregarAudio,
 } from "@/lib/expresion";
@@ -67,7 +67,11 @@ export async function POST(peticion: Request) {
   const motivo = await puedeEntregarAudio(asignacion.id, pasoId);
   if (motivo) return Response.json({ error: motivo }, { status: 400 });
 
-  if (!TIPOS_AUDIO.includes(archivo.type)) {
+  // El tipo, sin los parámetros que trae la grabadora: `MediaRecorder` nunca
+  // entrega uno pelado —Chrome dice `audio/webm;codecs=opus`—, y compararlo
+  // crudo rechazaría todas las grabaciones del navegador.
+  const tipoRecibido = tipoBase(archivo.type);
+  if (!TIPOS_AUDIO.includes(tipoRecibido)) {
     return Response.json(
       { error: "Eso no es un audio: aquí solo se manda la grabación." },
       { status: 400 },
@@ -88,59 +92,37 @@ export async function POST(peticion: Request) {
 
   const recibido = Buffer.from(await archivo.arrayBuffer());
 
-  let datos = recibido;
-  let tipo = archivo.type;
-  let nombre;
+  let comprimido;
   try {
     // Lo que graba el navegador llega sin nombre, y `comprimirAudio` nombra
     // con él el archivo temporal.
-    ({ datos, tipo, nombre } = await comprimirAudio(
-      recibido,
-      nombreDeGrabacion(archivo.type),
-      archivo.type,
-    ));
+    comprimido = await comprimirAudio(recibido, nombreDeGrabacion(tipoRecibido), tipoRecibido);
   } catch (e) {
     if (e instanceof CompresorAusenteError) {
       // Culpa del servidor —no hay compresor en esta máquina—, no del alumno:
       // un 400 lo disfrazaría de «tu archivo está mal» y nadie miraría aquí.
       return Response.json({ error: e.message }, { status: 500 });
     }
-    return Response.json(
-      { error: e instanceof Error ? e.message : "No se pudo comprimir la grabación." },
-      { status: 400 },
-    );
-  }
-
-  if (datos.length > MAXIMO_AUDIO_GUARDADO) {
+    // El detalle va al registro y no al alumno: lo que trae dentro es la
+    // primera línea del `stderr` de `ffmpeg`, que a él no le dice nada y a
+    // nosotros nos hace falta entera.
+    console.error("No se pudo comprimir una grabación:", e);
     return Response.json(
       {
         error:
-          "La grabación comprimida sigue pesando demasiado. Prueba con una " +
-          "más corta.",
+          "No se pudo procesar la grabación. Vuelve a grabarla y prueba otra vez.",
       },
       { status: 400 },
     );
   }
 
-  const guardado = await prisma.archivo.create({
-    data: {
-      nombre,
-      tipo,
-      tamano: datos.length,
-      datos,
-      // La voz de un alumno no se sirve a quien tenga la dirección, y el
-      // permiso de quien sí puede oírla cuelga de `subidoPorId`: `puedeOirse`
-      // reconoce al profesor por tener asignado a quien grabó.
-      privado: true,
-      subidoPorId: usuario.id,
-    },
-    select: { id: true },
-  });
-
-  // La grabación anterior se queda donde estaba. Borrarla aquí es tentador y
-  // está mal: si el borrado va antes de que la nueva esté escrita y algo falla
-  // en medio, el alumno se queda sin ninguna de las dos.
-  await anotarEntrega(asignacion.id, pasoId, `/api/archivos/${guardado.id}`);
+  // Guardar el archivo y dejarlo entregado van juntos, en una transacción y
+  // fuera de aquí: es lo que enciende `privado` y firma con el id del alumno.
+  // La grabación anterior no se borra a propósito: si el borrado fuera antes
+  // de que la nueva esté escrita y algo fallara en medio, el alumno se
+  // quedaría sin ninguna de las dos.
+  const problema = await guardarGrabacion(usuario.id, asignacion.id, pasoId, comprimido);
+  if (problema) return Response.json({ error: problema }, { status: 400 });
 
   // Lo mismo que revalida `entregar`, incluida la ficha del alumno: es desde
   // donde corrige el profesor.

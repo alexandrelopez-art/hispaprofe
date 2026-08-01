@@ -7,7 +7,7 @@
  * Ejecutar con:  npx tsx scripts/verificar-oral-grabada.ts
  */
 import "dotenv/config";
-import { nombreDeGrabacion, TIPOS_AUDIO } from "@/lib/audio";
+import { nombreDeGrabacion, tipoBase, TIPOS_AUDIO } from "@/lib/audio";
 import { puedeCitarse } from "@/lib/citas";
 import {
   analizarExpresion,
@@ -15,6 +15,8 @@ import {
   asignacionViva,
   esGrabada,
   expresionSchema,
+  guardarGrabacion,
+  MAXIMO_AUDIO_GUARDADO,
   puedeEntregar,
   puedeEntregarAudio,
   puedeOirse,
@@ -314,9 +316,17 @@ async function main() {
     TIPOS_AUDIO.includes("audio/webm") && TIPOS_AUDIO.includes("audio/mp4"),
     "la lista de tipos admite lo que graba el navegador: webm y mp4",
   );
+
+  // `MediaRecorder` nunca entrega un tipo pelado: sin normalizar, la puerta
+  // rechazaría todas las grabaciones del navegador con «eso no es un audio».
+  const admitido = (tipo: string) => TIPOS_AUDIO.includes(tipoBase(tipo));
+  afirmar(admitido("audio/webm;codecs=opus"), "se admite lo que graba Chrome, con su códec detrás");
+  afirmar(admitido("audio/ogg; codecs=opus"), "y lo que graba Firefox, con su espacio y todo");
+  afirmar(!admitido("video/mp4"), "un vídeo no cuela por parecerse");
+  afirmar(!admitido("text/plain"), "ni un texto");
   afirmar(
-    nombreDeGrabacion("audio/webm") === "grabacion.webm",
-    "una grabación sin nombre sale de aquí con uno legible",
+    nombreDeGrabacion(tipoBase("audio/webm;codecs=opus")) === "grabacion.webm",
+    "una grabación sin nombre sale de aquí con uno legible, y con su extensión",
   );
 
   // La asignación se deriva de la sesión y del paso: si viniera del
@@ -327,6 +337,10 @@ async function main() {
   afirmar(
     derivadaAjena !== null && derivadaAjena.id !== asignacion.id,
     "y a otro alumno le sale la suya, nunca la del primero",
+  );
+  afirmar(
+    (await asignacionViva(administrador.id, recorrido.id)) === null,
+    "a quien no tiene el recorrido asignado no le sale ninguna: no puede entregar",
   );
 
   // El freno de «ya está corregida» es por asignación, no por paso: el paso
@@ -368,6 +382,51 @@ async function main() {
   });
   afirmar(segunda?.entrega === `/api/archivos/${otraGrabacion.id}`, "y se queda la última grabación");
   afirmar(segunda?.valoracion !== null, "sin borrar la valoración que ya hubiera");
+
+  // ─── guardarGrabacion ───────────────────────────────────────────────
+  // Lo que sostiene la barrera de la privacidad: si `privado` sale apagado, la
+  // grabación se sirve a cualquiera con la dirección; si `subidoPorId` no es
+  // el del alumno, su profesor no puede oírla.
+  const tope = await guardarGrabacion(estudiante.id, asignacion.id, pasoOtraGrabada.id, {
+    datos: Buffer.alloc(MAXIMO_AUDIO_GUARDADO + 1),
+    tipo: "audio/mp4",
+    nombre: "grabacion.m4a",
+  });
+  afirmar(tope !== null, "una grabación que pasa del tope ya comprimida se rechaza");
+  const trasElTope = await prisma.pasoCompletado.findUnique({
+    where: { asignacionId_pasoId: { asignacionId: asignacion.id, pasoId: pasoOtraGrabada.id } },
+    select: { entrega: true },
+  });
+  afirmar(
+    trasElTope?.entrega === `/api/archivos/${otraGrabacion.id}`,
+    "y la rechazada no toca la entrega que ya había",
+  );
+
+  afirmar(
+    (await guardarGrabacion(estudiante.id, asignacion.id, pasoOtraGrabada.id, {
+      datos: Buffer.from([1, 2, 3]),
+      tipo: "audio/mp4",
+      nombre: "grabacion.m4a",
+    })) === null,
+    "una grabación dentro del tope se guarda",
+  );
+  const tercera = await prisma.pasoCompletado.findUnique({
+    where: { asignacionId_pasoId: { asignacionId: asignacion.id, pasoId: pasoOtraGrabada.id } },
+    select: { entrega: true, valoracion: true },
+  });
+  const guardadaId = tercera!.entrega!.replace("/api/archivos/", "");
+  archivoIds.push(guardadaId);
+  const guardada = await prisma.archivo.findUnique({
+    where: { id: guardadaId },
+    select: { privado: true, subidoPorId: true },
+  });
+  afirmar(guardada?.privado === true, "lo guardado es privado: no se sirve a quien tenga la dirección");
+  afirmar(guardada?.subidoPorId === estudiante.id, "y firmado por el alumno que grabó");
+  afirmar(
+    (await puedeOirse(guardadaId, profesor)) === true,
+    "por eso su profesor la oye, que es de lo que depende que pueda corregirla",
+  );
+  afirmar(tercera?.valoracion !== null, "y guardarla tampoco borró la valoración");
 
   // Un recorrido archivado se cierra también por este lado.
   await prisma.asignacion.update({ where: { id: otraAsignacion.id }, data: { archivada: true } });

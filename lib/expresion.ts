@@ -331,12 +331,59 @@ export async function anotarEntrega(
   asignacionId: string,
   pasoId: string,
   entrega: string,
+  // Para poder escribir dentro de una transacción ajena: la grabación entra
+  // junto con su `Archivo` o no entra ninguno de los dos.
+  cliente: Pick<typeof prisma, "pasoCompletado"> = prisma,
 ): Promise<void> {
-  await prisma.pasoCompletado.upsert({
+  await cliente.pasoCompletado.upsert({
     where: { asignacionId_pasoId: { asignacionId, pasoId } },
     update: { entrega },
     create: { asignacionId, pasoId, entrega },
   });
+}
+
+/**
+ * Guarda la grabación de un alumno y la deja entregada, o devuelve el motivo
+ * del no.
+ *
+ * Las dos escrituras van en una transacción porque son una sola cosa: si el
+ * `Archivo` entra y la entrega no, queda un audio en la base al que no apunta
+ * nadie —el huérfano que esta ruta existe para evitar—.
+ *
+ * Los dos campos que decide esta función son los que sostienen la barrera de
+ * privacidad, y por eso está aquí y no dentro de la ruta, donde nada podría
+ * ejercitarlos: `privado` la enciende, y `subidoPorId` es de donde `puedeOirse`
+ * saca a quién reconocerle el permiso —al alumno y a su profesor—. Escribir
+ * cualquier otra cosa ahí deja al profesor sin poder oír la entrega.
+ */
+export async function guardarGrabacion(
+  usuarioId: string,
+  asignacionId: string,
+  pasoId: string,
+  audio: { datos: Buffer<ArrayBuffer>; tipo: string; nombre: string },
+): Promise<string | null> {
+  if (audio.datos.length > MAXIMO_AUDIO_GUARDADO) {
+    // Comprobado sobre lo ya comprimido: el tope de recepción no basta,
+    // porque un audio que el compresor no logre encoger entraría entero.
+    return "La grabación comprimida sigue pesando demasiado. Prueba con una más corta.";
+  }
+
+  await prisma.$transaction(async (tx) => {
+    const guardado = await tx.archivo.create({
+      data: {
+        nombre: audio.nombre,
+        tipo: audio.tipo,
+        tamano: audio.datos.length,
+        datos: audio.datos,
+        privado: true,
+        subidoPorId: usuarioId,
+      },
+      select: { id: true },
+    });
+    await anotarEntrega(asignacionId, pasoId, `/api/archivos/${guardado.id}`, tx);
+  });
+
+  return null;
 }
 
 /**

@@ -49,6 +49,24 @@ export const TIPOS_AUDIO = [
   "audio/webm",
 ];
 
+/**
+ * El tipo sin sus parámetros: `audio/webm;codecs=opus` → `audio/webm`.
+ *
+ * No es cosmético. `MediaRecorder` nunca entrega un tipo pelado —Chrome dice
+ * `audio/webm;codecs=opus` y Firefox `audio/ogg; codecs=opus`, con espacio—,
+ * así que comparar contra `TIPOS_AUDIO` sin quitar los parámetros rechazaba
+ * con «eso no es un audio» todas las grabaciones del navegador.
+ *
+ * Lo que sale de aquí es también lo que se guarda en `Archivo.tipo`, y por
+ * tanto el `Content-Type` con el que se sirve luego. Se guarda normalizado a
+ * propósito: el códec lo averigua el navegador del contenedor mismo —lo hace
+ * igual aunque se lo digan—, y dejar entrar un valor con parámetros del
+ * cliente en una cabecera de respuesta es abrirle la mano a lo que ponga ahí.
+ */
+export function tipoBase(tipo: string): string {
+  return tipo.split(";")[0].trim().toLowerCase();
+}
+
 const EXTENSIONES: Record<string, string> = {
   "audio/mpeg": "mp3",
   "audio/mp3": "mp3",

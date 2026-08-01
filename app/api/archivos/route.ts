@@ -1,4 +1,4 @@
-import { comprimirAudio, CompresorAusenteError, TIPOS_AUDIO } from "@/lib/audio";
+import { comprimirAudio, CompresorAusenteError, tipoBase, TIPOS_AUDIO } from "@/lib/audio";
 import { prisma } from "@/lib/prisma";
 import { getUsuarioActual } from "@/lib/usuario";
 
@@ -61,8 +61,11 @@ export async function POST(peticion: Request) {
   if (!(archivo instanceof File)) {
     return Response.json({ error: "No llegó ningún archivo." }, { status: 400 });
   }
-  const esImagen = IMAGENES.includes(archivo.type);
-  const esAudio = TIPOS_AUDIO.includes(archivo.type);
+  // Sin los parámetros que puede traer detrás (`;codecs=…`, `;charset=…`):
+  // comparar el tipo crudo rechaza archivos perfectamente válidos.
+  const recibidoTipo = tipoBase(archivo.type);
+  const esImagen = IMAGENES.includes(recibidoTipo);
+  const esAudio = TIPOS_AUDIO.includes(recibidoTipo);
 
   if (!esImagen && !esAudio) {
     return Response.json(
@@ -89,7 +92,7 @@ export async function POST(peticion: Request) {
   // segundos. Si algún día esto corre en una máquina con límite de tiempo por
   // petición, habrá que sacarlo fuera y enseñar un estado «procesando».
   let datos = recibido;
-  let tipo = archivo.type;
+  let tipo = recibidoTipo;
   // El recorte va aquí, antes de que `comprimirAudio` pueda añadirle `.m4a`
   // al nombre: recortar después (como se hacía antes, ya con la extensión
   // puesta) se comía justo esa extensión con un nombre de más de 200
@@ -108,7 +111,7 @@ export async function POST(peticion: Request) {
       // nada que interpretar. El tipo de `datos` ya es `Buffer<ArrayBuffer>`
       // porque así lo declara `AudioComprimido` en `lib/audio.ts`, así que
       // no hace falta ninguna aserción de tipos en este lado.
-      ({ datos, tipo, nombre } = await comprimirAudio(recibido, nombre, archivo.type));
+      ({ datos, tipo, nombre } = await comprimirAudio(recibido, nombre, recibidoTipo));
     } catch (e) {
       if (e instanceof CompresorAusenteError) {
         // Esto es culpa del servidor, no del profesor ni de su archivo: no
