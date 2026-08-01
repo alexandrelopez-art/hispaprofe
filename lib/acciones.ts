@@ -455,7 +455,7 @@ export async function crearSecuencia(formData: FormData) {
  * existe; nunca crea una.
  */
 export async function otorgarPuntos(formData: FormData) {
-  await exigirProfesor();
+  const usuario = await exigirProfesor();
   const asignacionId = String(formData.get("asignacionId") ?? "");
   const pasoId = String(formData.get("pasoId") ?? "");
   const bruto = String(formData.get("puntos") ?? "").trim();
@@ -465,9 +465,15 @@ export async function otorgarPuntos(formData: FormData) {
 
   const asignacion = await prisma.asignacion.findUnique({
     where: { id: asignacionId },
-    select: { estudianteId: true },
+    select: { estudianteId: true, profesorId: true },
   });
   if (!asignacion) return;
+
+  // Una acción de servidor es un endpoint público: la ficha del alumno ya solo
+  // pinta este campo sobre las asignaciones propias, pero eso no impide que
+  // alguien mande el `asignacionId` de otro profesor. Mismo tope y misma
+  // excepción de ADMIN que `valorar` en `lib/acciones-expresion.ts`.
+  if (usuario.role !== "ADMIN" && asignacion.profesorId !== usuario.id) return;
 
   if (puntos === null) {
     await prisma.pasoCompletado.updateMany({

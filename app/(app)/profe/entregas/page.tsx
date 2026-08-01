@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { getUsuarioActual } from "@/lib/usuario";
+import { analizarExpresion, seOyeLaEntrega } from "@/lib/expresion";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 
@@ -39,7 +40,24 @@ export default async function EntregasPage() {
     select: {
       id: true,
       completadoEl: true,
-      paso: { select: { id: true, titulo: true, recorrido: { select: { titulo: true } } } },
+      // Para saber cuáles piden auriculares antes de sentarse a corregir. La
+      // regla es la misma que decide el reproductor en la pantalla de
+      // corrección: la tarea tiene que ser grabada **y** lo entregado tiene
+      // que ser una grabación, porque `entrega` es texto que escribe el
+      // alumno y podría empezar por lo que sea.
+      entrega: true,
+      paso: {
+        select: {
+          id: true,
+          titulo: true,
+          recorrido: { select: { titulo: true } },
+          ejercicios: {
+            orderBy: { orden: "asc" },
+            take: 1,
+            select: { ejercicio: { select: { datos: true } } },
+          },
+        },
+      },
       asignacion: {
         select: {
           estudiante: { select: { firstName: true, lastName: true, email: true } },
@@ -63,7 +81,12 @@ export default async function EntregasPage() {
         </p>
       ) : (
         <ul className="mt-6 space-y-2">
-          {pendientes.map((p) => (
+          {pendientes.map((p) => {
+            const datos = p.paso.ejercicios[0]
+              ? analizarExpresion(p.paso.ejercicios[0].ejercicio.datos)
+              : null;
+            const suena = datos ? seOyeLaEntrega(datos, p.entrega) : false;
+            return (
             <li key={p.id}>
               <Link
                 href={`/profe/entregas/${p.id}`}
@@ -77,12 +100,18 @@ export default async function EntregasPage() {
                     {p.paso.recorrido.titulo} · {p.paso.titulo}
                   </p>
                 </div>
+                {suena && (
+                  <span className="shrink-0 rounded-full bg-sol-100 px-2.5 py-0.5 text-[11px] font-bold text-tinta">
+                    Audio
+                  </span>
+                )}
                 <span className="shrink-0 text-xs text-tinta-suave">
                   {formatoFecha.format(p.completadoEl)}
                 </span>
               </Link>
             </li>
-          ))}
+            );
+          })}
         </ul>
       )}
     </div>

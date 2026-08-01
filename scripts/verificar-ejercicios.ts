@@ -9,6 +9,7 @@ import { corregirHuecos, huecosSchema, versionPublicaHuecos, type Huecos } from 
 import { corregirRelacionar, relacionarSchema, versionPublicaRelacionar, type Relacionar } from "@/lib/ejercicios/relacionar";
 import { corregirOrdenar, ordenarSchema, versionPublicaOrdenar, type Ordenar } from "@/lib/ejercicios/ordenar";
 import { analizar, corregir, versionPublica } from "@/lib/ejercicios/registro";
+import { analizarExpresion } from "@/lib/expresion";
 import { trozos } from "@/lib/ejercicios/tipos";
 import { progresoOpcion } from "@/components/ejercicios/opcion";
 import { progresoHuecos } from "@/components/ejercicios/huecos";
@@ -379,6 +380,12 @@ async function main() {
   for (const e of enBase) {
     const marca = (e.datos as { ejercicio?: unknown } | null)?.ejercicio;
     if (marca === undefined) continue;
+    // La expresión sí lleva marca `ejercicio` y no es de este reparto: es
+    // hermana del motor y no miembro, porque no se corrige sola. Su forma la
+    // valida `analizarExpresion`, y `verificar-expresion.ts` la ejercita. Sin
+    // esta línea, la primera tarea de expresión que se guardara en Recursos
+    // ponía este script en rojo para siempre.
+    if (analizarExpresion(e.datos) !== null) continue;
     afirmar(analizar(e.datos) !== null, `"${e.titulo}" (marca "${String(marca)}") tiene forma válida de alguno de los cuatro tipos de ejercicio`);
   }
 
