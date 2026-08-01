@@ -6,6 +6,9 @@
  */
 import "dotenv/config";
 import { abrirSobre, resumir, sinValla } from "@/lib/pegado/sobre";
+import { EJEMPLOS } from "@/lib/pegado/ejemplos";
+import { TIPO_DE_EJERCICIO } from "@/lib/recursos";
+import type { MarcaEjercicio } from "@/lib/ejercicios/tipos";
 import { Prisma } from "@/lib/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { pasoLibre } from "@/lib/recursos";
@@ -219,6 +222,27 @@ async function main() {
     resumir(EXPRESION_BUENA) === "tarea de expresión",
     "el resumen de una expresión no cuenta nada: analizar no la conoce",
   );
+
+  // ─── Los ejemplos resueltos ──────────────────────────────────────────
+  //
+  // Esta es la comprobación que sujeta el diseño entero. Un ejemplo roto
+  // dentro del encargo no falla en ninguna pantalla: falla en silencio
+  // enseñándole a la IA a devolver basura, y el fallo aparece tres semanas
+  // después con un examen mal montado y sin saber de dónde viene.
+  const MOTORES: MarcaEjercicio[] = ["opcion", "relacionar", "huecos", "ordenar"];
+  for (const motor of MOTORES) {
+    const abierto = abrirSobre(JSON.stringify(EJEMPLOS[motor]));
+    afirmar(!("error" in abierto), `el ejemplo de ${motor} es un sobre que se abre`);
+    if ("error" in abierto) throw new Error(abierto.error);
+    afirmar(
+      abierto.tipo === TIPO_DE_EJERCICIO[motor],
+      `el ejemplo de ${motor} es del motor que dice ser`,
+    );
+    afirmar(
+      abierto.bloque !== null || motor === "huecos" || motor === "ordenar",
+      `el ejemplo de ${motor} enseña también cómo se manda el bloque`,
+    );
+  }
 
   // ─── Las negativas del paso ──────────────────────────────────────────
   const recorrido = await prisma.recorrido.create({
