@@ -376,6 +376,13 @@ export async function anotarEntrega(
  * ejercitarlos: `privado` la enciende, y `subidoPorId` es de donde `puedeOirse`
  * saca a quién reconocerle el permiso —al alumno y a su profesor—. Escribir
  * cualquier otra cosa ahí deja al profesor sin poder oír la entrega.
+ *
+ * Y se lleva por delante la grabación anterior, dentro de la misma
+ * transacción y después de escribir la nueva: diez tomas de un alumno
+ * perfeccionista eran nueve audios de hasta 10 MB que ya no referenciaba
+ * nadie, invisibles para toda pantalla y para todo script, en una base que
+ * guarda los blobs dentro y se copia entera. Lo que el alumno decidió
+ * descartar no se guarda, que es lo que promete el diseño.
  */
 export async function guardarGrabacion(
   usuarioId: string,
@@ -390,6 +397,13 @@ export async function guardarGrabacion(
   }
 
   await prisma.$transaction(async (tx) => {
+    // Lo que había entregado antes, leído dentro de la transacción para que
+    // sea lo mismo que se va a pisar.
+    const anterior = await tx.pasoCompletado.findUnique({
+      where: { asignacionId_pasoId: { asignacionId, pasoId } },
+      select: { entrega: true },
+    });
+
     const guardado = await tx.archivo.create({
       data: {
         nombre: audio.nombre,
@@ -402,6 +416,23 @@ export async function guardarGrabacion(
       select: { id: true },
     });
     await anotarEntrega(asignacionId, pasoId, `${PREFIJO_GRABACION}${guardado.id}`, tx);
+
+    // Y ahora, no antes: si el borrado fuera primero y algo fallara en medio,
+    // el alumno se quedaría sin ninguna de las dos. Aquí no puede pasar,
+    // porque las tres escrituras son la misma transacción: o entra la nueva y
+    // se va la vieja, o no se mueve nada.
+    if (anterior?.entrega && esGrabacionEntregada(anterior.entrega)) {
+      const viejoId = anterior.entrega.slice(PREFIJO_GRABACION.length);
+      // Solo si es de verdad una grabación suya. `entrega` es texto libre que
+      // escribe el alumno —en una escrita reconvertida a grabada ahí puede
+      // haber `/api/archivos/<id ajeno>` tecleado a mano—, así que borrar por
+      // lo que diga esa columna, sin más, sería darle a cualquiera un botón
+      // para borrar el archivo de otro. `privado` y `subidoPorId` los escribe
+      // el servidor. `deleteMany` y no `delete` porque puede no existir.
+      await tx.archivo.deleteMany({
+        where: { id: viejoId, privado: true, subidoPorId: usuarioId },
+      });
+    }
   });
 
   return null;

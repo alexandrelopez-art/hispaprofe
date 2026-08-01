@@ -434,6 +434,43 @@ async function main() {
   );
   afirmar(tercera?.valoracion !== null, "y guardarla tampoco borró la valoración");
 
+  // ─── Reentregar no acumula ──────────────────────────────────────────
+  // La entrega que acaba de pisarse era `otraGrabacion`, privada y firmada por
+  // este mismo alumno: es la toma que él decidió descartar. Diez tomas de un
+  // perfeccionista eran nueve audios de hasta 10 MB que no referenciaba nadie.
+  afirmar(
+    (await prisma.archivo.count({ where: { id: otraGrabacion.id } })) === 0,
+    "reentregar borra la grabación anterior: no se queda huérfana en la base",
+  );
+  afirmar(
+    (await prisma.archivo.count({ where: { id: guardadaId } })) === 1,
+    "y la nueva es la única que queda viva",
+  );
+
+  // Pero solo se borra lo que es suyo. `entrega` es texto libre: en una
+  // escrita reconvertida a grabada ahí puede haber la dirección del archivo de
+  // otro, tecleada a mano. Si el borrado colgara de esa columna, entregar
+  // sería un botón para borrarle la grabación al compañero.
+  const ajena = await archivo("grabacion de otro", true, otroAlumno.id);
+  await anotarEntrega(asignacion.id, pasoOtraGrabada.id, `${PREFIJO_GRABACION}${ajena.id}`);
+  afirmar(
+    (await guardarGrabacion(estudiante.id, asignacion.id, pasoOtraGrabada.id, {
+      datos: Buffer.from([4, 5, 6]),
+      tipo: "audio/mp4",
+      nombre: "grabacion.m4a",
+    })) === null,
+    "se puede volver a entregar sobre una entrega que apunta a un archivo ajeno",
+  );
+  const cuarta = await prisma.pasoCompletado.findUnique({
+    where: { asignacionId_pasoId: { asignacionId: asignacion.id, pasoId: pasoOtraGrabada.id } },
+    select: { entrega: true },
+  });
+  archivoIds.push(cuarta!.entrega!.replace(PREFIJO_GRABACION, ""));
+  afirmar(
+    (await prisma.archivo.count({ where: { id: ajena.id } })) === 1,
+    "y la grabación del compañero sigue ahí: solo se borra la propia",
+  );
+
   // Un recorrido archivado se cierra también por este lado.
   await prisma.asignacion.update({ where: { id: otraAsignacion.id }, data: { archivada: true } });
   afirmar(

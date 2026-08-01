@@ -23,10 +23,18 @@ import { getUsuarioActual } from "@/lib/usuario";
  * profesor sería justo lo contrario de lo que hace falta), solo admite audio,
  * y subir y entregar son aquí el mismo acto. Eso último es lo importante: sin
  * un paso «subido pero sin entregar» no hay forma de dejar archivos huérfanos
- * en la base.
+ * en la base. La otra mitad de esa promesa la cumple `guardarGrabacion`, que
+ * borra la grabación anterior al escribir la nueva: reentregar no acumula.
  *
  * Quién puede y hasta cuándo lo deciden `asignacionViva` y `puedeEntregarAudio`,
  * que viven en `lib/` para que el script los ejercite sin levantar un servidor.
+ *
+ * Un matiz sobre el que conviene no engañarse: aquí no se comprueba `Origin`.
+ * No es «lo mismo que hace el resto del proyecto»: las acciones de servidor de
+ * Next llevan esa red puesta de oficio, y una ruta de `/api` no. Lo que un
+ * sitio ajeno podría conseguir con la cookie del alumno es que este entregue
+ * un audio suyo sin querer —no leer nada, no oír nada—, así que se queda; pero
+ * el día que esta ruta haga algo más, hay que ponerla.
  */
 export async function POST(peticion: Request) {
   const usuario = await getUsuarioActual();
@@ -116,11 +124,9 @@ export async function POST(peticion: Request) {
     );
   }
 
-  // Guardar el archivo y dejarlo entregado van juntos, en una transacción y
-  // fuera de aquí: es lo que enciende `privado` y firma con el id del alumno.
-  // La grabación anterior no se borra a propósito: si el borrado fuera antes
-  // de que la nueva esté escrita y algo fallara en medio, el alumno se
-  // quedaría sin ninguna de las dos.
+  // Guardar el archivo, dejarlo entregado y borrar la grabación anterior van
+  // juntos, en una transacción y fuera de aquí: es lo que enciende `privado`,
+  // firma con el id del alumno y deja una sola grabación viva por entrega.
   const problema = await guardarGrabacion(usuario.id, asignacion.id, pasoId, comprimido);
   if (problema) return Response.json({ error: problema }, { status: 400 });
 
