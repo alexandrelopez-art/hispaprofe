@@ -80,8 +80,11 @@ export async function POST(peticion: Request) {
   // crudo rechazaría todas las grabaciones del navegador.
   const tipoRecibido = tipoBase(archivo.type);
   if (!TIPOS_AUDIO.includes(tipoRecibido)) {
+    // Dice qué hacer, no solo que no. El que llega por el rodeo puede traer un
+    // `.flac` perfectamente sano, y «eso no es un audio» era falso y no le
+    // servía de nada.
     return Response.json(
-      { error: "Eso no es un audio: aquí solo se manda la grabación." },
+      { error: "Ese formato no lo admitimos. Manda un MP3, un M4A, un OGG o un WAV." },
       { status: 400 },
     );
   }

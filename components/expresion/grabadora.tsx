@@ -49,9 +49,54 @@ const EXTENSIONES: Record<string, string> = {
   "audio/wav": "wav",
 };
 
+function tipoPelado(tipo: string): string {
+  return tipo.split(";")[0].trim().toLowerCase();
+}
+
 function nombreDeGrabacion(tipo: string): string {
-  const base = tipo.split(";")[0].trim().toLowerCase();
-  return `grabacion.${EXTENSIONES[base] ?? "webm"}`;
+  return `grabacion.${EXTENSIONES[tipoPelado(tipo)] ?? "webm"}`;
+}
+
+/**
+ * Lo que la puerta va a aceptar. Copia a mano de `TIPOS_AUDIO` en
+ * `lib/audio.ts`, que es el canónico, por lo mismo que el resto de copias de
+ * este archivo: ese módulo es de servidor. Las dos listas tienen que moverse
+ * juntas; si esta se queda corta, el único daño es que el alumno se entere del
+ * rechazo un segundo más tarde, porque quien decide sigue siendo el servidor.
+ */
+const TIPOS_ADMITIDOS = [
+  "audio/mpeg",
+  "audio/mp3",
+  "audio/mp4",
+  "audio/m4a",
+  "audio/x-m4a",
+  "audio/ogg",
+  "audio/wav",
+  "audio/wave",
+  "audio/x-wav",
+  "audio/webm",
+];
+
+/**
+ * Lo que el selector de archivos ofrece. `audio/*` dejaba elegir un `.flac`
+ * —que la puerta rechaza— y el diálogo del sistema no daba ninguna pista de
+ * cuáles valen.
+ */
+const FORMATOS_OFRECIDOS = [...TIPOS_ADMITIDOS, ".mp3", ".m4a", ".ogg", ".wav", ".webm"].join(",");
+
+/**
+ * El tope de lo que la puerta acepta recibir. Copia a mano de
+ * `MAXIMO_AUDIO_RECIBIDO` en `lib/expresion.ts`, y las dos tienen que moverse
+ * juntas. Comprobarlo aquí no es adornar: un archivo de 300 MB no llegaba
+ * siquiera a la puerta —el proxy recorta el cuerpo antes— y el alumno recibía
+ * «No se pudo leer la grabación enviada. Vuelve a intentarlo», después de la
+ * subida y sin que reintentar arreglara nada.
+ */
+const MAXIMO_ARCHIVO = 50 * 1024 * 1024;
+
+/** «49,7 MB», para poder decirle al alumno cuánto pesa lo que ha elegido. */
+function enMegas(bytes: number): string {
+  return `${(bytes / (1024 * 1024)).toLocaleString("es-ES", { maximumFractionDigits: 1 })} MB`;
 }
 
 /**
@@ -441,6 +486,27 @@ export default function Grabadora({
     setError(null);
     setAviso(null);
     setSegundos(0);
+
+    // Los dos rechazos, aquí y no en el servidor, porque aquí se puede decir
+    // qué hacer. El de la puerta llega después de subir 300 MB y no orienta.
+    if (archivo.size > MAXIMO_ARCHIVO) {
+      setError(
+        `Ese archivo pesa ${enMegas(archivo.size)} y el tope son ${enMegas(MAXIMO_ARCHIVO)}. ` +
+          `Manda una grabación más corta, o guárdala en MP3 antes de subirla.`,
+      );
+      return;
+    }
+    // Un tipo vacío no se rechaza: algunos sistemas no saben decir qué es un
+    // archivo, y quien decide de verdad es el servidor. Solo se para lo que se
+    // sabe que va a rebotar.
+    const tipo = tipoPelado(archivo.type);
+    if (tipo && !TIPOS_ADMITIDOS.includes(tipo)) {
+      setError(
+        `Ese formato no lo admitimos (${tipo}). Manda un MP3, un M4A, un OGG o un WAV.`,
+      );
+      return;
+    }
+
     // Se queda a la espera con su reproductor, igual que una grabación hecha
     // aquí: así el alumno oye lo que va a mandar antes de mandarlo, y el envío
     // tiene un solo camino.
@@ -618,7 +684,7 @@ export default function Grabadora({
                 Sube tu grabación:{" "}
                 <input
                   type="file"
-                  accept="audio/*"
+                  accept={FORMATOS_OFRECIDOS}
                   disabled={enviando}
                   onChange={(e) => {
                     const archivo = e.target.files?.[0];
