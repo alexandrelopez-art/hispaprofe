@@ -305,13 +305,20 @@ export async function puedeEntregarAudio(
  * las imágenes y los audios de los ejercicios, material del profesor con una
  * dirección imposible de adivinar.
  *
- * Uno privado es la voz de un alumno, y solo lo oyen tres: su autor, el
- * profesor de la asignación donde está entregado, y un administrador. Al
- * profesor se le reconoce por dónde está la entrega, que es lo que ata la
- * grabación a una asignación y esa asignación a un profesor.
+ * Uno privado es la voz de un alumno, y solo lo oyen tres: quien lo grabó, un
+ * profesor que tenga asignado a quien lo grabó, y un administrador.
+ *
+ * El matiz, dicho a propósito: el profesor lo es **del alumno**, no de una
+ * entrega concreta. Quien tenga asignada a esa persona puede oír cualquier
+ * grabación suya, no solo la del recorrido donde la mandó. Es lo que queremos
+ * —es su profesor—, pero conviene que esté escrito.
+ *
+ * Y una grabación privada sin autor no la oye nadie salvo el administrador.
+ * No es hipotético: suprimir una ficha pone `subidoPorId` a null en todos sus
+ * archivos, y a partir de ahí esa voz ya no es de nadie.
  *
  * Vive aquí y no dentro de la ruta para que el script pueda ejercitarla con
- * los cinco casos sin levantar un servidor.
+ * todos sus casos sin levantar un servidor.
  */
 export async function puedeOirse(
   archivoId: string,
@@ -325,15 +332,18 @@ export async function puedeOirse(
   if (!archivo.privado) return true;
   if (!usuario) return false;
   if (usuario.role === "ADMIN") return true;
+  if (!archivo.subidoPorId) return false;
   if (archivo.subidoPorId === usuario.id) return true;
 
-  // El profesor de la asignación donde está entregado. Sin índice sobre
-  // `entrega` a propósito: esa columna guarda redacciones enteras y un índice
-  // btree de Postgres revienta pasados unos 2.700 bytes, así que indexarla
-  // rompería la entrega de un texto largo.
-  const entregado = await prisma.pasoCompletado.findFirst({
-    where: { entrega: `/api/archivos/${archivoId}` },
-    select: { asignacion: { select: { profesorId: true } } },
+  // Al profesor se le reconoce por quién subió el archivo, y no por dónde está
+  // entregado, que es el rodeo que parece. `PasoCompletado.entrega` es texto
+  // libre que escribe el alumno: quien conociera el id de la grabación de otro
+  // podía entregar esa misma cadena en cualquier redacción suya y colarle la
+  // voz ajena a su propio profesor. Una columna que rellena quien pide permiso
+  // no puede ser la que decide el permiso. `subidoPorId` lo escribe el
+  // servidor al guardar el archivo.
+  const asignados = await prisma.asignacion.count({
+    where: { estudianteId: archivo.subidoPorId, profesorId: usuario.id },
   });
-  return entregado?.asignacion.profesorId === usuario.id;
+  return asignados > 0;
 }

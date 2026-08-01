@@ -27,7 +27,7 @@ function afirmar(condicion: boolean, mensaje: string) {
 const marca = `verificar-oral-grabada-${process.pid}`;
 
 let recorridoId: string | null = null;
-let asignacionId: string | null = null;
+const asignacionIds: string[] = [];
 const usuarioIds: string[] = [];
 const claseIds: string[] = [];
 const pasoIds: string[] = [];
@@ -118,7 +118,14 @@ async function main() {
   const asignacion = await prisma.asignacion.create({
     data: { estudianteId: estudiante.id, profesorId: profesor.id, recorridoId: recorrido.id },
   });
-  asignacionId = asignacion.id;
+  asignacionIds.push(asignacion.id);
+
+  // La otra pareja, sin nada que ver con la primera: es la que sostiene las
+  // negativas de `puedeOirse`.
+  const otraAsignacion = await prisma.asignacion.create({
+    data: { estudianteId: otroAlumno.id, profesorId: otroProfesor.id, recorridoId: recorrido.id },
+  });
+  asignacionIds.push(otraAsignacion.id);
 
   async function pasoConEjercicio(titulo: string, orden: number, datos: Prisma.InputJsonValue) {
     const ejercicio = await prisma.ejercicio.create({
@@ -168,7 +175,7 @@ async function main() {
   );
 
   // ─── puedeOirse ─────────────────────────────────────────────────────
-  async function archivo(nombre: string, privado: boolean, autorId: string) {
+  async function archivo(nombre: string, privado: boolean, autorId: string | null) {
     const fila = await prisma.archivo.create({
       data: {
         nombre: `${nombre} ${marca}`,
@@ -185,6 +192,10 @@ async function main() {
 
   const material = await archivo("material", false, profesor.id);
   const grabacion = await archivo("grabacion", true, estudiante.id);
+  // Suprimir una ficha pone `subidoPorId` a null en todos sus archivos
+  // (lib/admin.ts). Esa grabación deja de tener dueño, y sin dueño no hay a
+  // quién reconocerle el permiso.
+  const huerfana = await archivo("grabacion sin dueño", true, null);
 
   await prisma.pasoCompletado.create({
     data: {
@@ -212,7 +223,7 @@ async function main() {
   );
   afirmar(
     (await puedeOirse(grabacion.id, estudiante)) === true,
-    "un archivo privado se le sirve a su autor",
+    "un archivo privado se le sirve a quien lo grabó",
   );
   afirmar(
     (await puedeOirse(grabacion.id, otroAlumno)) === false,
@@ -220,7 +231,7 @@ async function main() {
   );
   afirmar(
     (await puedeOirse(grabacion.id, profesor)) === true,
-    "un archivo privado se le sirve al profesor de la asignación donde está entregado",
+    "un archivo privado se le sirve al profesor que tiene asignado a quien lo grabó",
   );
   afirmar(
     (await puedeOirse(grabacion.id, otroProfesor)) === false,
@@ -233,6 +244,43 @@ async function main() {
   afirmar(
     (await puedeOirse("noexiste", administrador)) === false,
     "un archivo que no existe da falso, sin reventar",
+  );
+
+  // Sin dueño no hay permiso que reconocer, ni siquiera a los dos que lo
+  // tenían antes de que se suprimiera la ficha.
+  afirmar(
+    (await puedeOirse(huerfana.id, estudiante)) === false,
+    "una grabación privada sin autor no se le sirve a un alumno",
+  );
+  afirmar(
+    (await puedeOirse(huerfana.id, profesor)) === false,
+    "ni a un profesor",
+  );
+  afirmar(
+    (await puedeOirse(huerfana.id, administrador)) === true,
+    "pero sí al administrador",
+  );
+
+  // La trampa. `otraGrabacion` es de `estudiante` y no está entregada en
+  // ninguna parte; la única fila que la nombra es la que se planta ahora, en
+  // la que `otroAlumno` pasa su dirección por redacción propia. Así la única
+  // pista que ofrece `entrega` apunta al profesor equivocado: si el permiso
+  // colgara de esa columna, las dos afirmaciones saldrían del revés.
+  const otraGrabacion = await archivo("otra grabacion", true, estudiante.id);
+  await prisma.pasoCompletado.create({
+    data: {
+      asignacionId: otraAsignacion.id,
+      pasoId: pasoEscrita.id,
+      entrega: `/api/archivos/${otraGrabacion.id}`,
+    },
+  });
+  afirmar(
+    (await puedeOirse(otraGrabacion.id, otroProfesor)) === false,
+    "un alumno no se abre la grabación ajena entregando su dirección como texto",
+  );
+  afirmar(
+    (await puedeOirse(otraGrabacion.id, profesor)) === true,
+    "y el profesor de quien la grabó la oye aunque no esté entregada en su recorrido",
   );
 
   // ─── puedeCitarse ───────────────────────────────────────────────────
@@ -275,11 +323,12 @@ main()
       }
     }
     // El orden importa: los vínculos antes que sus extremos.
-    if (asignacionId) {
-      const id = asignacionId;
-      await intentar("citas", () => prisma.citaOral.deleteMany({ where: { asignacionId: id } }));
-      await intentar("pasos completados", () => prisma.pasoCompletado.deleteMany({ where: { asignacionId: id } }));
-      await intentar("asignación", () => prisma.asignacion.delete({ where: { id } }));
+    if (asignacionIds.length) {
+      await intentar("citas", () => prisma.citaOral.deleteMany({ where: { asignacionId: { in: asignacionIds } } }));
+      await intentar("pasos completados", () =>
+        prisma.pasoCompletado.deleteMany({ where: { asignacionId: { in: asignacionIds } } }),
+      );
+      await intentar("asignaciones", () => prisma.asignacion.deleteMany({ where: { id: { in: asignacionIds } } }));
     }
     if (pasoIds.length) {
       // Antes que sus ejercicios: borrar el paso arrastra en cascada su
