@@ -78,11 +78,13 @@ export default async function AlumnoPage({
             puntos: true,
             verificadoEl: true,
             completadoEl: true,
-            // Solo para saber si hay algo que corregir: una escrita sin
-            // entrega no se puede puntuar con la rúbrica, así que en esa fila
-            // va el campo de puntos a mano. El texto no sale de aquí —esto es
-            // un componente de servidor y no se lo pasa a ninguno de cliente—;
-            // se lee entero en `/profe/entregas/[id]`.
+            // Solo para saber si hay algo que corregir: ni una escrita sin
+            // texto ni una grabada sin audio se pueden puntuar con la rúbrica,
+            // así que en esas filas va el campo de puntos a mano. La oral de
+            // clase es la excepción: esa se puntúa sin entrega ninguna. Lo
+            // entregado no sale de aquí —esto es un componente de servidor y
+            // no se lo pasa a ninguno de cliente—; se lee entero en
+            // `/profe/entregas/[id]`.
             entrega: true,
           },
         },

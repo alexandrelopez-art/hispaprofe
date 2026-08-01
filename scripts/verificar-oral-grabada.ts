@@ -1,9 +1,10 @@
 /**
  * Verifica el campo `grabada` de una tarea de expresión y las reglas que
  * cambia: el esquema, `esGrabada`, `puedeValorarse`, `puedeEntregar`,
- * `puedeEntregarAudio`, `puedeCitarse`, `puedeOirse` y lo que hace la ruta de
- * la entrega (`asignacionViva` y `anotarEntrega`). Crea sus propios datos y
- * los borra al terminar.
+ * `puedeEntregarAudio`, `puedeCitarse`, `puedeOirse`, `esGrabacionEntregada` y
+ * lo que hacen las dos rutas: la de la entrega (`asignacionViva` y
+ * `anotarEntrega`) y la que sirve el archivo por trozos (`interpretarRango`).
+ * Crea sus propios datos y los borra al terminar.
  * Ejecutar con:  npx tsx scripts/verificar-oral-grabada.ts
  */
 import "dotenv/config";
@@ -13,10 +14,12 @@ import {
   analizarExpresion,
   anotarEntrega,
   asignacionViva,
+  esGrabacionEntregada,
   esGrabada,
   expresionSchema,
   guardarGrabacion,
   MAXIMO_AUDIO_GUARDADO,
+  PREFIJO_GRABACION,
   puedeEntregar,
   puedeEntregarAudio,
   puedeOirse,
@@ -24,6 +27,7 @@ import {
 } from "@/lib/expresion";
 import { Prisma } from "@/lib/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
+import { interpretarRango, type Rango } from "@/lib/rangos";
 
 function afirmar(condicion: boolean, mensaje: string) {
   if (!condicion) throw new Error(`FALLO: ${mensaje}`);
@@ -433,6 +437,67 @@ async function main() {
   afirmar(
     (await asignacionViva(otroAlumno.id, recorrido.id)) === null,
     "una asignación archivada ya no sirve para entregar",
+  );
+
+  // ─── Lo entregado manda sobre la modalidad de hoy ───────────────────
+  // La modalidad de un ejercicio se cambia con dos clics, también después de
+  // que alguien haya entregado. Quien decida por la tarea le dará un texto por
+  // `src` a un reproductor y dejará la redacción sin enseñar en ninguna parte.
+  afirmar(
+    esGrabacionEntregada(`${PREFIJO_GRABACION}${guardadaId}`),
+    "una entrega que apunta a un archivo es una grabación",
+  );
+  afirmar(
+    !esGrabacionEntregada("Ayer fui al mercado y compré fruta."),
+    "y la redacción de una escrita no lo es, aunque la tarea ya sea grabada",
+  );
+  afirmar(!esGrabacionEntregada(null), "sin entrega no hay grabación que pintar");
+  afirmar(
+    !esGrabacionEntregada("https://otrositio.example/api/archivos/x"),
+    "ni una dirección de fuera que acabe pareciéndose",
+  );
+
+  // ─── Los trozos, que es lo que hace sonar el audio en Safari ────────
+  // La ruta no se puede llamar sin levantar un servidor, así que se afirma lo
+  // que la ruta usa, que por eso vive en `lib/`. Se trocea de verdad: cada
+  // trozo se corta del mismo Buffer y se comprueba lo que sale.
+  const bytes = Buffer.from("0123456789");
+  const trozo = (cabecera: string | null) => interpretarRango(cabecera, bytes.length);
+  const cortar = (r: Rango) =>
+    r.clase === "trozo" ? bytes.subarray(r.inicio, r.fin + 1).toString() : null;
+
+  afirmar(trozo(null).clase === "entero", "sin cabecera se manda el archivo entero");
+  afirmar(cortar(trozo("bytes=0-3")) === "0123", "un trozo del principio sale entero y sin pasarse");
+  afirmar(cortar(trozo("bytes=4-6")) === "456", "y uno de en medio empieza y acaba donde se pidió");
+  afirmar(cortar(trozo("bytes=0-0")) === "0", "un solo byte es un byte: el final va incluido");
+  afirmar(cortar(trozo("bytes=7-")) === "789", "sin final se manda de ahí hasta el último byte");
+  afirmar(cortar(trozo("bytes=-3")) === "789", "y con solo final se mandan los últimos");
+  afirmar(
+    cortar(trozo("bytes=-99")) === "0123456789",
+    "pedir más cola de la que hay devuelve el archivo, no un error",
+  );
+  afirmar(
+    cortar(trozo("bytes=8-99")) === "89",
+    "un final pasado se recorta: el cliente aún no sabe lo que pesa",
+  );
+  // Lo que de verdad dispara un 416: un cliente que cree que el archivo es más
+  // grande de lo que es y empieza a leer donde ya no hay nada.
+  afirmar(trozo("bytes=10-").clase === "imposible", "empezar en el byte que sigue al último es un 416");
+  afirmar(trozo("bytes=99-100").clase === "imposible", "y empezar más allá, también");
+  afirmar(trozo("bytes=5-2").clase === "imposible", "un rango del revés no se sirve");
+  afirmar(trozo("bytes=-0").clase === "imposible", "ni los últimos cero bytes, que no son nada");
+  afirmar(trozo("bytes=abc").clase === "imposible", "ni una cabecera que no se entiende");
+  afirmar(trozo("bytes=-").clase === "imposible", "ni una sin ningún número");
+  afirmar(
+    interpretarRango("bytes=0-", 0).clase === "imposible",
+    "de un archivo vacío no sale ningún trozo",
+  );
+  // La norma manda ignorar una unidad que no se entiende, no rechazarla: el
+  // archivo entero es una contestación válida a cualquier `Range`.
+  afirmar(trozo("elefantes=0-3").clase === "entero", "una unidad rara se ignora y se manda entero");
+  afirmar(
+    trozo("bytes=0-1,5-6").clase === "entero",
+    "y varios trozos de una vez también: no sabemos escribir multipart",
   );
 
   console.log("\nTodo bien.");

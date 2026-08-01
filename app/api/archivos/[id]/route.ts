@@ -1,5 +1,6 @@
 import { puedeOirse } from "@/lib/expresion";
 import { prisma } from "@/lib/prisma";
+import { interpretarRango } from "@/lib/rangos";
 import { getUsuarioActual } from "@/lib/usuario";
 
 /**
@@ -16,9 +17,14 @@ import { getUsuarioActual } from "@/lib/usuario";
  * sin pasar por Clerk— y se queda así a sabiendas: taparlo obligaría a pedir
  * la sesión en cada imagen pública, y para aprovecharlo hay que tener ya el
  * id, que es justo lo que antes bastaba para llevarse el archivo entero.
+ *
+ * Sirve por trozos si se los piden, que es lo que un `<audio>` de WebKit
+ * necesita para arrancar. El permiso se resuelve antes que nada y no se mueve
+ * de ahí: un 206 es un trozo del mismo archivo, así que de uno que `puedeOirse`
+ * haya negado no puede salir ni un byte.
  */
 export async function GET(
-  _peticion: Request,
+  peticion: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
@@ -45,16 +51,58 @@ export async function GET(
     }
   }
 
+  // El contenido de un id nunca cambia, así que se puede cachear a tope. Uno
+  // privado no: cachearlo en público lo dejaría al alcance de quien comparta
+  // caché con quien sí puede oírlo. La misma en las tres salidas.
+  const cache = archivo.privado
+    ? "private, no-store"
+    : "public, max-age=31536000, immutable";
+
+  // Las cuentas del trozo van sobre los bytes que hay de verdad y no sobre
+  // `tamano`: si esa columna se desincronizara alguna vez, un `Content-Range`
+  // calculado con ella prometería un final que el cuerpo no tiene.
+  const total = archivo.datos.length;
+  const rango = interpretarRango(peticion.headers.get("range"), total);
+
+  if (rango.clase === "imposible") {
+    return new Response("Ese trozo no existe", {
+      status: 416,
+      headers: {
+        // Obligatorio en un 416: es como el cliente se entera del tamaño real
+        // y puede volver a pedir bien.
+        "Content-Range": `bytes */${total}`,
+        "Accept-Ranges": "bytes",
+        "Cache-Control": cache,
+      },
+    });
+  }
+
+  if (rango.clase === "trozo") {
+    return new Response(
+      new Uint8Array(archivo.datos.subarray(rango.inicio, rango.fin + 1)),
+      {
+        status: 206,
+        headers: {
+          "Content-Type": archivo.tipo,
+          // El largo del trozo, no el del archivo: anunciar el del archivo deja
+          // al cliente esperando bytes que no van a llegar.
+          "Content-Length": String(rango.fin - rango.inicio + 1),
+          "Content-Range": `bytes ${rango.inicio}-${rango.fin}/${total}`,
+          "Accept-Ranges": "bytes",
+          "Cache-Control": cache,
+        },
+      },
+    );
+  }
+
   return new Response(new Uint8Array(archivo.datos), {
     headers: {
       "Content-Type": archivo.tipo,
       "Content-Length": String(archivo.tamano),
-      // El contenido de un id nunca cambia, así que se puede cachear a tope.
-      // Uno privado no: cachearlo en público lo dejaría al alcance de quien
-      // comparta caché con quien sí puede oírlo.
-      "Cache-Control": archivo.privado
-        ? "private, no-store"
-        : "public, max-age=31536000, immutable",
+      // Sin esto el cliente no sabe que puede pedir trozos, y WebKit ni lo
+      // intenta.
+      "Accept-Ranges": "bytes",
+      "Cache-Control": cache,
     },
   });
 }

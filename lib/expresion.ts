@@ -114,6 +114,27 @@ export function esGrabada(datos: Expresion): boolean {
   return datos.modalidad === "oral" && datos.grabada;
 }
 
+/** Toda grabación entregada es la dirección de su archivo. */
+export const PREFIJO_GRABACION = "/api/archivos/";
+
+/**
+ * Si lo entregado es una grabación y no un texto.
+ *
+ * Pregunta por **lo guardado**, no por lo que la tarea diga hoy, y esa
+ * diferencia es justo el motivo de que exista. La modalidad de un ejercicio se
+ * cambia con dos clics en el editor, también después de que alguien haya
+ * entregado: una escrita con la redacción del alumno en `entrega` puede pasar a
+ * grabada esta tarde. Quien decidiera por la tarea le daría ese texto como
+ * `src` a un reproductor —que el navegador resuelve como dirección relativa:
+ * audio muerto— y la redacción no se enseñaría en ninguna pantalla, con la
+ * rúbrica pintada al lado invitando a puntuar lo que no se ha podido leer.
+ *
+ * Es la misma regla que aplica la grabadora en el lado del alumno.
+ */
+export function esGrabacionEntregada(entrega: string | null): boolean {
+  return entrega !== null && entrega.startsWith(PREFIJO_GRABACION);
+}
+
 /**
  * Lo que aceptamos recibir de un alumno, antes de comprimir. Cincuenta megas
  * dejan pasar un archivo del móvil sin abrir la puerta a una película.
@@ -380,7 +401,7 @@ export async function guardarGrabacion(
       },
       select: { id: true },
     });
-    await anotarEntrega(asignacionId, pasoId, `/api/archivos/${guardado.id}`, tx);
+    await anotarEntrega(asignacionId, pasoId, `${PREFIJO_GRABACION}${guardado.id}`, tx);
   });
 
   return null;

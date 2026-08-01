@@ -24,7 +24,13 @@ const MINUTOS_MAXIMOS = 15;
 /** Los mismos minutos, en segundos, que es en lo que cuenta el reloj. */
 const SEGUNDOS_MAXIMOS = MINUTOS_MAXIMOS * 60;
 
-/** Las entregas grabadas son siempre una dirección de `/api/archivos`. */
+/**
+ * Las entregas grabadas son siempre una dirección de `/api/archivos`.
+ *
+ * Copiado a mano por lo mismo que el tope de arriba: el canónico es
+ * `PREFIJO_GRABACION` en `lib/expresion.ts`, que importa `prisma`. Las dos
+ * copias tienen que moverse juntas.
+ */
 const PREFIJO_ARCHIVO = "/api/archivos/";
 
 /**
