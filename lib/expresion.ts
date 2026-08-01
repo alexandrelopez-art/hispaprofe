@@ -186,16 +186,41 @@ export async function esDeEsteProfesor(asignacionId: string, profesorId: string)
 }
 
 /**
- * Si el alumno todavía puede entregar o reescribir, o el motivo del no.
+ * El tope de lo que cabe en una entrega.
  *
- * Puede reescribir hasta que el profesor corrige, y no después: es el
- * equilibrio entre dejarle mejorar y que la corrección no quede colgando de
- * un texto que ya no existe.
+ * Holgado a propósito: la tarea más larga del DELE pide 250 palabras, que son
+ * unos 1.700 caracteres, así que aquí caben diez redacciones seguidas. No está
+ * para corregirle la extensión a nadie —de eso ya avisa el contador de
+ * palabras— sino para que un POST de dos megas no acabe en la columna.
+ */
+export const MAXIMO_ENTREGA = 20000;
+
+/**
+ * Si el alumno todavía puede entregar este texto en este paso, o el motivo
+ * del no.
+ *
+ * Tres negativas. El tamaño, porque `entregar` es un endpoint público y nadie
+ * tiene por qué mandar dos megas. Que el paso pida de verdad una redacción:
+ * sin eso, un `pasoId` cualquiera se llevaba una fila de `PasoCompletado`, el
+ * paso quedaba «hecho» y la bandeja del profesor listaba algo que al abrirlo
+ * contestaba `notFound()`. Y que no esté corregida ya: puede reescribir hasta
+ * que el profesor corrige y no después, que es el equilibrio entre dejarle
+ * mejorar y que la corrección no quede colgando de un texto que ya no existe.
  */
 export async function puedeEntregar(
   asignacionId: string,
   pasoId: string,
+  texto: string,
 ): Promise<string | null> {
+  if (texto.length > MAXIMO_ENTREGA) {
+    return `Eso es demasiado largo: caben ${MAXIMO_ENTREGA.toLocaleString("es-ES")} caracteres.`;
+  }
+
+  const datos = await expresionDelPaso(pasoId);
+  if (!datos || datos.modalidad !== "escrita") {
+    return "Este paso no pide ninguna redacción.";
+  }
+
   const registro = await prisma.pasoCompletado.findUnique({
     where: { asignacionId_pasoId: { asignacionId, pasoId } },
     select: { verificadoEl: true },

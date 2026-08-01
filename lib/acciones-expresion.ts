@@ -27,8 +27,9 @@ function refrescar(pasoId: string, estudianteId?: string) {
 /**
  * El alumno entrega o reescribe su texto.
  *
- * Quién puede y hasta cuándo lo decide `puedeEntregar`, que vive fuera para
- * que el script lo ejercite. Aquí solo se comprueba la sesión y se escribe.
+ * Quién puede, qué paso lo admite y hasta cuándo lo decide `puedeEntregar`,
+ * que vive fuera para que el script lo ejercite. Aquí solo se comprueba la
+ * sesión y se escribe.
  */
 export async function entregar(
   _prev: EstadoExpresion,
@@ -59,7 +60,7 @@ export async function entregar(
   });
   if (!asignacion || asignacion.archivada) return { error: "No tienes este recorrido asignado." };
 
-  const motivo = await puedeEntregar(asignacion.id, pasoId);
+  const motivo = await puedeEntregar(asignacion.id, pasoId, texto);
   if (motivo) return { error: motivo };
 
   await prisma.pasoCompletado.upsert({
