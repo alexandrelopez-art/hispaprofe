@@ -238,8 +238,17 @@ export default function Editor({
    */
   const aviso = tarea ? avisoDeItems(tarea, datos) : null;
 
+  /**
+   * La previsualización corrige con el motor, y la expresión no se corrige
+   * sola: `previsualizar` le contestaría «El ejercicio todavía no está
+   * completo» para siempre, y una ida y vuelta al servidor por cada tecla.
+   * No hay vista previa del estímulo a cambio, y a propósito: no hace falta
+   * ninguna para escribir una consigna y cuatro criterios.
+   */
+  const conPrevisualizacion = marca !== "expresion";
+
   return (
-    <div className="grid gap-8 lg:grid-cols-2">
+    <div className={`grid gap-8 ${conPrevisualizacion ? "lg:grid-cols-2" : ""}`}>
       <form action={guardar} className="space-y-6">
         <input type="hidden" name="id" value={inicial?.id ?? ""} />
         <input type="hidden" name="datos" value={JSON.stringify(datos)} />
@@ -418,7 +427,7 @@ export default function Editor({
         </div>
       </form>
 
-      <Previsualizacion datos={datos} />
+      {conPrevisualizacion && <Previsualizacion datos={datos} />}
     </div>
   );
 }

@@ -2,8 +2,12 @@ import { Prisma } from "@/lib/generated/prisma/client";
 import type { TipoEjercicio } from "@/lib/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
 import { analizar } from "@/lib/ejercicios/registro";
+import { opcionSchema } from "@/lib/ejercicios/opcion";
+import { huecosSchema } from "@/lib/ejercicios/huecos";
+import { relacionarSchema } from "@/lib/ejercicios/relacionar";
+import { ordenarSchema } from "@/lib/ejercicios/ordenar";
 import type { MarcaEjercicio } from "@/lib/ejercicios/tipos";
-import { analizarExpresion } from "@/lib/expresion";
+import { analizarExpresion, expresionSchema } from "@/lib/expresion";
 
 // Solo de servidor: `analizar` arrastra `lib/ejercicios/registro.ts`, que
 // importa `node:crypto`. Ningún componente de cliente puede importar esto.
@@ -38,6 +42,61 @@ export function tipoDeEjercicio(datos: unknown): TipoEjercicio | null {
 }
 
 /**
+ * Los esquemas por su discriminante, para poder volver a parsear y contar el
+ * porqué. `expresion` está aquí aunque no sea del motor: este es el único
+ * sitio donde los errores se traducen a castellano, y sin ella una expresión
+ * mal rellenada solo sabía decir «al ejercicio le falta el tipo».
+ */
+const ESQUEMAS = {
+  opcion: opcionSchema,
+  huecos: huecosSchema,
+  relacionar: relacionarSchema,
+  ordenar: ordenarSchema,
+  expresion: expresionSchema,
+} as const;
+
+/**
+ * El motivo que da el esquema, tal cual lo escribió.
+ *
+ * `analizar` y `analizarExpresion` devuelven `null` a secas —les basta con
+ * saber que no vale—, así que para enseñar el porqué hay que volver a
+ * parsear con el esquema que toque. Merece la pena: esos mensajes ya están
+ * redactados en castellano y explican la razón («Las marcas {{...}} del
+ * texto no coinciden con los ids de `huecos`»), que es justo lo que un
+ * editor necesita decir.
+ */
+function motivoDeZod(datos: unknown): string {
+  const marca = (datos as { ejercicio?: unknown } | null)?.ejercicio;
+  if (typeof marca !== "string" || !(marca in ESQUEMAS)) {
+    return "Al ejercicio le falta el tipo. Vuelve a elegirlo.";
+  }
+
+  const r = ESQUEMAS[marca as keyof typeof ESQUEMAS].safeParse(datos);
+  if (r.success) return "El ejercicio no se pudo guardar.";
+
+  // El primero basta: arreglado ese, al volver a guardar sale el siguiente.
+  const primero = r.error.issues[0];
+  const donde = primero.path.length > 0 ? ` (${primero.path.join(" → ")})` : "";
+  return `${primero.message}${donde}`;
+}
+
+/** Lo que sale del portero: el tipo que le toca, o el porqué del no. */
+export type Revision = { tipo: TipoEjercicio } | { error: string };
+
+/**
+ * El portero de la columna `datos`: lo que preguntan las dos acciones de
+ * Recursos que la escriben —guardar y publicar— antes de tocar la base.
+ *
+ * Vive aquí y no dentro de las acciones por lo de siempre en este proyecto:
+ * `lib/acciones-recursos.ts` es `"use server"`, así que todo lo que exporta
+ * es un endpoint público y un script no puede ejercitarlo sin sesión.
+ */
+export function revisarDatos(datos: unknown): Revision {
+  const tipo = tipoDeEjercicio(datos);
+  return tipo ? { tipo } : { error: motivoDeZod(datos) };
+}
+
+/**
  * Si la fila sigue estando.
  *
  * Las reglas que terminan en un `update` o un `delete` la consultan antes:
@@ -54,18 +113,33 @@ async function existe(ejercicioId: string): Promise<boolean> {
 }
 
 /**
- * Si alguien ya respondió el ejercicio de este paso.
+ * Si alguien ya dejó trabajo suyo en este paso: respuestas de un ejercicio
+ * del motor, la redacción de una expresión escrita, o la rúbrica que le
+ * rellenó el profesor.
  *
- * `respuestas` es `Json?`, y en Prisma eso tiene dos nulos distintos:
- * `Prisma.DbNull` es la columna vacía y `Prisma.JsonNull` es el valor JSON
- * `null` guardado dentro. Aquí interesa el primero: un `PasoCompletado`
- * existe en cuanto el estudiante marca el paso, tenga o no ejercicio, así
- * que contar filas a secas daría falsos positivos en todos los pasos de solo
- * lectura.
+ * Las tres columnas y no solo `respuestas`: una tarea de expresión no escribe
+ * ahí nunca, así que mirando solo esa se podía quitarle el ejercicio a un paso
+ * con una redacción entregada —que se quedaba en la base sin ninguna pantalla
+ * que la enseñara— o cambiarle los criterios a una tarea ya corregida, y
+ * entonces las notas guardadas apuntaban a criterios que ya no existían.
+ *
+ * `respuestas` y `valoracion` son `Json?`, y en Prisma eso tiene dos nulos
+ * distintos: `Prisma.DbNull` es la columna vacía y `Prisma.JsonNull` es el
+ * valor JSON `null` guardado dentro. Aquí interesa el primero: un
+ * `PasoCompletado` existe en cuanto el estudiante marca el paso, tenga o no
+ * ejercicio, así que contar filas a secas daría falsos positivos en todos los
+ * pasos de solo lectura.
  */
-export async function tieneRespuestas(pasoId: string): Promise<boolean> {
+export async function tieneTrabajo(pasoId: string): Promise<boolean> {
   const cuantos = await prisma.pasoCompletado.count({
-    where: { pasoId, NOT: { respuestas: { equals: Prisma.DbNull } } },
+    where: {
+      pasoId,
+      OR: [
+        { NOT: { respuestas: { equals: Prisma.DbNull } } },
+        { entrega: { not: null } },
+        { NOT: { valoracion: { equals: Prisma.DbNull } } },
+      ],
+    },
   });
   return cuantos > 0;
 }
@@ -97,16 +171,16 @@ export async function puedeEngancharse(
     return "Ese paso ya tiene un ejercicio. Quita el que hay antes de poner otro.";
   }
 
-  if (await tieneRespuestas(pasoId)) {
-    return "Alguien ya respondió en ese paso. Cambiarle el ejercicio dejaría sus respuestas sin sentido.";
+  if (await tieneTrabajo(pasoId)) {
+    return "Alguien ya trabajó en ese paso. Cambiarle el ejercicio dejaría sin sentido lo que respondió o lo que entregó.";
   }
   return null;
 }
 
 /** Si se le puede quitar el ejercicio a este paso, o el motivo del no. */
 export async function puedeDesengancharse(pasoId: string): Promise<string | null> {
-  if (await tieneRespuestas(pasoId)) {
-    return "Alguien ya respondió en ese paso. Quitarle el ejercicio dejaría sus respuestas sin sentido.";
+  if (await tieneTrabajo(pasoId)) {
+    return "Alguien ya trabajó en ese paso. Quitarle el ejercicio dejaría lo que respondió o lo que entregó sin ninguna pantalla que lo enseñe.";
   }
   return null;
 }
@@ -148,10 +222,12 @@ export async function puedeDespublicarse(ejercicioId: string): Promise<string | 
 /**
  * Si este ejercicio se puede editar, o el motivo del no.
  *
- * Lo que prohíbe no es estar enganchado: es que alguien haya respondido. Las
- * respuestas se guardan indexadas por el id de cada pregunta, así que
- * cambiarle las preguntas por dentro las dejaría apuntando a ids que ya no
- * existen. Estar enganchado sin responder no rompe nada.
+ * Lo que prohíbe no es estar enganchado: es que alguien haya trabajado. Las
+ * respuestas se guardan indexadas por el id de cada pregunta y las notas de
+ * la rúbrica por el id de cada criterio, así que cambiarlos por dentro las
+ * dejaría apuntando a ids que ya no existen —un criterio quitado se le sigue
+ * enseñando al alumno con un «0 / 3» que nunca se le puntuó—. Estar
+ * enganchado sin que nadie haya trabajado no rompe nada.
  */
 export async function puedeEditarse(ejercicioId: string): Promise<string | null> {
   if (!(await existe(ejercicioId))) return "Ese ejercicio no existe.";
@@ -161,8 +237,8 @@ export async function puedeEditarse(ejercicioId: string): Promise<string | null>
     select: { pasoId: true },
   });
   for (const v of vinculos) {
-    if (await tieneRespuestas(v.pasoId)) {
-      return "Alguien ya lo respondió. Duplícalo y edita la copia.";
+    if (await tieneTrabajo(v.pasoId)) {
+      return "Alguien ya lo respondió o ya lo entregó. Duplícalo y edita la copia.";
     }
   }
   return null;

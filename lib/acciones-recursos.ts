@@ -5,11 +5,6 @@ import { Prisma } from "@/lib/generated/prisma/client";
 import { Destreza, Nivel } from "@/lib/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
 import { exigirProfesor } from "@/lib/profesor";
-import { analizar } from "@/lib/ejercicios/registro";
-import { opcionSchema } from "@/lib/ejercicios/opcion";
-import { huecosSchema } from "@/lib/ejercicios/huecos";
-import { relacionarSchema } from "@/lib/ejercicios/relacionar";
-import { ordenarSchema } from "@/lib/ejercicios/ordenar";
 import {
   duplicar,
   puedeBorrarse,
@@ -17,7 +12,7 @@ import {
   puedeDespublicarse,
   puedeEditarse,
   puedeEngancharse,
-  tipoDeEjercicio,
+  revisarDatos,
 } from "@/lib/recursos";
 
 /**
@@ -88,14 +83,13 @@ export async function guardarEjercicio(
     return { error: "El contenido del ejercicio no se pudo leer." };
   }
 
-  // El mensaje del rechazo lo escribe el esquema del motor, en castellano y
-  // explicando el porqué. No se redacta otro aquí.
-  const analizado = analizar(datos);
-  if (!analizado) {
-    return { error: motivoDeZod(datos) };
-  }
-
-  const tipo = tipoDeEjercicio(datos)!;
+  // El mensaje del rechazo lo escribe el esquema, en castellano y explicando
+  // el porqué. No se redacta otro aquí. `revisarDatos` pregunta a los dos
+  // porteros —el motor y la expresión—, que es lo que hacía falta para que
+  // una tarea de expresión se pudiera guardar.
+  const revision = revisarDatos(datos);
+  if ("error" in revision) return { error: revision.error };
+  const tipo = revision.tipo;
 
   if (id) {
     const motivo = await puedeEditarse(id);
@@ -132,37 +126,6 @@ export async function guardarEjercicio(
   return { ok: "Creado.", id: creado.id };
 }
 
-/**
- * El motivo que da el esquema, tal cual lo escribió.
- *
- * `analizar` devuelve `null` a secas —le basta con saber que no vale—, así
- * que para enseñar el porqué hay que volver a parsear con el esquema que
- * toque. Merece la pena: esos mensajes ya están redactados en castellano y
- * explican la razón («Las marcas {{...}} del texto no coinciden con los ids
- * de `huecos`»), que es justo lo que un editor necesita decir.
- */
-const ESQUEMAS = {
-  opcion: opcionSchema,
-  huecos: huecosSchema,
-  relacionar: relacionarSchema,
-  ordenar: ordenarSchema,
-} as const;
-
-function motivoDeZod(datos: unknown): string {
-  const marca = (datos as { ejercicio?: unknown } | null)?.ejercicio;
-  if (typeof marca !== "string" || !(marca in ESQUEMAS)) {
-    return "Al ejercicio le falta el tipo. Vuelve a elegirlo.";
-  }
-
-  const r = ESQUEMAS[marca as keyof typeof ESQUEMAS].safeParse(datos);
-  if (r.success) return "El ejercicio no se pudo guardar.";
-
-  // El primero basta: arreglado ese, al volver a guardar sale el siguiente.
-  const primero = r.error.issues[0];
-  const donde = primero.path.length > 0 ? ` (${primero.path.join(" → ")})` : "";
-  return `${primero.message}${donde}`;
-}
-
 export async function publicarEjercicio(
   _prev: EstadoRecurso,
   formData: FormData,
@@ -176,8 +139,12 @@ export async function publicarEjercicio(
     select: { datos: true },
   });
   if (!fila) return { error: "Ese ejercicio no existe." };
-  if (!analizar(fila.datos)) {
-    return { error: "Está incompleto. Termínalo antes de publicarlo." };
+  // El mismo portero que al guardar: si aquí solo preguntara al motor, una
+  // expresión terminada nunca llegaría a `publicado: true` y el selector del
+  // paso, que filtra por esa columna, no la ofrecería jamás.
+  const revision = revisarDatos(fila.datos);
+  if ("error" in revision) {
+    return { error: `Está incompleto. ${revision.error}` };
   }
 
   await prisma.ejercicio.update({ where: { id }, data: { publicado: true } });
