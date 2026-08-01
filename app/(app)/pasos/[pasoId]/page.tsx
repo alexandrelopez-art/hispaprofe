@@ -305,6 +305,29 @@ export default async function PasoPage({
   const expresion = analizado ? null : vinculo ? analizarExpresion(vinculo.ejercicio.datos) : null;
   const corregida = Boolean(registro?.verificadoEl);
 
+  // En una escrita, entregar es lo que marca el paso: el par
+  // «marcar / Hecho ✓» sobra, y peor que sobrar, porque «Hecho ✓» desmarca y
+  // desmarcar borraba la redacción. En las orales se queda: ahí marcar sigue
+  // siendo la única señal que da el alumno.
+  const escrita = expresion?.modalidad === "escrita";
+  const marcable = puedeMarcar && !escrita;
+
+  // Si el oral ya está citado, cuándo. El diseño se lo promete al alumno y
+  // hasta ahora la cita solo se veía en dos pantallas de profesor: llegaba a
+  // clase sin saber que ese día se examinaba. Una clase anulada no cuenta:
+  // decir una fecha que no va a pasar es peor que no decir nada.
+  const cita =
+    asignacion && expresion?.modalidad === "oral"
+      ? await prisma.citaOral.findFirst({
+          where: {
+            asignacionId: asignacion.id,
+            pasoId: paso.id,
+            clase: { estado: { not: "ANULADA" } },
+          },
+          select: { clase: { select: { empiezaEl: true } } },
+        })
+      : null;
+
   // Qué tarea del examen es este paso. La regla vive en `lib/dele` porque la
   // comparte con el panel de tareas sugeridas, que necesita contar como
   // ocupado exactamente lo que esta página da por puesto.
@@ -539,7 +562,12 @@ export default async function PasoPage({
             (registro?.valoracion as { notas: Record<string, number>; comentario: string } | null) ??
             null
           }
-          cerrada={corregida}
+          // Con la asignación archivada se sigue viendo lo escrito y la
+          // corrección —son un hecho pasado, igual que la línea de estado—,
+          // pero sin botón: `entregar` lo rechazaría de todas formas, y un
+          // botón que solo sirve para recibir un no no es un botón.
+          cerrada={corregida || !puedeMarcar}
+          citada={cita?.clase.empiezaEl ?? null}
         />
       )}
 
@@ -557,11 +585,11 @@ export default async function PasoPage({
       {/*
         La línea de estado se muestra si hay registro, viva o archivada la
         asignación: el estado es un hecho pasado, no una acción. Los dos
-        botones ("Marcar como hecho" y "Hecho ✓") siguen bloqueados detrás
-        de puedeMarcar, que sigue significando lo mismo que antes: solo una
-        asignación viva permite tocar el paso.
+        botones ("Marcar como hecho" y "Hecho ✓") van detrás de `marcable`:
+        asignación viva —solo así se puede tocar el paso— y que el paso no
+        sea una expresión escrita, que se marca sola al entregar.
       */}
-      {(registro || puedeMarcar) && (
+      {(registro || marcable) && (
         <div className="mt-10 flex flex-col items-center gap-3">
           {registro && !(hayEjercicio && revisado) && (
             <p className="text-sm text-tinta-suave">
@@ -575,7 +603,7 @@ export default async function PasoPage({
             <span className="rounded-full bg-sol-300 px-6 py-3 text-sm font-extrabold text-tinta">
               Revisado ✓
             </span>
-          ) : puedeMarcar ? (
+          ) : marcable ? (
             hecho ? (
               <form action={desmarcarPasoHecho}>
                 <input type="hidden" name="pasoId" value={paso.id} />

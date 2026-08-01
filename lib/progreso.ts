@@ -140,10 +140,17 @@ export async function estadoDePasos(
 }
 
 /**
- * Quita el check de un paso, salvo que el profesor ya lo haya revisado.
- * La fila de PasoCompletado guarda los puntos y la fecha de verificación,
- * así que borrarla tras una corrección perdería el trabajo del profesor.
- * El filtro va dentro del propio delete para que no haya carrera entre
+ * Quita el check de un paso, salvo que el profesor ya lo haya revisado o que
+ * el alumno haya entregado algo.
+ *
+ * La fila de PasoCompletado guarda los puntos y la fecha de verificación, así
+ * que borrarla tras una corrección perdería el trabajo del profesor. Y guarda
+ * también la redacción de una tarea de expresión escrita: sin `entrega: null`,
+ * un clic en «Hecho ✓» le borraba al alumno su texto de la base y tiraba la
+ * fila de la bandeja del profesor. Corregir nunca borra la entrega, y
+ * desmarcar tampoco.
+ *
+ * Los dos filtros van dentro del propio delete para que no haya carrera entre
  * comprobar y borrar.
  *
  * Devuelve true si borró algo.
@@ -153,7 +160,7 @@ export async function desmarcarSiNoRevisado(
   pasoId: string,
 ): Promise<boolean> {
   const { count } = await prisma.pasoCompletado.deleteMany({
-    where: { asignacionId, pasoId, verificadoEl: null },
+    where: { asignacionId, pasoId, verificadoEl: null, entrega: null },
   });
   return count > 0;
 }

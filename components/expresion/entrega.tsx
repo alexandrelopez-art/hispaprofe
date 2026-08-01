@@ -15,12 +15,24 @@ function contarPalabras(texto: string): number {
   return limpio === "" ? 0 : limpio.split(/\s+/).length;
 }
 
+// El mismo formato con el que el profesor ve la cita en la ficha del alumno:
+// una fecha citada tiene que leerse igual en las dos pantallas.
+const formatoFecha = new Intl.DateTimeFormat("es-ES", {
+  weekday: "long",
+  day: "numeric",
+  month: "long",
+  hour: "2-digit",
+  minute: "2-digit",
+  timeZone: "Europe/Madrid",
+});
+
 export default function Entrega({
   pasoId,
   publica,
   entrega,
   valoracion,
   cerrada,
+  citada,
 }: {
   pasoId: string;
   publica: ExpresionPublica;
@@ -28,8 +40,10 @@ export default function Entrega({
   entrega: string | null;
   /** La rúbrica rellenada, si ya está corregida. */
   valoracion: { notas: Record<string, number>; comentario: string } | null;
-  /** Ya corregida: no se puede tocar. */
+  /** No se puede tocar: ya está corregida, o la asignación está archivada. */
   cerrada: boolean;
+  /** Cuándo es la clase en la que le han citado el oral, si le han citado. */
+  citada: Date | null;
 }) {
   const [texto, setTexto] = useState(entrega ?? "");
   const [estado, enviar, enviando] = useActionState<EstadoExpresion, FormData>(entregar, {});
@@ -62,10 +76,18 @@ export default function Entrega({
       )}
 
       {publica.modalidad === "oral" ? (
-        <p className="mt-6 rounded-tarjeta bg-sol-100 px-4 py-3 text-sm text-tinta">
-          Esta tarea se hace en clase, con tu profesor. Aquí tienes el material
-          para prepararla{publica.minutos ? `: dura unos ${publica.minutos} minutos` : ""}.
-        </p>
+        <div className="mt-6 rounded-tarjeta bg-sol-100 px-4 py-3 text-sm text-tinta">
+          <p>
+            Esta tarea se hace en clase, con tu profesor. Aquí tienes el
+            material para prepararla
+            {publica.minutos ? `: dura unos ${publica.minutos} minutos` : ""}.
+          </p>
+          {citada && (
+            <p className="mt-2 font-bold">
+              Tu profe te ha citado para el {formatoFecha.format(citada)}.
+            </p>
+          )}
+        </div>
       ) : (
         <form action={enviar} className="mt-6">
           <input type="hidden" name="pasoId" value={pasoId} />
