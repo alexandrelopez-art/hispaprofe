@@ -14,6 +14,8 @@ type DatosExpresion = {
   minutos?: number;
   criterios: Criterio[];
   modelo?: string;
+  /** Solo en las orales: si el alumno la graba en vez de hacerla en clase. */
+  grabada?: boolean;
 };
 
 /** Los cuatro del Instituto Cervantes, para no escribirlos cada vez. */
@@ -82,7 +84,12 @@ export default function EditorExpresion({
             // minutos y una oral con palabras, así que se cambian juntos.
             cambiar(
               modalidad === "escrita"
-                ? { modalidad, palabras: { minimo: 100, maximo: 120 }, minutos: undefined }
+                ? {
+                    modalidad,
+                    palabras: { minimo: 100, maximo: 120 },
+                    minutos: undefined,
+                    grabada: false,
+                  }
                 : { modalidad, minutos: 3, palabras: undefined },
             );
           }}
@@ -94,9 +101,28 @@ export default function EditorExpresion({
         <span className="mt-1 block text-xs font-normal text-tinta-suave">
           {esEscrita
             ? "El alumno escribe en la aplicación y te llega para corregir."
-            : "No hay entrega: la evalúas con el alumno delante, en clase."}
+            : "El alumno responde hablando, en clase o grabándose."}
         </span>
       </label>
+
+      {!esEscrita && (
+        <label className="block w-72 text-sm font-semibold text-tinta">
+          ¿Dónde se hace?
+          <select
+            value={d.grabada ? "grabada" : "clase"}
+            onChange={(e) => cambiar({ grabada: e.target.value === "grabada" })}
+            className={campo}
+          >
+            <option value="clase">En clase, contigo delante</option>
+            <option value="grabada">La graba y te la manda</option>
+          </select>
+          <span className="mt-1 block text-xs font-normal text-tinta-suave">
+            {d.grabada
+              ? "El alumno graba su respuesta en la aplicación y te llega a Entregas."
+              : "La citas en una de sus clases y la evalúas con él delante."}
+          </span>
+        </label>
+      )}
 
       <label className="block text-sm font-semibold text-tinta">
         Consigna
