@@ -14,6 +14,11 @@
  * lo mire con buenos ojos.
  *
  * No importa `prisma` ni nada del navegador: entran bytes y sale un flujo.
+ *
+ * El parámetro es `Uint8Array` y no `Buffer` porque es lo que devuelve Prisma
+ * en una columna `Bytes`, y pedir un `Buffer` obligaba a copiar el archivo
+ * entero solo para satisfacer al comprobador de tipos. Esta función solo usa
+ * `.length` y `.subarray()`, ambos disponibles en `Uint8Array`.
  */
 
 /**
@@ -23,7 +28,7 @@
  */
 const TROZO_POR_DEFECTO = 256 * 1024;
 
-export function flujoDeBytes(datos: Buffer, trozo = TROZO_POR_DEFECTO): ReadableStream<Uint8Array> {
+export function flujoDeBytes(datos: Uint8Array, trozo = TROZO_POR_DEFECTO): ReadableStream<Uint8Array> {
   let enviado = 0;
   return new ReadableStream({
     // `pull` y no `start`: así se copia un trozo cuando el otro lado está

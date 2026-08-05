@@ -100,7 +100,7 @@ export async function GET(
 
   if (rango.clase === "trozo") {
     return new Response(
-      flujoDeBytes(Buffer.from(contenido.datos.subarray(rango.inicio, rango.fin + 1))),
+      flujoDeBytes(contenido.datos.subarray(rango.inicio, rango.fin + 1)),
       {
         status: 206,
         headers: {
@@ -129,7 +129,7 @@ export async function GET(
   // El `Content-Length` se queda: se sabe de antemano cuántos bytes son, y
   // anunciarlos deja que el navegador pinte la barra de progreso y sepa
   // cuándo ha terminado.
-  return new Response(flujoDeBytes(Buffer.from(contenido.datos)), {
+  return new Response(flujoDeBytes(contenido.datos), {
     headers: {
       "Content-Type": cabecera.tipo,
       // Los bytes que se mandan, no lo que diga la columna `tamano`: las otras
