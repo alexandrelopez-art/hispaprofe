@@ -4,9 +4,11 @@ import { getUsuarioActual } from "@/lib/usuario";
 import {
   asignarSecuenciaAVarios,
   borrarPaso,
+  borrarRecorrido,
   crearPaso,
   moverPaso,
 } from "@/lib/acciones";
+import { avisoDeBorrado, puedeBorrarRecorrido, resumenDeBorrado } from "@/lib/recorridos";
 import { estadoDePasos, type EstadoPaso } from "@/lib/progreso";
 import BotonConfirmar from "@/components/boton-confirmar";
 import { notFound } from "next/navigation";
@@ -66,6 +68,13 @@ export default async function RecorridoDetallePage({
   const usuario = await getUsuarioActual();
   const esProfe =
     usuario?.role === "PROFESOR" || usuario?.role === "ADMIN";
+
+  // Solo se calculan si se va a pintar: son dos consultas y no hay por qué
+  // pagarlas para no enseñar nada.
+  const sePuedeBorrar = puedeBorrarRecorrido(usuario, recorrido);
+  const aviso = sePuedeBorrar
+    ? avisoDeBorrado(recorrido.titulo, await resumenDeBorrado(recorrido.id))
+    : null;
 
   const [estudiantes, asignaciones] = esProfe
     ? await Promise.all([
@@ -154,6 +163,19 @@ export default async function RecorridoDetallePage({
           {nivelLabel[recorrido.nivel] ?? recorrido.nivel}
         </span>
       </div>
+
+      {sePuedeBorrar && aviso && (
+        <form action={borrarRecorrido} className="mt-4">
+          <input type="hidden" name="recorridoId" value={recorrido.id} />
+          <BotonConfirmar
+            aviso={aviso}
+            title="Borrar la secuencia entera"
+            className="rounded-full border border-hp-200 px-4 py-1 text-sm font-bold text-tinta-suave transition-colors hover:border-bloque3 hover:text-tinta"
+          >
+            Borrar la secuencia
+          </BotonConfirmar>
+        </form>
+      )}
 
       {esProfe && (
         <section className="mt-8 rounded-tarjeta border border-hp-100 bg-white p-5 shadow-suave">
