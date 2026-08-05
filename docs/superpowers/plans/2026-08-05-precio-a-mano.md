@@ -410,6 +410,16 @@ Junto a «Dónde», dentro del mismo formulario y con las mismas clases que los 
             type="text"
             name="precio"
             inputMode="decimal"
+            // El navegador para el envío antes de que salga de aquí, y enseña
+            // el `title`. Sin esto, un precio mal escrito hacía que la acción
+            // volviera sin guardar **nada** —ni el sitio, ni el enlace, ni las
+            // notas— y sin decir por qué: el motivo que calcula
+            // `interpretarPrecio` no tiene por dónde llegar a la pantalla,
+            // porque este formulario llama a la acción directamente y no
+            // recoge nada de vuelta. La comprobación del servidor se queda
+            // igual: esta es comodidad, no la guarda de verdad.
+            pattern="\s*\d+([.,]\d{1,2})?\s*€?\s*"
+            title="Escribe el precio en euros, con dos decimales como mucho. Por ejemplo: 30,50"
             defaultValue={
               clase.importeAMano && clase.importeCentimos !== null
                 ? (clase.importeCentimos / 100).toLocaleString("es-ES", {
@@ -440,7 +450,7 @@ Expected:
 1. Escribir `30,50`, guardar, y ver el importe en la ficha y en la lista.
 2. Cambiar la duración de esa clase y guardar: los 30,50 € siguen ahí.
 3. Vaciar el campo y guardar: vuelve a automático, y al marcarla dada la tarifa lo recalcula.
-4. Escribir `abc` y guardar: no se guarda nada.
+4. Escribir `abc` y guardar: el navegador lo para y enseña el mensaje del `title`, sin llegar a mandar el formulario. Lo mismo con `30,555`.
 5. **El caso de la regresión**: coge una clase ya marcada como dada cuyo importe salió de la tarifa —el campo se ve vacío—, cambia solo el sitio y guarda. El importe **tiene que seguir ahí**. Si desaparece, `cambioDePrecio` no está distinguiendo «no tocar» de «borrar».
 
 - [ ] **Step 5: Commit**
