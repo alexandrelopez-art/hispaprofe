@@ -158,10 +158,19 @@ export function seOyeLaEntrega(datos: Expresion, entrega: string | null): boolea
 }
 
 /**
- * Lo que aceptamos recibir de un alumno, antes de comprimir. Cincuenta megas
- * dejan pasar un archivo del móvil sin abrir la puerta a una película.
+ * Lo que aceptamos recibir de un alumno, antes de comprimir.
+ *
+ * Cuatro megas, y no es prudencia nuestra: en Vercel el cuerpo de una petición
+ * no puede pasar de 4,5 MB, y ese corte lo da la plataforma **antes** de que
+ * corra el manejador de la ruta. Un tope de cincuenta megas que en realidad
+ * son cuatro y medio es un tope que miente: quien se choque con él no ve el
+ * mensaje que hay escrito aquí abajo, ve un error mudo de la plataforma
+ * después de haber esperado la subida entera.
+ *
+ * Lo que hace que cuatro megas basten está en la grabadora: graba a 32 kbps,
+ * así que sus quince minutos de tope rondan los 3,6 MB.
  */
-export const MAXIMO_AUDIO_RECIBIDO = 50 * 1024 * 1024;
+export const MAXIMO_AUDIO_RECIBIDO = 4 * 1024 * 1024;
 
 /**
  * Lo que aceptamos guardar de un alumno, ya comprimido. Quince minutos rondan

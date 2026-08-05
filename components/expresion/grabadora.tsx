@@ -87,17 +87,32 @@ const FORMATOS_OFRECIDOS = [...TIPOS_ADMITIDOS, ".mp3", ".m4a", ".ogg", ".wav", 
 /**
  * El tope de lo que la puerta acepta recibir. Copia a mano de
  * `MAXIMO_AUDIO_RECIBIDO` en `lib/expresion.ts`, y las dos tienen que moverse
- * juntas. Comprobarlo aquí no es adornar: un archivo de 300 MB no llegaba
- * siquiera a la puerta —el proxy recorta el cuerpo antes— y el alumno recibía
- * «No se pudo leer la grabación enviada. Vuelve a intentarlo», después de la
- * subida y sin que reintentar arreglara nada.
+ * juntas. Comprobarlo aquí no es adornar: un archivo que se pasa no llega
+ * siquiera a la puerta —lo corta Vercel, o el proxy en local— y el alumno
+ * recibía «No se pudo leer la grabación enviada. Vuelve a intentarlo»,
+ * después de la subida y sin que reintentar arreglara nada.
  */
-const MAXIMO_ARCHIVO = 50 * 1024 * 1024;
+const MAXIMO_ARCHIVO = 4 * 1024 * 1024;
 
 /** «49,7 MB», para poder decirle al alumno cuánto pesa lo que ha elegido. */
 function enMegas(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toLocaleString("es-ES", { maximumFractionDigits: 1 })} MB`;
 }
+
+/**
+ * El caudal con el que graba, en bits por segundo.
+ *
+ * Sin esto Chrome graba a unos 128 kbps, y los quince minutos que la propia
+ * grabadora permite salen a 14 MB: un rechazo seguro, porque el tope de lo que
+ * se puede mandar son cuatro. A 32 kbps esos quince minutos rondan los 3,6 MB.
+ *
+ * 32 kbps en opus es de sobra para una voz hablando —el material del Cervantes
+ * se comprime a 48 y se consideró calidad suficiente para un examen de
+ * comprensión—, y aun así el margen contra el tope es de 400 KB: es un caudal
+ * medio y no un techo, así que una grabación con mucho ruido de fondo puede
+ * pasarse un poco. Por eso el tope sigue ahí, para cazarla y explicarlo.
+ */
+const CAUDAL = 32000;
 
 /**
  * Los contenedores que se le piden a `MediaRecorder`, en orden de preferencia.
@@ -338,7 +353,13 @@ export default function Grabadora({
     try {
       let pista: MediaStream;
       try {
-        pista = await navigator.mediaDevices.getUserMedia({ audio: true });
+        // Un canal, no dos: es voz, y el estéreo dobla el tamaño para no
+        // aportar nada. `ideal` y no un número pelado a propósito: como
+        // restricción exacta, un micrófono que solo sepa dar estéreo haría
+        // que `getUserMedia` fallara y el alumno se quedaría sin botón.
+        pista = await navigator.mediaDevices.getUserMedia({
+          audio: { channelCount: { ideal: 1 } },
+        });
       } catch {
         // Permiso denegado o sin micrófono. No hay segundo intento que valga
         // la pena: se le ofrece el rodeo, que es lo que sí puede hacer.
@@ -363,8 +384,8 @@ export default function Grabadora({
         // El contenedor se pide, no se acepta el que salga: ver `CONTENEDORES`.
         const contenedor = contenedorPreferido();
         grabadora = contenedor
-          ? new MediaRecorder(pista, { mimeType: contenedor })
-          : new MediaRecorder(pista);
+          ? new MediaRecorder(pista, { mimeType: contenedor, audioBitsPerSecond: CAUDAL })
+          : new MediaRecorder(pista, { audioBitsPerSecond: CAUDAL });
 
         const trozos: Blob[] = [];
         grabadora.ondataavailable = (e) => {
@@ -505,7 +526,7 @@ export default function Grabadora({
     if (archivo.size > MAXIMO_ARCHIVO) {
       setError(
         `Ese archivo pesa ${enMegas(archivo.size)} y el tope son ${enMegas(MAXIMO_ARCHIVO)}. ` +
-          `Manda una grabación más corta, o guárdala en MP3 antes de subirla.`,
+          `Graba desde aquí con el botón de arriba, o manda una grabación más corta.`,
       );
       return;
     }
