@@ -36,8 +36,12 @@ export class EnlaceInvalidoError extends Error {}
  * Los nombres de máquina que no se piden nunca. `169.254.169.254` es el
  * servicio de metadatos de las nubes: quien consiga que un servidor lo pida
  * por él se lleva las credenciales de la máquina.
+ *
+ * El literal IPv6 de loopback (`::1`) no está aquí: `URL` lo deja en
+ * `hostname` con corchetes (`[::1]`), y se comprueba junto con el resto de
+ * IPv6 en `esPrivadaV6`, que es donde vive toda esa familia de rangos.
  */
-const PROHIBIDOS = [/^localhost$/i, /^\[?::1\]?$/, /\.local$/i, /\.internal$/i];
+const PROHIBIDOS = [/^localhost$/i, /\.local$/i, /\.internal$/i];
 
 /** Los rangos de IPv4 que no salen a la web pública. */
 function esPrivada(maquina: string): boolean {
@@ -51,6 +55,65 @@ function esPrivada(maquina: string): boolean {
   // 169.254.0.0/16: enlace local, y dentro está el servicio de metadatos.
   if (a === 169 && b === 254) return true;
   return false;
+}
+
+/**
+ * La IPv4 escondida dentro de un literal IPv6 mapeado (`::ffff:a.b.c.d`), o
+ * `null` si `direccion` no es de esa forma.
+ *
+ * Node normaliza a hexadecimal (`::ffff:7f00:1`) y no a puntos
+ * (`::ffff:127.0.0.1`), así que hay que deshacer eso: los dos grupos finales
+ * de 16 bits son, en realidad, los cuatro bytes de la IPv4.
+ */
+function ipv4DeV6Mapeada(direccion: string): string | null {
+  const mapeada = direccion.match(/^::ffff:(.+)$/i);
+  if (!mapeada) return null;
+  const resto = mapeada[1];
+  if (resto.includes(".")) return resto;
+
+  const grupos = resto.split(":");
+  if (grupos.length !== 2) return null;
+  const [alto, bajo] = grupos.map((g) => parseInt(g, 16));
+  if ([alto, bajo].some((n) => Number.isNaN(n))) return null;
+  return [(alto >> 8) & 0xff, alto & 0xff, (bajo >> 8) & 0xff, bajo & 0xff].join(".");
+}
+
+/**
+ * Los rangos de IPv6 que no salen a la web pública, ya sin los corchetes que
+ * `URL` pone en `hostname`. El equivalente IPv6 de cada rango IPv4 de
+ * `esPrivada`: `::1` es `127.0.0.1`, `fc00::/7` (unique-local) es
+ * `10.0.0.0/8`, y `fe80::/10` (link-local) es `169.254.0.0/16` — y por tanto
+ * donde vive el servicio de metadatos de la nube cuando se pide por IPv6.
+ */
+function esPrivadaV6(direccion: string): boolean {
+  const normalizada = direccion.toLowerCase();
+  if (normalizada === "::1" || normalizada === "::") return true;
+
+  const primerGrupo = normalizada.split(":")[0];
+  if (/^f[cd]/.test(primerGrupo)) return true; // fc00::/7
+  if (/^fe[89ab]/.test(primerGrupo)) return true; // fe80::/10
+
+  const v4 = ipv4DeV6Mapeada(normalizada);
+  return v4 !== null && esPrivada(v4);
+}
+
+/**
+ * Que la máquina a la que apunta `direccion` se pueda pedir. La misma
+ * comprobación sirve para la dirección de entrada y para cada salto de una
+ * redirección: seguir un 302 sin volver a pasarlo por aquí es la vía que deja
+ * abierta la SSRF, porque entonces solo se vigila lo que escribió el
+ * profesor y no lo que de verdad se acaba pidiendo.
+ */
+function comprobarMaquina(direccion: URL): void {
+  const maquina = direccion.hostname;
+  const esLiteralV6 = maquina.startsWith("[") && maquina.endsWith("]");
+  const esPrivadaAqui = esLiteralV6
+    ? esPrivadaV6(maquina.slice(1, -1))
+    : PROHIBIDOS.some((p) => p.test(maquina)) || esPrivada(maquina);
+
+  if (esPrivadaAqui) {
+    throw new EnlaceInvalidoError("Esa dirección no es pública, así que no se puede traer.");
+  }
 }
 
 /** El id del archivo, si la dirección es una de las dos formas de Drive. */
@@ -84,10 +147,7 @@ export function direccionDeDescarga(enlace: string): string {
     throw new EnlaceInvalidoError("Solo se pueden traer direcciones http o https.");
   }
 
-  const maquina = direccion.hostname;
-  if (PROHIBIDOS.some((p) => p.test(maquina)) || esPrivada(maquina)) {
-    throw new EnlaceInvalidoError("Esa dirección no es pública, así que no se puede traer.");
-  }
+  comprobarMaquina(direccion);
 
   const id = idDeDrive(direccion);
   if (id) {
@@ -124,10 +184,27 @@ function extensionDe(nombre: string): string {
 }
 
 /**
+ * Cuántas redirecciones se siguen antes de rendirse. Drive redirige de
+ * verdad —es el camino que hace falta que funcione—, así que cero no vale;
+ * pero seguir sin límite deja que una cadena que no termina nunca —a
+ * propósito o por error del otro lado— cuelgue la petición para siempre.
+ */
+const TOPE_REDIRECCIONES = 5;
+
+/**
  * Descarga el audio, cortando en cuanto se pasa del tope.
  *
  * `pedir` existe para poder verificar esto sin salir a la red, que es lo único
  * que hace comprobable un módulo que por definición habla con fuera.
+ *
+ * Las redirecciones se siguen a mano, salto a salto, en vez de dejar que
+ * `fetch` lo haga con `redirect: "follow"`. La razón es la puerta de
+ * `direccionDeDescarga`: esa solo mira la dirección que escribió el
+ * profesor. Un servidor público —el suyo, o cualquier otro— puede contestar
+ * un 302 hacia `169.254.169.254` o hacia una IP de red interna, y `fetch`
+ * lo seguiría sin que nada de lo anterior se volviera a comprobar. Así que
+ * cada salto pasa otra vez por `comprobarMaquina` antes de pedirse, tal cual
+ * la dirección de entrada.
  *
  * El tipo se resuelve en cascada y con motivo: **Drive no manda el tipo real**,
  * manda `application/octet-stream`. Comprobar contra `TIPOS_AUDIO` a secas
@@ -141,15 +218,45 @@ export async function traerAudio(
   maximo: number,
   pedir: typeof fetch = fetch,
 ): Promise<{ datos: Buffer<ArrayBuffer>; tipo: string; nombre: string }> {
-  const direccion = direccionDeDescarga(enlace);
+  let direccion = direccionDeDescarga(enlace);
 
   let respuesta: Response;
-  try {
-    respuesta = await pedir(direccion, { redirect: "follow" });
-  } catch {
-    throw new EnlaceInvalidoError(
-      "No se pudo conectar con esa dirección. Comprueba que el enlace es correcto.",
-    );
+  for (let saltos = 0; ; saltos++) {
+    try {
+      // "manual": con "follow" Node sigue la redirección él solo, y para
+      // entonces ya es tarde para comprobar a dónde. En Node, a diferencia
+      // del navegador, "manual" sí deja leer el estado 3xx y la cabecera
+      // `location` de la respuesta.
+      respuesta = await pedir(direccion, { redirect: "manual" });
+    } catch {
+      throw new EnlaceInvalidoError(
+        "No se pudo conectar con esa dirección. Comprueba que el enlace es correcto.",
+      );
+    }
+
+    const ubicacion = respuesta.headers.get("location");
+    const esRedireccion = respuesta.status >= 300 && respuesta.status < 400 && ubicacion !== null;
+    if (!esRedireccion) break;
+
+    if (saltos >= TOPE_REDIRECCIONES) {
+      throw new EnlaceInvalidoError("Esa dirección da demasiadas vueltas (demasiadas redirecciones).");
+    }
+
+    // Puede ser relativa, así que se resuelve contra el salto actual, no
+    // contra la dirección original.
+    let siguiente: URL;
+    try {
+      siguiente = new URL(ubicacion, direccion);
+    } catch {
+      throw new EnlaceInvalidoError("Esa dirección redirige a algo que no es una dirección válida.");
+    }
+
+    if (siguiente.protocol !== "http:" && siguiente.protocol !== "https:") {
+      throw new EnlaceInvalidoError("Esa dirección redirige a un esquema que no se puede traer.");
+    }
+    comprobarMaquina(siguiente);
+
+    direccion = siguiente.toString();
   }
 
   if (!respuesta.ok) {

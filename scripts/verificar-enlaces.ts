@@ -30,6 +30,11 @@ function respuesta(cuerpo: Uint8Array<ArrayBuffer>, cabeceras: Record<string, st
   return new Response(cuerpo, { status: 200, headers: cabeceras });
 }
 
+/** Una redirección de mentira, hacia donde se le diga. */
+function redireccion(ubicacion: string): Response {
+  return new Response(null, { status: 302, headers: { location: ubicacion } });
+}
+
 async function main() {
   // 1. El enlace que Drive da al compartir se traduce a uno de descarga. El de
   //    compartir es una página web: descargarlo se trae HTML, no un MP3.
@@ -117,6 +122,52 @@ async function main() {
   await rechaza(
     () => traerAudio(directa, 10_000, async () => new Response("No existe", { status: 404 })),
     "una respuesta con error se rechaza",
+  );
+
+  // 9. Las redirecciones se vuelven a pasar por la misma puerta. Un servidor
+  //    público de hoy puede redirigir a la red interna mañana, y `fetch`
+  //    seguiría ese salto sin rechistar si no se comprobara aquí.
+  await rechaza(
+    () => traerAudio(directa, 10_000, async () => redireccion("http://169.254.169.254/")),
+    "una redirección a la IP de metadatos de la nube se rechaza",
+  );
+  await rechaza(
+    () => traerAudio(directa, 10_000, async () => redireccion("file:///etc/passwd")),
+    "una redirección a `file:` se rechaza",
+  );
+  await rechaza(
+    () => traerAudio(directa, 10_000, async () => redireccion(directa)),
+    "una cadena de redirecciones que nunca termina se corta por el tope de saltos",
+  );
+
+  // Pero una redirección legítima —a otra dirección pública— sí se sigue:
+  // es el camino que hace falta que funcione, porque Drive redirige.
+  let llamada = 0;
+  const destinoFinal = "https://ejemplo.org/audios/definitivo.mp3";
+  const porRedireccion = await traerAudio(directa, 10_000, async () => {
+    llamada++;
+    return llamada === 1 ? redireccion(destinoFinal) : respuesta(bytes, { "content-type": "audio/mpeg" });
+  });
+  afirmar(porRedireccion.tipo === "audio/mpeg", "una redirección legítima se sigue y trae el destino");
+  afirmar(
+    porRedireccion.nombre === "definitivo.mp3",
+    `y el nombre sale de la dirección de destino (${porRedireccion.nombre})`,
+  );
+
+  // 10. Los mismos rangos privados, pero en IPv6: `URL` deja el literal con
+  //     corchetes en `hostname` (`[::1]`), y hay que reconocerlo igual.
+  await rechaza(() => direccionDeDescarga("http://[::1]/"), "IPv6 loopback `[::1]` se rechaza");
+  await rechaza(
+    () => direccionDeDescarga("http://[::ffff:127.0.0.1]/"),
+    "IPv4 embebida en IPv6 `[::ffff:127.0.0.1]` se rechaza",
+  );
+  await rechaza(
+    () => direccionDeDescarga("http://[fd00::1]/"),
+    "IPv6 unique-local `[fd00::1]` se rechaza",
+  );
+  await rechaza(
+    () => direccionDeDescarga("http://[fe80::1]/"),
+    "IPv6 link-local `[fe80::1]` se rechaza",
   );
 
   console.log("\nTodo bien.");
