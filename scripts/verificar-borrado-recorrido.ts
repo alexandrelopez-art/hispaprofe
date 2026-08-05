@@ -181,6 +181,42 @@ async function main() {
     },
   });
 
+  // El caso crítico: la imagen del profesor, no la voz de un alumno.
+  // `grabacionesBorrables` solo mira `PasoCompletado.entrega`, y esa columna
+  // es texto libre del alumno —lo avisa `lib/expresion.ts`—, así que nada le
+  // impide teclear la dirección de una imagen que vio en un `Bloque` de este
+  // mismo paso, `/api/archivos/<id>`, como entrega de una tarea **escrita**:
+  // `puedeEntregar` no mira el contenido, solo el largo y la modalidad. Sin el
+  // filtro por `privado`, ese archivo del profesor entraría como candidato y
+  // el barrido se lo llevaría por delante de todas las demás secuencias y
+  // ejercicios que lo usan.
+  const tercerPaso = await prisma.paso.create({
+    data: { recorridoId: recorrido.id, orden: 3, ciclo: 1, tipo: "ACTIVIDAD", titulo: "Paso 3" },
+  });
+  const espabilado = await prisma.user.create({
+    data: { email: `espabilado-${marca}@ejemplo.test`, role: "STUDENT" },
+  });
+  const suAsignacionEspabilado = await prisma.asignacion.create({
+    data: { estudianteId: espabilado.id, profesorId: profesor.id, recorridoId: recorrido.id },
+  });
+  const imagenProfe = await prisma.archivo.create({
+    data: {
+      nombre: "imagen-profe.webp",
+      tipo: "image/webp",
+      tamano: 3,
+      datos: Buffer.from("abc"),
+      privado: false,
+      subidoPorId: profesor.id,
+    },
+  });
+  await prisma.pasoCompletado.create({
+    data: {
+      asignacionId: suAsignacionEspabilado.id,
+      pasoId: tercerPaso.id,
+      entrega: `/api/archivos/${imagenProfe.id}`,
+    },
+  });
+
   const clase = await prisma.clase.create({
     data: { profesorId: profesor.id, estudianteId: alumno.id, empiezaEl: new Date(), minutos: 60 },
   });
@@ -192,32 +228,42 @@ async function main() {
   });
 
   const resumen = await resumenDeBorrado(recorrido.id);
-  afirmar(resumen.pasos === 2, `el resumen cuenta los dos pasos (${resumen.pasos})`);
-  afirmar(resumen.alumnos === 2, `los dos alumnos asignados (${resumen.alumnos})`);
-  afirmar(resumen.pasosHechos === 2, `los dos pasos hechos (${resumen.pasosHechos})`);
+  afirmar(resumen.pasos === 3, `el resumen cuenta los tres pasos (${resumen.pasos})`);
+  afirmar(resumen.alumnos === 3, `los tres alumnos asignados (${resumen.alumnos})`);
+  afirmar(resumen.pasosHechos === 3, `los tres pasos hechos (${resumen.pasosHechos})`);
   afirmar(resumen.notas === 1, `una sola nota puesta (${resumen.notas})`);
-  // Dos: la entrega del listillo también empieza por el prefijo, y el resumen
-  // cuenta lo que hay escrito, no lo que resulte borrable. Distinguirlas es
-  // trabajo de `grabacionesBorrables`, dos afirmaciones más abajo.
-  afirmar(resumen.grabaciones === 2, `dos entregas con pinta de grabación (${resumen.grabaciones})`);
+  // Tres: la entrega del listillo y la del espabilado también empiezan por el
+  // prefijo, y el resumen cuenta lo que hay escrito, no lo que resulte
+  // borrable. Distinguirlas es trabajo de `grabacionesBorrables`, ahí abajo.
+  afirmar(resumen.grabaciones === 3, `tres entregas con pinta de grabación (${resumen.grabaciones})`);
 
-  const borrables = await grabacionesBorrables(recorrido.id);
+  // Se calcula aquí, antes del barrido, con los mismos `pasoIds` que usa
+  // `borrarRecorrido`: es lo que de verdad se ejercita.
+  const pasoIds = [paso.id, segundoPaso.id, tercerPaso.id];
+
+  const borrables = await grabacionesBorrables(recorrido.id, pasoIds);
   afirmar(borrables.includes(suya.id), "la grabación de esta secuencia es borrable");
   afirmar(
     !borrables.includes(deOtra.id),
     "y la que nombra una entrega de otra secuencia, no: no se destruye de más",
   );
+  afirmar(
+    !borrables.includes(imagenProfe.id),
+    "y la imagen del profesor tampoco, aunque la nombre una entrega de esta secuencia: no es privada",
+  );
 
   // El barrido. La acción no se puede llamar desde aquí —necesita sesión—, así
   // que se ejecuta la misma transacción que ella, que es lo que se comprueba.
-  const pasoIds = [paso.id, segundoPaso.id];
+  // `pasoCompletado`, `bloque` y `pasoEjercicio` filtran por relación con
+  // `Paso` y no por la lista de ids, igual que `borrarRecorrido`: `citaOral` y
+  // `escucha` no pueden, porque su `pasoId` no tiene relación declarada.
   await prisma.$transaction([
     prisma.citaOral.deleteMany({ where: { pasoId: { in: pasoIds } } }),
     prisma.escucha.deleteMany({ where: { pasoId: { in: pasoIds } } }),
-    prisma.pasoCompletado.deleteMany({ where: { pasoId: { in: pasoIds } } }),
+    prisma.pasoCompletado.deleteMany({ where: { paso: { recorridoId: recorrido.id } } }),
     prisma.archivo.deleteMany({ where: { id: { in: borrables } } }),
-    prisma.bloque.deleteMany({ where: { pasoId: { in: pasoIds } } }),
-    prisma.pasoEjercicio.deleteMany({ where: { pasoId: { in: pasoIds } } }),
+    prisma.bloque.deleteMany({ where: { paso: { recorridoId: recorrido.id } } }),
+    prisma.pasoEjercicio.deleteMany({ where: { paso: { recorridoId: recorrido.id } } }),
     prisma.asignacion.deleteMany({ where: { recorridoId: recorrido.id } }),
     prisma.paso.deleteMany({ where: { recorridoId: recorrido.id } }),
     prisma.recorrido.delete({ where: { id: recorrido.id } }),
@@ -244,6 +290,10 @@ async function main() {
     (await prisma.archivo.findUnique({ where: { id: deOtra.id } })) !== null,
     "y la grabación que nombraba otra secuencia, también",
   );
+  afirmar(
+    (await prisma.archivo.findUnique({ where: { id: imagenProfe.id } })) !== null,
+    "y la imagen del profesor, aunque una entrega de esta secuencia la nombrara, sigue viva: no era privada",
+  );
 
   // Limpieza de lo que queda en pie. El orden lo mandan las claves ajenas:
   // los pasos completados antes que su asignación, la clase antes que su
@@ -256,8 +306,9 @@ async function main() {
   await prisma.recorrido.delete({ where: { id: otraSecuencia.id } });
   await prisma.ejercicio.delete({ where: { id: ejercicio.id } });
   await prisma.archivo.delete({ where: { id: deOtra.id } });
+  await prisma.archivo.delete({ where: { id: imagenProfe.id } });
   await prisma.user.deleteMany({
-    where: { id: { in: [profesor.id, alumno.id, listillo.id] } },
+    where: { id: { in: [profesor.id, alumno.id, listillo.id, espabilado.id] } },
   });
   await prisma.$disconnect();
 

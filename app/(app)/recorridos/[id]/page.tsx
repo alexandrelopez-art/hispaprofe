@@ -69,8 +69,9 @@ export default async function RecorridoDetallePage({
   const esProfe =
     usuario?.role === "PROFESOR" || usuario?.role === "ADMIN";
 
-  // Solo se calculan si se va a pintar: son dos consultas y no hay por qué
-  // pagarlas para no enseñar nada.
+  // Solo se calculan si se va a pintar: `resumenDeBorrado` hace cinco viajes
+  // (todo `count`, ninguno trae filas enteras), y no hay por qué pagarlos
+  // para no enseñar nada.
   const sePuedeBorrar = puedeBorrarRecorrido(usuario, recorrido);
   const aviso = sePuedeBorrar
     ? avisoDeBorrado(recorrido.titulo, await resumenDeBorrado(recorrido.id))
@@ -356,7 +357,7 @@ export default async function RecorridoDetallePage({
                         <form action={borrarPaso}>
                           <input type="hidden" name="pasoId" value={paso.id} />
                           <BotonConfirmar
-                            aviso={`¿Borrar el paso "${paso.titulo}"? Se borra también su contenido y el registro de quién lo había completado.`}
+                            aviso={`¿Borrar el paso "${paso.titulo}"? Se borra también su contenido, el registro de quién lo había completado y las grabaciones que hayan entregado los alumnos, sin vuelta atrás.`}
                             title="Borrar paso"
                             className="rounded-lg border border-hp-200 px-2 py-0.5 text-xs font-bold text-tinta-suave transition-colors hover:border-bloque3 hover:text-tinta"
                           >
