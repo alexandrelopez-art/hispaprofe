@@ -157,10 +157,10 @@ async function porDireccion(peticion: Request, usuarioId: string): Promise<Respo
     );
   }
 
-  // Solo por dirección se admite un tipo vacío, y con motivo: Drive manda
-  // `application/octet-stream`, así que exigir aquí uno de `TIPOS_AUDIO`
-  // rechazaría un MP3 sano. Quien decide entonces es el compresor, que es el
-  // único que abre el archivo de verdad y ya sabe rechazar lo que no es audio.
+  // Esta condición no puede darse hoy: `traerAudio` solo devuelve `""` o uno
+  // de los valores de `POR_EXTENSION`, y los siete están dentro de
+  // `TIPOS_AUDIO`. Se queda como defensa en profundidad, para el día en que
+  // `traerAudio` aprenda a devolver algo más y nadie repase este rechazo.
   if (traido.tipo && !TIPOS_AUDIO.includes(traido.tipo)) {
     return Response.json(
       { error: "Lo que hay en esa dirección no es un audio de los que admitimos." },

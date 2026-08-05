@@ -173,9 +173,13 @@ export function seOyeLaEntrega(datos: Expresion, entrega: string | null): boolea
 export const MAXIMO_AUDIO_RECIBIDO = 4 * 1024 * 1024;
 
 /**
- * Lo que aceptamos guardar de un alumno, ya comprimido. Quince minutos rondan
- * los 5 MB, así que diez son holgados: está para que una grabación que el
- * compresor no logre encoger no entre entera en la base.
+ * Una red por debajo del tope de recepción, y hoy inalcanzable: lo que entra
+ * ya está topado por `MAXIMO_AUDIO_RECIBIDO` (4 MB), y `comprimirAudio` nunca
+ * devuelve más bytes de los que entraron —cuando comprimir no encoge, se
+ * queda con el original—, así que nada que llegue aquí puede pesar más de
+ * cuatro. Diez sigue puesto por si un día sube ese tope de recepción sin que
+ * nadie se acuerde de mover este con él: una guarda de más no hace daño.
+ * Quince minutos de grabación, al caudal de hoy (32 kbps), rondan los 3,6 MB.
  *
  * El nombre dice «grabación» y no «audio» a propósito: `app/api/archivos/`
  * tiene su propio tope de guardado, de 20 MB, para el material que sube el

@@ -83,8 +83,12 @@ const EXTENSIONES: Record<string, string> = {
 
 /**
  * Un nombre legible para lo que graba el navegador, que llega sin ninguno.
- * `comprimirAudio` nombra con él el archivo temporal, y acaba en la columna
- * `Archivo.nombre`, que es lo que ve el profesor.
+ * Acaba en la columna `Archivo.nombre`, que es lo que ve el profesor —pero no
+ * lo usa `comprimirAudio` para nombrar nada en disco: sus archivos
+ * temporales se llaman siempre `entrada` y `salida-N.m4a`, fijos a
+ * propósito, para que un `Content-Disposition` hostil de la vía por
+ * dirección no pueda escribir donde quiera en el sistema de archivos con lo
+ * que ponga aquí.
  */
 export function nombreDeGrabacion(tipo: string): string {
   return `grabacion.${EXTENSIONES[tipo] ?? "audio"}`;
