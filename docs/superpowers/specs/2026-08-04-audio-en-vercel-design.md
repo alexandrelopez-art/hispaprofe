@@ -41,8 +41,14 @@ ni servicio nuevo, ni migración, ni tocar `puedeOirse`.
 ## 1. Servir: el cuerpo pasa a ser un flujo
 
 `app/api/archivos/[id]/route.ts` devuelve el cuerpo como `ReadableStream` en
-sus tres salidas —el archivo entero, el trozo del 206 y el 416— en vez de un
-`Uint8Array` ya formado.
+las dos salidas que llevan bytes —el archivo entero y el trozo del 206— en vez
+de un `Uint8Array` ya formado. El 416 y los 404 no se tocan: su cuerpo es una
+frase.
+
+El flujo va por trozos de verdad (256 KB), no encolando el archivo entero de
+una vez: un solo `enqueue` con seis megas dentro es un cuerpo formado con
+`ReadableStream` de disfraz, y no hay por qué apostar a que la plataforma lo
+mire con buenos ojos.
 
 No se toca nada más de esa ruta: ni los permisos, ni `interpretarRango`, ni las
 cabeceras de caché, ni el `Vary: Range`. Es solo la forma del cuerpo.
@@ -133,10 +139,18 @@ exige `PROFESOR` o `ADMIN`—, esa puerta se cierra desde el primer día: solo
 metadatos de la nube. Que hoy no haya nada interesante detrás de esa puerta no
 es motivo para dejarla abierta.
 
-**Y no fiarse de lo que llega.** El tipo declarado por un servidor ajeno no
-manda: se comprueba contra `TIPOS_AUDIO` como cualquier subida, y se corta la
-descarga si pasa del tope de recepción en vez de leer en memoria lo que el otro
-lado quiera mandar.
+**Y no fiarse de lo que llega.** Se corta la descarga en cuanto pasa del tope
+en vez de leer en memoria lo que el otro lado quiera mandar.
+
+Con el tipo hay que ser más listo que en una subida, y conviene decir por qué:
+**Drive no manda el tipo real**, manda `application/octet-stream`. Comprobar
+contra `TIPOS_AUDIO` a secas —lo que haría cualquiera— rechazaría un MP3
+perfectamente sano. Así que el tipo se resuelve en cascada: el que declara el
+servidor si es uno de los nuestros; si no, el que diga la extensión del nombre
+que venga en el `Content-Disposition` o en la dirección; y si tampoco, se deja
+que **decida el compresor**, que es el único que abre el archivo de verdad y ya
+sabe rechazar lo que no es audio con un mensaje claro. Un tipo declarado por un
+servidor ajeno nunca se guarda tal cual en `Archivo.tipo`.
 
 ### En la pantalla
 
@@ -201,7 +215,8 @@ comprobarlo en vez de suponerlo.
 
 | Archivo | Responsabilidad |
 |---|---|
-| `lib/enlaces.ts` | **Crear.** Traducir un enlace a su dirección directa y rechazar las que no se pueden pedir. |
+| `lib/enlaces.ts` | **Crear.** Traducir un enlace a su dirección directa, rechazar las que no se pueden pedir, y traerse el archivo con el tope puesto. |
+| `lib/flujo.ts` | **Crear.** Convertir unos bytes en un cuerpo que sale por trozos. |
 | `lib/audio.ts` | **Modificar.** El tercer compresor, el empaquetado. |
 | `app/api/archivos/[id]/route.ts` | **Modificar.** El cuerpo, en flujo. |
 | `app/api/archivos/route.ts` | **Modificar.** La entrada por dirección, y `maxDuration`. |
