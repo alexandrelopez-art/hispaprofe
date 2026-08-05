@@ -47,6 +47,11 @@ export default function SubirAudio({
   // Lo que hay escrito en el campo de la dirección, que ya no se guarda solo
   // por escribirlo: ahora hay un botón que va a buscarlo.
   const [direccion, setDireccion] = useState("");
+  // Subir, traer y quitar escriben todos sobre el mismo `valor` y el mismo
+  // `error`: dos a la vez dejan la pantalla diciendo una cosa y el ejercicio
+  // guardando otra. Por eso las tres se deshabilitan juntas, no cada una por
+  // su cuenta.
+  const ocupado = subiendo || trayendo;
 
   async function subir(archivo: File) {
     if (archivo.size > MAXIMO_SUBIDA) {
@@ -126,7 +131,7 @@ export default function SubirAudio({
         />
         <button
           type="button"
-          disabled={subiendo}
+          disabled={ocupado}
           onClick={() => entrada.current?.click()}
           className="h-9 rounded-full border border-hp-200 px-4 text-sm font-bold text-tinta transition-colors hover:border-hp-400 disabled:opacity-40"
         >
@@ -142,7 +147,7 @@ export default function SubirAudio({
         />
         <button
           type="button"
-          disabled={trayendo || !direccion.trim()}
+          disabled={ocupado || !direccion.trim()}
           onClick={traer}
           className="h-9 rounded-full border border-hp-200 px-4 text-sm font-bold text-tinta transition-colors hover:border-hp-400 disabled:opacity-40"
         >
@@ -152,8 +157,9 @@ export default function SubirAudio({
         {valor && (
           <button
             type="button"
+            disabled={ocupado}
             onClick={() => alCambiar(undefined)}
-            className="text-sm font-semibold text-tinta-suave underline hover:text-hp-500"
+            className="text-sm font-semibold text-tinta-suave underline hover:text-hp-500 disabled:opacity-40"
           >
             Quitar
           </button>
