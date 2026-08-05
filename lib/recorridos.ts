@@ -133,9 +133,12 @@ export async function grabacionesBorrables(recorridoId: string): Promise<string[
   );
   if (candidatos.size === 0) return [];
 
-  // Quién más los nombra, mirando solo fuera de esta secuencia.
+  // Quién más los nombra, mirando solo fuera de esta secuencia. El filtro por
+  // el prefijo lo pone la propia base de datos: sin él, esta consulta traería
+  // la entrega de cada `PasoCompletado` de toda la aplicación —el texto de
+  // cada redacción incluido— solo para descartarlo aquí mismo en memoria.
   const fuera = await prisma.pasoCompletado.findMany({
-    where: { pasoId: { notIn: pasoIds } },
+    where: { pasoId: { notIn: pasoIds }, entrega: { startsWith: PREFIJO_GRABACION } },
     select: { entrega: true },
   });
   for (const { entrega } of fuera) {

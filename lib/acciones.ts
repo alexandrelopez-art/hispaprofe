@@ -5,6 +5,8 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getUsuarioActual } from "@/lib/usuario";
 import { exigirProfesor } from "@/lib/profesor";
+import { grabacionesBorrables, puedeBorrarRecorrido } from "@/lib/recorridos";
+import { esGrabacionEntregada, PREFIJO_GRABACION } from "@/lib/expresion";
 import { listarEstudiantes } from "@/lib/google";
 import { desmarcarSiNoRevisado } from "@/lib/progreso";
 import { estudianteAsignable } from "@/lib/estudiantes";
@@ -545,8 +547,33 @@ export async function borrarPaso(formData: FormData) {
   });
   if (!paso) return;
 
+  // Las mismas dos cosas que en `borrarRecorrido`, por el mismo motivo: la
+  // escucha cuelga del paso por un `pasoId` sin relación, y la grabación de
+  // una entrega no la borra nadie más. Se calcula antes de la transacción.
+  const entregas = await prisma.pasoCompletado.findMany({
+    where: { pasoId },
+    select: { entrega: true },
+  });
+  const suyos = entregas
+    .filter((c) => esGrabacionEntregada(c.entrega))
+    .map((c) => c.entrega!.slice(PREFIJO_GRABACION.length));
+  // Solo los que no nombre nadie más, por lo mismo que en `borrarRecorrido`:
+  // `entrega` es texto libre del alumno.
+  const fuera = await prisma.pasoCompletado.findMany({
+    where: { pasoId: { not: pasoId }, entrega: { startsWith: PREFIJO_GRABACION } },
+    select: { entrega: true },
+  });
+  const nombradosFuera = new Set(
+    fuera
+      .filter((c) => esGrabacionEntregada(c.entrega))
+      .map((c) => c.entrega!.slice(PREFIJO_GRABACION.length)),
+  );
+  const archivoIds = suyos.filter((id) => !nombradosFuera.has(id));
+
   await prisma.$transaction([
     prisma.pasoCompletado.deleteMany({ where: { pasoId } }),
+    prisma.escucha.deleteMany({ where: { pasoId } }),
+    prisma.archivo.deleteMany({ where: { id: { in: archivoIds } } }),
     // `CitaOral.pasoId` no tiene relación —está razonado en el esquema—, así
     // que nada la borra en cascada: sin esto, la clase seguía pintando una
     // línea con el nombre del alumno y sin título para siempre, y
@@ -1079,4 +1106,58 @@ export async function desmarcarPasoHecho(formData: FormData) {
   revalidatePath(`/pasos/${pasoId}`);
   revalidatePath(`/recorridos/${paso.recorridoId}`);
   revalidatePath("/dashboard");
+}
+
+/**
+ * Borra una secuencia entera con todo lo que cuelga de ella.
+ *
+ * `exigirProfesor` no basta y por eso hay una segunda comprobación: esa solo
+ * dice «eres profesor o administrador», y aquí hace falta saber si esta
+ * secuencia es tuya. La regla vive en `lib/recorridos.ts` para que un script
+ * pueda ejercitar los cuatro casos.
+ */
+export async function borrarRecorrido(formData: FormData) {
+  const usuario = await exigirProfesor();
+  const recorridoId = String(formData.get("recorridoId") ?? "");
+  if (!recorridoId) return;
+
+  const recorrido = await prisma.recorrido.findUnique({
+    where: { id: recorridoId },
+    select: { autorId: true },
+  });
+  if (!recorrido) return;
+  if (!puedeBorrarRecorrido(usuario, recorrido)) return;
+
+  const pasos = await prisma.paso.findMany({
+    where: { recorridoId },
+    select: { id: true },
+  });
+  const pasoIds = pasos.map((p) => p.id);
+
+  // Fuera de la transacción a propósito: son dos lecturas que deciden qué
+  // archivos se pueden llevar, y meterlas dentro alargaría la transacción sin
+  // ganar nada. Lo peor que puede pasar entre medias es que alguien entregue
+  // una grabación nueva, y esa se queda en pie en vez de borrarse de más.
+  const archivoIds = await grabacionesBorrables(recorridoId);
+
+  await prisma.$transaction([
+    // `CitaOral.pasoId` y `Escucha.pasoId` no tienen relación declarada —está
+    // razonado en el esquema—, así que nada las borra en cascada. Es la misma
+    // trampa que ya aprendió `borrarPaso` con las citas.
+    prisma.citaOral.deleteMany({ where: { pasoId: { in: pasoIds } } }),
+    prisma.escucha.deleteMany({ where: { pasoId: { in: pasoIds } } }),
+    prisma.pasoCompletado.deleteMany({ where: { pasoId: { in: pasoIds } } }),
+    // Las voces de los alumnos. Sin esto quedarían en la base sin nada que las
+    // referencie: ni accesibles ni suprimibles.
+    prisma.archivo.deleteMany({ where: { id: { in: archivoIds } } }),
+    prisma.bloque.deleteMany({ where: { pasoId: { in: pasoIds } } }),
+    prisma.pasoEjercicio.deleteMany({ where: { pasoId: { in: pasoIds } } }),
+    prisma.asignacion.deleteMany({ where: { recorridoId } }),
+    prisma.paso.deleteMany({ where: { recorridoId } }),
+    prisma.recorrido.delete({ where: { id: recorridoId } }),
+  ]);
+
+  revalidatePath("/recorridos");
+  revalidatePath("/dashboard");
+  redirect("/recorridos");
 }
