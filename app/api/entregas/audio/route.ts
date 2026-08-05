@@ -16,6 +16,12 @@ import { prisma } from "@/lib/prisma";
 import { getUsuarioActual } from "@/lib/usuario";
 
 /**
+ * Comprimir tarda unos segundos; cinco minutos es el máximo del plan y va de
+ * sobra.
+ */
+export const maxDuration = 300;
+
+/**
  * El alumno manda su grabación.
  *
  * Ruta aparte de `/api/archivos` y no un parámetro más de aquella por tres

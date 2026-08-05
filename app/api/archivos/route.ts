@@ -2,6 +2,13 @@ import { comprimirAudio, CompresorAusenteError, tipoBase, TIPOS_AUDIO } from "@/
 import { prisma } from "@/lib/prisma";
 import { getUsuarioActual } from "@/lib/usuario";
 
+/**
+ * Comprimir quince minutos de audio tarda unos segundos, pero traerse un MP3
+ * de 36 MB de una dirección ajena puede tardar bastante más. Cinco minutos es
+ * el máximo del plan que hay, y de sobra para las dos cosas.
+ */
+export const maxDuration = 300;
+
 // Tope tras redimensionar en el navegador. Una foto de 4000 px comprimida
 // a WebP baja de 400 KB, así que 4 MB solo salta con algo muy raro.
 const MAXIMO_IMAGEN = 4 * 1024 * 1024;

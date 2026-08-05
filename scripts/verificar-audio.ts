@@ -5,6 +5,7 @@
  * Ejecutar con:  npx tsx scripts/verificar-audio.ts
  */
 import { compresoresInstalados, comprimirAudio, generarWav, hayCompresor } from "@/lib/audio";
+import ffmpegEmpaquetado from "ffmpeg-static";
 
 function afirmar(condicion: boolean, mensaje: string) {
   if (!condicion) throw new Error(`FALLO: ${mensaje}`);
@@ -23,6 +24,15 @@ async function main() {
         "así que no se puede verificar nada. En macOS afconvert viene puesto.",
     );
   }
+
+  // El empaquetado tiene que estar siempre, y eso es lo que distingue «hay
+  // ffmpeg en esta máquina por casualidad» de «lo llevamos puesto». Es la
+  // única afirmación que se puede hacer aquí sobre lo que habrá en Vercel.
+  const instalados = await compresoresInstalados();
+  afirmar(
+    instalados.includes("ffmpeg empaquetado"),
+    `el compresor empaquetado está disponible (hay: ${instalados.join(", ")})`,
+  );
 
   // 1. Comprimir reduce. Veinte segundos de WAV son 1,7 MB; comprimidos no
   //    llegan a 200 KB.
@@ -92,7 +102,9 @@ async function main() {
   //    `afconvert` no abre el WebM que graba Chrome. Con un solo compresor
   //    instalado eso no se puede ejercitar aquí, y se dice en vez de fingir
   //    una afirmación que pasaría igual con el arreglo y sin él.
-  const instalados = await compresoresInstalados();
+  //    (Ya se calculó arriba, para la afirmación del empaquetado: los
+  //    compresores están memorizados, así que repetir la llamada no repetiría
+  //    la búsqueda.)
   console.log(`\nCompresores instalados: ${instalados.join(", ")}`);
   if (instalados.length < 2) {
     console.log(
@@ -113,8 +125,13 @@ async function main() {
       const origen = join(carpeta, "tono.wav");
       const webm = join(carpeta, "tono.webm");
       await writeFile(origen, generarWav(2));
+      // El empaquetado si no hay uno suelto en el PATH: con `afconvert` +
+      // empaquetado (el caso normal de un Mac sin ffmpeg instalado aparte)
+      // `instalados.length` ya es 2 y se entra aquí, así que no se puede dar
+      // por hecho que existe un `ffmpeg` a secas.
+      const ffmpegParaFabricar = ffmpegEmpaquetado ?? "ffmpeg";
       await new Promise<void>((ok, mal) => {
-        const p = spawn("ffmpeg", ["-y", "-nostdin", "-i", origen, "-c:a", "libopus", webm]);
+        const p = spawn(ffmpegParaFabricar, ["-y", "-nostdin", "-i", origen, "-c:a", "libopus", webm]);
         p.on("error", mal);
         p.on("close", (c) => (c === 0 ? ok() : mal(new Error(`ffmpeg salió con ${c}`))));
       });
