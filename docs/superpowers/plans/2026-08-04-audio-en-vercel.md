@@ -17,6 +17,7 @@
 - **Tope de la plataforma: 4,5 MB** de cuerpo de petición, y de respuesta solo cuando el cuerpo se forma entero antes de mandarlo. Ningún número nuevo puede prometer más que eso por el camino del navegador.
 - **Comprobación de tipos y estilo tras cada tarea**: `npx tsc --noEmit` y `npm run lint`, los dos limpios antes de commitear.
 - **Un commit por tarea**, con el mensaje en el estilo del repositorio: una frase que diga qué cambia de comportamiento, sin prefijos tipo `feat:`.
+- **Cómo se verifica aquí**: el proyecto **no tiene framework de tests**. Lo que se comprueba solo se comprueba con scripts `scripts/verificar-*.ts`, ejecutados con `npx tsx`, y por eso la lógica verificable vive en `lib/`. Las rutas de `app/api/` y los componentes de `components/` **no llevan test automático**: se comprueban a mano, y cada tarea que los toca dice cómo. No es un descuido de este plan, es la convención establecida en las quince verificaciones que ya hay en `scripts/`.
 
 ---
 
@@ -423,6 +424,22 @@ import ffmpegEmpaquetado from "ffmpeg-static";
 Y la lista pasa a ser (nótese el `nombre` nuevo en los dos que ya había, y el tercero al final):
 
 ```ts
+/**
+ * Los argumentos de ffmpeg, que ahora los usan dos entradas de la lista: el
+ * `ffmpeg` que pueda haber en el `PATH` y el que llevamos empaquetado. Es el
+ * mismo programa, así que se le habla igual; escribirlo dos veces sería dejar
+ * puesta la trampa de que un día alguien arregle una copia y no la otra.
+ *
+ * `-vn` descarta cualquier flujo de vídeo: muchos MP3 llevan una carátula
+ * incrustada, que ffmpeg trata como vídeo (mjpeg) y selecciona por defecto, y
+ * el muxer de `.m4a` no admite mjpeg y aborta con un MP3 perfectamente sano.
+ * `-nostdin` evita que, lanzado sin terminal, se quede esperando entrada por
+ * teclado en vez de fallar o terminar.
+ */
+const ARGS_FFMPEG = (e: string, s: string) => [
+  "-y", "-nostdin", "-i", e, "-vn", "-ac", "1", "-c:a", "aac", "-b:a", "48k", s,
+];
+
 const COMPRESORES: Compresor[] = [
   {
     nombre: "afconvert",
@@ -431,13 +448,8 @@ const COMPRESORES: Compresor[] = [
   },
   {
     nombre: "ffmpeg",
-    // `-vn` descarta cualquier flujo de vídeo: muchos MP3 llevan una carátula
-    // incrustada, que ffmpeg trata como vídeo (mjpeg) y selecciona por
-    // defecto, y el muxer de `.m4a` no admite mjpeg y aborta con un MP3
-    // perfectamente sano. `-nostdin` evita que, lanzado sin terminal, se
-    // quede esperando entrada por teclado en vez de fallar o terminar.
     orden: "ffmpeg",
-    args: (e, s) => ["-y", "-nostdin", "-i", e, "-vn", "-ac", "1", "-c:a", "aac", "-b:a", "48k", s],
+    args: ARGS_FFMPEG,
   },
   // El último a propósito: es el único que existe siempre, así que ponerlo
   // antes dejaría los otros dos sin usarse nunca. Y hace falta porque en
@@ -453,15 +465,7 @@ const COMPRESORES: Compresor[] = [
   // distribuye —corre en nuestro servidor, a nadie le llega una copia—, y la
   // GPLv3 no tiene cláusula de uso en red.
   ...(ffmpegEmpaquetado
-    ? [
-        {
-          nombre: "ffmpeg empaquetado",
-          orden: ffmpegEmpaquetado,
-          args: (e: string, s: string) => [
-            "-y", "-nostdin", "-i", e, "-vn", "-ac", "1", "-c:a", "aac", "-b:a", "48k", s,
-          ],
-        },
-      ]
+    ? [{ nombre: "ffmpeg empaquetado", orden: ffmpegEmpaquetado, args: ARGS_FFMPEG }]
     : []),
 ];
 ```
