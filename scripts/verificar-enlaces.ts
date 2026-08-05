@@ -170,6 +170,43 @@ async function main() {
     "IPv6 link-local `[fe80::1]` se rechaza",
   );
 
+  // 11. Las mismas cinco formas de decir «localhost» o «el servicio de
+  //     metadatos» en IPv6 que se colaban comparando prefijos de texto: se
+  //     comprueban una a una porque son justo la prueba de que decidir sobre
+  //     los bytes, y no sobre cómo esté escrito, cierra la clase entera.
+  await rechaza(
+    () => direccionDeDescarga("http://[::127.0.0.1]/"),
+    "loopback como IPv4-compatible antigua `[::127.0.0.1]` se rechaza",
+  );
+  await rechaza(
+    () => direccionDeDescarga("http://[0:0:0:0:0:0:127.0.0.1]/"),
+    "loopback escrita sin comprimir `[0:0:0:0:0:0:127.0.0.1]` se rechaza",
+  );
+  await rechaza(
+    () => direccionDeDescarga("http://[::ffff:0:127.0.0.1]/"),
+    "loopback mapeada con un grupo cero de más `[::ffff:0:127.0.0.1]` se rechaza",
+  );
+  await rechaza(
+    () => direccionDeDescarga("http://[64:ff9b::a9fe:a9fe]/"),
+    "metadatos de la nube vía NAT64 `[64:ff9b::a9fe:a9fe]` se rechaza",
+  );
+  await rechaza(
+    () => direccionDeDescarga("http://[64:ff9b::7f00:1]/"),
+    "loopback vía NAT64 `[64:ff9b::7f00:1]` se rechaza",
+  );
+
+  // Y lo que no hay que bloquear: una IPv4 pública embebida en IPv6 sigue
+  // siendo pública. Lo que decide es la IPv4 de dentro, no el hecho de venir
+  // embebida. Se compara contra lo que la propia `URL` normaliza —Node la
+  // deja en hexadecimal, `[::ffff:808:808]`— y no contra el texto de
+  // entrada, que es justo lo que este módulo ha dejado de mirar.
+  const publicaEmbebida = "http://[::ffff:8.8.8.8]/";
+  const resultadoEmbebida = direccionDeDescarga(publicaEmbebida);
+  afirmar(
+    resultadoEmbebida === new URL(publicaEmbebida).toString(),
+    `una IPv4 pública embebida en IPv6, [::ffff:8.8.8.8], no se rechaza (${resultadoEmbebida})`,
+  );
+
   console.log("\nTodo bien.");
 }
 

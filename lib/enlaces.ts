@@ -58,43 +58,99 @@ function esPrivada(maquina: string): boolean {
 }
 
 /**
- * La IPv4 escondida dentro de un literal IPv6 mapeado (`::ffff:a.b.c.d`), o
- * `null` si `direccion` no es de esa forma.
+ * Los 16 bytes de un literal IPv6, o `null` si `literal` no es uno válido.
+ * Deshace el `::` que comprime una tirada de ceros, y admite que el último
+ * grupo venga escrito como IPv4 con puntos (`::a.b.c.d`).
  *
- * Node normaliza a hexadecimal (`::ffff:7f00:1`) y no a puntos
- * (`::ffff:127.0.0.1`), así que hay que deshacer eso: los dos grupos finales
- * de 16 bits son, en realidad, los cuatro bytes de la IPv4.
+ * Existe porque decidir sobre el texto no funciona: `127.0.0.1` se puede
+ * escribir dentro de un IPv6 como `::7f00:1`, como `0:0:0:0:0:0:127.0.0.1` o
+ * como `::ffff:0:127.0.0.1` —esta última con un grupo de ceros de más, que
+ * desplaza dónde cae cada cosa—, y comparar prefijos de texto contra esa
+ * lista es perseguir una lista que no se acaba nunca. El número que
+ * representan, en cambio, es siempre el mismo dieciséis bytes.
  */
-function ipv4DeV6Mapeada(direccion: string): string | null {
-  const mapeada = direccion.match(/^::ffff:(.+)$/i);
-  if (!mapeada) return null;
-  const resto = mapeada[1];
-  if (resto.includes(".")) return resto;
+function bytesDeV6(literal: string): number[] | null {
+  let texto = literal;
 
-  const grupos = resto.split(":");
-  if (grupos.length !== 2) return null;
-  const [alto, bajo] = grupos.map((g) => parseInt(g, 16));
-  if ([alto, bajo].some((n) => Number.isNaN(n))) return null;
-  return [(alto >> 8) & 0xff, alto & 0xff, (bajo >> 8) & 0xff, bajo & 0xff].join(".");
+  if (texto.includes(".")) {
+    // El último grupo es una IPv4: se convierte a los dos grupos
+    // hexadecimales que de verdad son, y el resto del análisis ya solo ve
+    // hexadecimal.
+    const ultimoDosPuntos = texto.lastIndexOf(":");
+    if (ultimoDosPuntos === -1) return null;
+    const octetos = texto.slice(ultimoDosPuntos + 1).split(".");
+    if (octetos.length !== 4 || octetos.some((o) => !/^\d{1,3}$/.test(o) || Number(o) > 255)) {
+      return null;
+    }
+    const [a, b, c, d] = octetos.map(Number);
+    texto = `${texto.slice(0, ultimoDosPuntos + 1)}${((a << 8) | b).toString(16)}:${((c << 8) | d).toString(16)}`;
+  }
+
+  const mitades = texto.split("::");
+  if (mitades.length > 2) return null; // como mucho un `::`
+
+  const izquierda = mitades[0] ? mitades[0].split(":") : [];
+  const derecha = mitades.length === 2 ? (mitades[1] ? mitades[1].split(":") : []) : [];
+  let grupos: string[];
+  if (mitades.length === 2) {
+    const relleno = 8 - izquierda.length - derecha.length;
+    if (relleno < 0) return null;
+    grupos = [...izquierda, ...Array(relleno).fill("0"), ...derecha];
+  } else {
+    grupos = izquierda;
+  }
+
+  if (grupos.length !== 8 || grupos.some((g) => !/^[0-9a-f]{1,4}$/i.test(g))) return null;
+
+  const bytes: number[] = [];
+  for (const grupo of grupos) {
+    const n = parseInt(grupo, 16);
+    bytes.push((n >> 8) & 0xff, n & 0xff);
+  }
+  return bytes;
 }
 
 /**
- * Los rangos de IPv6 que no salen a la web pública, ya sin los corchetes que
- * `URL` pone en `hostname`. El equivalente IPv6 de cada rango IPv4 de
- * `esPrivada`: `::1` es `127.0.0.1`, `fc00::/7` (unique-local) es
- * `10.0.0.0/8`, y `fe80::/10` (link-local) es `169.254.0.0/16` — y por tanto
- * donde vive el servicio de metadatos de la nube cuando se pide por IPv6.
+ * Los rangos de IPv6 que no salen a la web pública, decidido sobre los 16
+ * bytes y no sobre el texto —ver el porqué en `bytesDeV6`—. El equivalente
+ * IPv6 de cada rango IPv4 de `esPrivada`: `::1` es `127.0.0.1`, `fc00::/7`
+ * (unique-local) es `10.0.0.0/8`, y `fe80::/10` (link-local) es
+ * `169.254.0.0/16` — y por tanto donde vive el servicio de metadatos de la
+ * nube cuando se pide por IPv6.
  */
-function esPrivadaV6(direccion: string): boolean {
-  const normalizada = direccion.toLowerCase();
-  if (normalizada === "::1" || normalizada === "::") return true;
+function esPrivadaV6(literal: string): boolean {
+  const bytes = bytesDeV6(literal);
+  // `URL` ya dijo que esto es un literal IPv6 válido; si no se sabe
+  // interpretar aquí, es un hueco de este analizador y no una IPv6 rara de
+  // verdad, así que se rechaza en vez de fingir que se sabe que es pública.
+  if (!bytes) return true;
 
-  const primerGrupo = normalizada.split(":")[0];
-  if (/^f[cd]/.test(primerGrupo)) return true; // fc00::/7
-  if (/^fe[89ab]/.test(primerGrupo)) return true; // fe80::/10
+  if (bytes.every((b) => b === 0)) return true; // `::`, la no especificada
+  if (bytes.slice(0, 15).every((b) => b === 0) && bytes[15] === 1) return true; // `::1`, loopback
 
-  const v4 = ipv4DeV6Mapeada(normalizada);
-  return v4 !== null && esPrivada(v4);
+  if ((bytes[0] & 0xfe) === 0xfc) return true; // fc00::/7, unique-local
+  if (bytes[0] === 0xfe && (bytes[1] & 0xc0) === 0x80) return true; // fe80::/10, link-local
+  if (bytes[0] === 0xff) return true; // ff00::/8, multicast
+
+  // Las tres formas de IPv4 embebida se resuelven solas mirando los bytes:
+  // los doce primeros solo usan 0x00 y como mucho un grupo 0xffff que marca
+  // «lo que sigue es una IPv4» —da igual cuántos grupos de relleno
+  // explícitos escriba quien compone la dirección ni en qué grupo exacto
+  // caiga el `ffff`—, y los cuatro últimos son esa IPv4, que se comprueba
+  // con las mismas reglas que cualquier otra.
+  const prefijo = bytes.slice(0, 12);
+  if (prefijo.every((b) => b === 0x00 || b === 0xff)) {
+    return esPrivada(bytes.slice(12).join("."));
+  }
+
+  // El prefijo NAT64 (RFC 6052), la traducción automática IPv4 ↔ IPv6: la
+  // IPv4 va igual en los últimos cuatro bytes.
+  const NAT64 = [0x00, 0x64, 0xff, 0x9b, 0, 0, 0, 0, 0, 0, 0, 0];
+  if (prefijo.every((b, i) => b === NAT64[i])) {
+    return esPrivada(bytes.slice(12).join("."));
+  }
+
+  return false;
 }
 
 /**
