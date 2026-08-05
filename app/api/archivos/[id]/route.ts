@@ -1,4 +1,5 @@
 import { puedeOirse } from "@/lib/expresion";
+import { flujoDeBytes } from "@/lib/flujo";
 import { prisma } from "@/lib/prisma";
 import { interpretarRango } from "@/lib/rangos";
 import { getUsuarioActual } from "@/lib/usuario";
@@ -99,7 +100,7 @@ export async function GET(
 
   if (rango.clase === "trozo") {
     return new Response(
-      new Uint8Array(contenido.datos.subarray(rango.inicio, rango.fin + 1)),
+      flujoDeBytes(Buffer.from(contenido.datos.subarray(rango.inicio, rango.fin + 1))),
       {
         status: 206,
         headers: {
@@ -121,7 +122,14 @@ export async function GET(
     );
   }
 
-  return new Response(new Uint8Array(contenido.datos), {
+  // El cuerpo va en flujo por el tope de la plataforma: una respuesta formada
+  // entera antes de mandarla no puede pasar de 4,5 MB en Vercel, y un m4a de
+  // seis megas es justo lo que hay dentro de esta columna. Ver `lib/flujo.ts`.
+  //
+  // El `Content-Length` se queda: se sabe de antemano cuántos bytes son, y
+  // anunciarlos deja que el navegador pinte la barra de progreso y sepa
+  // cuándo ha terminado.
+  return new Response(flujoDeBytes(Buffer.from(contenido.datos)), {
     headers: {
       "Content-Type": cabecera.tipo,
       // Los bytes que se mandan, no lo que diga la columna `tamano`: las otras
