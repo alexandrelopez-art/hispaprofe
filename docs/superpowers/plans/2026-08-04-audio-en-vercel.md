@@ -28,7 +28,9 @@
 - Create: `scripts/verificar-flujo.ts`
 
 **Interfaces:**
-- Produces: `flujoDeBytes(datos: Buffer, trozo?: number): ReadableStream<Uint8Array>` — la Task 2 lo consume.
+- Produces: `flujoDeBytes(datos: Uint8Array, trozo?: number): ReadableStream<Uint8Array>` — la Task 2 lo consume.
+
+  `Uint8Array` y no `Buffer`: es lo que devuelve Prisma 7 en una columna `Bytes`, y pedir un `Buffer` obliga a `Buffer.from(...)` en quien llama, que **copia el archivo entero** —seis megas— solo para contentar al comprobador de tipos. La función únicamente usa `.length` y `.subarray()`, y las dos están en `Uint8Array`.
 
 - [ ] **Step 1: Escribe la verificación que falla**
 
@@ -128,7 +130,7 @@ Expected: FAIL — no existe `@/lib/flujo`, error de resolución del módulo.
  */
 const TROZO_POR_DEFECTO = 256 * 1024;
 
-export function flujoDeBytes(datos: Buffer, trozo = TROZO_POR_DEFECTO): ReadableStream<Uint8Array> {
+export function flujoDeBytes(datos: Uint8Array, trozo = TROZO_POR_DEFECTO): ReadableStream<Uint8Array> {
   let enviado = 0;
   return new ReadableStream({
     // `pull` y no `start`: así se copia un trozo cuando el otro lado está
@@ -196,6 +198,8 @@ Sustituye la primera línea del `new Response(` del bloque `if (rango.clase === 
       {
         status: 206,
 ```
+
+Sin `Buffer.from(...)` por el medio: `contenido.datos` ya es un `Uint8Array` —es lo que devuelve Prisma en una columna `Bytes`— y envolverlo copiaría los seis megas enteros.
 
 El resto del bloque —las cabeceras, el `Content-Range`, el `Vary: Range`— no se toca.
 
