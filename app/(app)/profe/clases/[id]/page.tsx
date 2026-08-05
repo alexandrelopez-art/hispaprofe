@@ -453,6 +453,8 @@ export default async function ClasePage({
               clase.importeAMano && clase.importeCentimos !== null
                 ? (clase.importeCentimos / 100).toLocaleString("es-ES", {
                     minimumFractionDigits: 2,
+                    // Sin agrupar: lo que sale aquí viaja de vuelta por el mismo campo.
+                    useGrouping: false,
                   })
                 : ""
             }
