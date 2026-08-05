@@ -19,6 +19,9 @@ import {
   proximaClase,
   deberesPendientes,
   congelarImporte,
+  importeCaduca,
+  interpretarPrecio,
+  cambioDePrecio,
 } from "@/lib/clases";
 import { deInput, fechaHora, paraInput } from "@/lib/fechas";
 import { prisma } from "@/lib/prisma";
@@ -465,6 +468,92 @@ async function main() {
   afirmar(
     (await congelarImporte(todaviaNo.id)) === null,
     "una clase agendada no congela nada, aunque haya tarifa",
+  );
+
+  // ─── interpretarPrecio ──────────────────────────────────────────────
+  const importe = (bruto: string) => interpretarPrecio(bruto);
+
+  const treinta = importe("30");
+  afirmar(
+    treinta.clase === "importe" && treinta.centimos === 3000,
+    "«30» son treinta euros en céntimos",
+  );
+
+  const conComa = importe("30,50");
+  afirmar(
+    conComa.clase === "importe" && conComa.centimos === 3050,
+    "la coma es un separador decimal, que es lo que sale del teclado español",
+  );
+
+  const conPunto = importe("30.50");
+  afirmar(
+    conPunto.clase === "importe" && conPunto.centimos === 3050,
+    "y el punto también, que es lo que sale de copiar y pegar",
+  );
+
+  const conSimbolo = importe(" 30,50 € ");
+  afirmar(
+    conSimbolo.clase === "importe" && conSimbolo.centimos === 3050,
+    "el símbolo y los espacios de sobra no estorban",
+  );
+
+  const cero = importe("0");
+  afirmar(
+    cero.clase === "importe" && cero.centimos === 0,
+    "cero es un precio: una clase gratis a propósito",
+  );
+
+  afirmar(importe("").clase === "automatico", "vacío significa automático, no cero");
+  afirmar(importe("   ").clase === "automatico", "y solo espacios, también");
+
+  afirmar(importe("abc").clase === "invalido", "un texto se rechaza");
+  afirmar(importe("-5").clase === "invalido", "un negativo se rechaza");
+  afirmar(importe("30,555").clase === "invalido", "más de dos decimales se rechaza");
+
+  const malo = importe("abc");
+  afirmar(
+    malo.clase === "invalido" && malo.motivo.length > 0,
+    "y el rechazo trae un motivo que enseñarle al profesor",
+  );
+
+  // ─── cambioDePrecio ─────────────────────────────────────────────────
+  // Lo que de verdad decide qué se escribe en la base, y donde está la trampa:
+  // el campo sale vacío tanto cuando el profesor borra un precio suyo como
+  // cuando el importe lo calculó la tarifa y no se enseña.
+  const escribe = cambioDePrecio("30", false);
+  afirmar(
+    escribe.clase === "escribir" && escribe.centimos === 3000,
+    "escribir un número es escribir un precio",
+  );
+  afirmar(
+    cambioDePrecio("", true).clase === "borrar",
+    "vaciar el campo de un precio escrito a mano lo borra: vuelve a automático",
+  );
+  afirmar(
+    cambioDePrecio("", false).clase === "sin cambio",
+    "pero el campo vacío de una clase con precio calculado NO toca nada: si no, guardar la ficha le borraría el importe cada vez",
+  );
+  afirmar(
+    cambioDePrecio("abc", true).clase === "invalido",
+    "y lo que no es un precio se rechaza, hubiera lo que hubiera antes",
+  );
+
+  // ─── importeCaduca ──────────────────────────────────────────────────
+  afirmar(
+    importeCaduca("DADA", 90, 60, false) === true,
+    "un importe calculado caduca al cambiar los minutos de una clase dada",
+  );
+  afirmar(
+    importeCaduca("DADA", 90, 60, true) === false,
+    "pero uno escrito a mano no: no salió de los minutos",
+  );
+  afirmar(
+    importeCaduca("DADA", 60, 60, false) === false,
+    "sin cambio de minutos no caduca nada",
+  );
+  afirmar(
+    importeCaduca("AGENDADA", 90, 60, false) === false,
+    "y en una clase que todavía no se ha dado tampoco: no hay nada congelado",
   );
 
   console.log("\nTodas las verificaciones pasan.");
