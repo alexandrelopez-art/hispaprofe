@@ -231,7 +231,17 @@ const POR_EXTENSION: Record<string, string> = {
 function nombreDeCabecera(disposicion: string | null): string | null {
   if (!disposicion) return null;
   const entrecomillado = disposicion.match(/filename\*?=(?:UTF-8'')?"?([^";]+)"?/i);
-  return entrecomillado ? decodeURIComponent(entrecomillado[1].trim()) : null;
+  if (!entrecomillado) return null;
+  const crudo = entrecomillado[1].trim();
+  try {
+    return decodeURIComponent(crudo);
+  } catch {
+    // Un `%` suelto —`filename="100% español.mp3"`— hace lanzar `URIError`, y
+    // para cuando esto corre ya se han descargado los bytes enteros: mejor
+    // quedarse con el nombre tal cual vino que perder la descarga por un
+    // nombre mal escapado.
+    return crudo;
+  }
 }
 
 function extensionDe(nombre: string): string {
@@ -328,6 +338,7 @@ export async function traerAudio(
   // está compartido: contesta 200 con el HTML de «pide acceso», y sin esto se
   // guardaría ese HTML creyendo que es un MP3.
   if (declarado.startsWith("text/")) {
+    await respuesta.body?.cancel();
     throw new EnlaceInvalidoError(
       "Esa dirección devuelve una página web, no un archivo de audio. Si es de " +
         "Drive, comprueba que está compartido con «cualquier persona con el enlace».",
@@ -336,6 +347,7 @@ export async function traerAudio(
 
   const anunciado = Number(respuesta.headers.get("content-length") ?? "");
   if (Number.isFinite(anunciado) && anunciado > maximo) {
+    await respuesta.body?.cancel();
     throw new EnlaceInvalidoError(
       `Ese archivo pesa ${Math.round(anunciado / (1024 * 1024))} MB y el tope son ` +
         `${Math.round(maximo / (1024 * 1024))} MB.`,
