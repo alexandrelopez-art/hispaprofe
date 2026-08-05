@@ -88,7 +88,23 @@ también su voz.
 
 Así que la transacción empieza recogiendo las entregas de los pasos de esta
 secuencia, sacando de ellas los identificadores de archivo, y borrando esos
-`Archivo` con lo demás.
+`Archivo` con lo demás. Se reutiliza `esGrabacionEntregada` de
+`lib/expresion.ts`, que es quien ya sabe distinguir una grabación de un texto.
+
+### Un id escrito a mano no puede borrar el archivo de otro
+
+`lib/expresion.ts:148` deja avisado que `entrega` es **texto libre del alumno**:
+en una tarea escrita, quien teclee «/api/archivos/loquesea» consigue que su
+redacción parezca una grabación. Ese aviso está puesto ahí por el rótulo de la
+pantalla, pero aquí significa algo peor: un alumno que escriba en su redacción
+el id de la grabación de un compañero conseguiría que borrar **esta** secuencia
+destruyera el audio de **otra**.
+
+La regla que lo cierra, y que hay que escribir a propósito: un `Archivo` solo
+se borra si **ninguna entrega de fuera de esta secuencia lo referencia**. Se
+comprueba antes de borrar, contra los pasos completados que no cuelgan de estos
+pasos. Lo que quede referenciado desde fuera se deja en pie, que es lo contrario
+de destruir de más.
 
 ### El mismo agujero, un piso más abajo
 
@@ -152,6 +168,8 @@ entrega apunta a un `Archivo`, una cita de oral y una escucha. Comprueba:
   enganche, ni la asignación, ni el paso completado, ni la cita, ni la escucha,
   ni el archivo de la grabación;
 - que **el ejercicio sigue vivo**, que es la mitad de la gracia;
+- que un archivo referenciado también desde una entrega de **otra** secuencia
+  **no** se borra, aunque una entrega de esta lo nombre;
 - que borrar un paso suelto tampoco deja atrás su escucha ni el archivo de su
   entrega.
 
