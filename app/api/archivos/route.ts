@@ -86,6 +86,25 @@ async function comprimirYGuardar(
     );
   }
 
+  // Un `tipo` vacío no es un detalle cosmético: es literalmente la cabecera
+  // `Content-Type` con la que se va a servir este archivo después (ver
+  // `app/api/archivos/[id]/route.ts`). Llega vacío cuando el enlace no traía
+  // ni un tipo de los nuestros ni una extensión reconocible y, además, el
+  // compresor no logró encoger el audio —por eso `comprimirAudio` devuelve la
+  // entrada intacta, con el tipo intacto—. Guardarlo callado dejaría un
+  // archivo que ningún navegador reproduce; mejor rechazarlo aquí, donde
+  // todavía se puede decir qué arreglar.
+  if (!tipo) {
+    return Response.json(
+      {
+        error:
+          "No se ha podido averiguar qué tipo de audio hay en esa dirección. Prueba a " +
+          "que el archivo tenga su extensión en el nombre (.mp3, .m4a, .ogg o .wav).",
+      },
+      { status: 400 },
+    );
+  }
+
   if (datos.length > MAXIMO_AUDIO_GUARDADO) {
     return Response.json(
       {
