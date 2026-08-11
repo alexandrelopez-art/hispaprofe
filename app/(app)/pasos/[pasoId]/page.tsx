@@ -10,6 +10,8 @@ import Ejercicio from "@/components/ejercicios/ejercicio";
 import { analizar, corregir, versionPublica } from "@/lib/ejercicios/registro";
 import type { Respuestas } from "@/lib/ejercicios/tipos";
 import SelectorEjercicio, { type Candidato } from "./selector-ejercicio";
+import PegarCodigo from "./pegar-codigo";
+import { encargosPara } from "@/lib/pegado/encargo";
 import Reproductor from "@/components/ejercicios/reproductor";
 import { esRacionado, escuchasDelPaso } from "@/lib/escuchas";
 import { numeroDeTarea, tareaDe } from "@/lib/dele";
@@ -349,6 +351,14 @@ export default async function PasoPage({
   const tipoDeLaTarea = tarea ? TIPO_DE_EJERCICIO[tarea.motor] : null;
   const verTodos = todosLosNiveles || parametros.formato === "todos";
 
+  // El encargo se compone aquí y viaja entero en las props: es texto puro
+  // sacado del mapa, así que no hace falta ninguna ruta que lo sirva. Si el
+  // paso no es tarea del examen, `encargosPara` devuelve los cuatro motores y
+  // la puerta enseña un desplegable.
+  const encargos = esProfe
+    ? encargosPara(`${paso.recorrido.titulo} · ${paso.titulo}`, tarea)
+    : [];
+
   // Los publicados que se le pueden ofrecer a este paso. Se acotan al nivel
   // del recorrido porque es lo que se busca el 99% de las veces, pero con
   // puerta de salida (`?todos=1`): el editor de Recursos arranca en B1 y el
@@ -522,6 +532,14 @@ export default async function PasoPage({
                 }
               : null
           }
+        />
+      )}
+
+      {esProfe && !hayEjercicio && (
+        <PegarCodigo
+          pasoId={paso.id}
+          titulo={`${paso.recorrido.titulo} · ${paso.titulo}`}
+          encargos={encargos}
         />
       )}
 
