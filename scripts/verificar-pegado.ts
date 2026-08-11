@@ -180,8 +180,22 @@ async function main() {
     "un sobre sin la casilla `ejercicio` dice que le falta",
   );
 
-  const bloqueRaro = abrirSobre('{"bloque":42,"ejercicio":{"ejercicio":"ordenar"}}');
-  afirmar("error" in bloqueRaro, "un `bloque` que no es texto se rechaza");
+  // El `ejercicio` que acompaña al `bloque` malo tiene que valer, y antes no
+  // valía: `{"ejercicio":"ordenar"}` no cumple el esquema —`piezas` necesita
+  // dos—, así que la afirmación seguía verde aunque se borrara la
+  // comprobación del tipo de `bloque`. Pasaba por el motivo equivocado. Con un
+  // ejercicio bueno, lo único que puede fallar es el `bloque`, y para que se
+  // vea que es eso lo que falla se fija el motivo, como en las otras cuatro
+  // negativas de este archivo.
+  afirmar(
+    !("error" in abrirSobre(JSON.stringify({ ejercicio: ORDENAR_BUENO }))),
+    "el ejercicio que acompaña al `bloque` malo se abre por su cuenta",
+  );
+  const bloqueRaro = abrirSobre(JSON.stringify({ bloque: 42, ejercicio: ORDENAR_BUENO }));
+  afirmar(
+    "error" in bloqueRaro && bloqueRaro.error.includes("entre comillas"),
+    "un `bloque` que no es texto se rechaza, y por no ser texto",
+  );
 
   const tipoRaro = abrirSobre('{"ejercicio":{"ejercicio":"inventado"}}');
   afirmar(
@@ -202,6 +216,28 @@ async function main() {
   afirmar(
     "error" in sobranteRepetido && sobranteRepetido.error.includes("sobrante"),
     "el motivo del rechazo lo escribe el esquema, en castellano",
+  );
+
+  // La tercera regla de `relacionar`, que el encargo no contaba: el esquema la
+  // hace cumplir igual, así que sin decirla la IA la rompe sin saberlo y el
+  // rechazo llega después de haber transcrito la tarea entera. Se comprueban
+  // las dos mitades juntas —que el esquema la exige y que el encargo la dice—
+  // porque por separado ninguna de las dos sujeta nada.
+  const sobrantesIguales = abrirSobre(
+    JSON.stringify({
+      ejercicio: {
+        ...SOBRE_BUENO.ejercicio,
+        sobrantes: ["C. CREA TU BLOG", "C. CREA TU BLOG"],
+      },
+    }),
+  );
+  afirmar(
+    "error" in sobrantesIguales && sobrantesIguales.error.includes("Dos sobrantes"),
+    "el esquema rechaza dos sobrantes iguales",
+  );
+  afirmar(
+    componerEncargo("Prueba", "relacionar", null).texto.includes("Dos sobrantes tampoco pueden ser iguales"),
+    "el encargo de relacionar avisa de que dos sobrantes no pueden ser iguales",
   );
 
   // ─── La ida y la vuelta ──────────────────────────────────────────────
@@ -252,9 +288,16 @@ async function main() {
       abierto.tipo === TIPO_DE_EJERCICIO[motor],
       `el ejemplo de ${motor} es del motor que dice ser`,
     );
+    // Una equivalencia y no un `||` de excusas: `bloque !== null || motor ===
+    // "huecos" || motor === "ordenar"` era literalmente `false || false ||
+    // true` en dos de las cuatro vueltas —no podía fallar— y encima decía que
+    // el ejemplo de huecos enseña el bloque, que no lo lleva. Lo que hay que
+    // sujetar es el reparto: `opcion` y `relacionar` traen bloque porque su
+    // tarea tiene algo que leer aparte de los ítems; `huecos` y `ordenar` no
+    // tienen nada que leer fuera de sus propias piezas.
     afirmar(
-      abierto.bloque !== null || motor === "huecos" || motor === "ordenar",
-      `el ejemplo de ${motor} enseña también cómo se manda el bloque`,
+      (abierto.bloque !== null) === (motor === "opcion" || motor === "relacionar"),
+      `el ejemplo de ${motor} trae bloque exactamente cuando su tipo tiene algo que leer aparte de los ítems`,
     );
   }
 
@@ -300,11 +343,49 @@ async function main() {
         encargo.texto.includes(`"${tarea.motor}"`),
         `${cual}: el encargo nombra el motor dentro del JSON que pide`,
       );
+      // La frase exacta de la cuenta, igual que en la de los sobrantes de
+      // abajo: un número suelto por subcadena se encuentra en cualquier sitio
+      // del documento —el `id` de un ejemplo, un número del `pide`— y daría
+      // por buena una cuenta que no está. Hoy no había falso positivo, pero
+      // que no lo haya depende de los datos del mapa, no de la afirmación.
       afirmar(
-        encargo.texto.includes(String(tarea.items)),
+        encargo.texto.includes(`**${tarea.items} ítems.**`),
         `${cual}: el encargo dice cuántos ítems lleva`,
       );
       afirmar(encargo.texto.includes(tarea.pide), `${cual}: el encargo dice qué se pide`);
+
+      // ─── El pasaje del cloze ───────────────────────────────────────────
+      //
+      // Es el dato que faltaba y que no se notaba: sin `texto`, la IA devolvía
+      // un `opcion` válido con el pasaje en un bloque aparte, el resumen
+      // decía «opción · 7 preguntas» y `avisoDeItems` callaba porque la
+      // cuenta cuadra. Lo que salía no era la tarea del examen. El mapa sabe
+      // cuál es cuál (`formato === "CLOZE"`), así que se afirma la
+      // equivalencia en las dos direcciones: el cloze lo lleva, y ninguna
+      // otra tarea lo nombra siquiera.
+      const esCloze = tarea.formato === "CLOZE";
+      afirmar(
+        encargo.texto.includes("`texto`: el pasaje entero") === esCloze,
+        `${cual}: el encargo documenta el pasaje exactamente cuando la tarea es un cloze`,
+      );
+      afirmar(
+        encargo.texto.includes("los `id` de las preguntas tienen que ser exactamente los mismos") ===
+          esCloze,
+        `${cual}: el encargo da la regla de las marcas {{id}} exactamente cuando hay pasaje`,
+      );
+      afirmar(
+        encargo.texto.includes("`bloque` **se omite**") === esCloze,
+        `${cual}: solo el cloze dice que el pasaje no va en un bloque aparte`,
+      );
+      if (tarea.motor === "opcion" && !esCloze) {
+        // Ni de pasada: nombrar `texto` donde no toca invita a usarlo, y
+        // usarlo en una `MC` corriente da un error sobre unas marcas
+        // `{{...}}` que el profesor no ha escrito en ninguna parte.
+        afirmar(
+          !encargo.texto.includes("`texto`"),
+          `${cual}: una tarea de opción que no es cloze no nombra el campo \`texto\``,
+        );
+      }
 
       // Los sobrantes solo existen en `relacionar`. En `opcion`, `opciones`
       // son las de cada ítem y restarle los ítems no significa nada, así que
@@ -373,6 +454,18 @@ async function main() {
   afirmar(
     libres.every((e) => !e.texto.includes("sobrantes.**")),
     "sin mapa no se habla de cuántas sobran: ese número solo lo sabe el mapa",
+  );
+  // En un paso libre no hay sección de números, así que el único número de
+  // ítems del documento entero es el del ejemplo resuelto. Antes ese ejemplo
+  // se presentaba como «recortado a dos ítems» —dos, pegado a un «Ni uno más
+  // ni uno menos» que aquí ni sale—, y se leía como la cuenta que se pide.
+  afirmar(
+    libres.every((e) => e.texto.includes("no sale de este ejemplo")),
+    "sin mapa, el encargo avisa de que la cuenta de ítems no se copia del ejemplo",
+  );
+  afirmar(
+    libres.every((e) => !e.texto.includes("dos ítems")),
+    "el ejemplo resuelto no se presenta con un número de ítems que se pueda confundir con la cuenta",
   );
 
   const deTarea = encargosPara("Tarea 1", PRUEBAS[0].tareas[0]);
