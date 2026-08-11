@@ -347,7 +347,19 @@ model PasoEjercicio {
   ejercicioId String
   orden       Int
 
-  @@unique([pasoId, ejercicioId])
+  // Un paso, un ejercicio: la regla de negocio de `pasoLibre` ("ese paso ya
+  // tiene un ejercicio") no la garantizaba nada más que un `count` leído
+  // antes del `create`, así que dos pestañas que pulsan "Guardar" a la vez
+  // sobre el mismo paso libre pasaban las dos y el paso se quedaba con dos
+  // filas. Esta unicidad es la que cierra esa carrera; el `count` se queda
+  // para dar el mensaje bueno en el caso normal, sin carrera.
+  //
+  // Sustituye a `@@unique([pasoId, ejercicioId])`: un `pasoId` único ya
+  // implica que el par también lo es, así que la compuesta no aportaba nada
+  // que esta no cubriera. El único sitio que buscaba por ese par
+  // (`responderEjercicio`, en `lib/acciones.ts`) se cambió a buscar por
+  // `pasoId` con `ejercicioId` como filtro añadido.
+  @@unique([pasoId])
   @@index([ejercicioId])
 }
 

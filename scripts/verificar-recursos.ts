@@ -6,6 +6,7 @@
 import "dotenv/config";
 import {
   duplicar,
+  motivoSiChoquePorPaso,
   puedeBorrarse,
   puedeDesengancharse,
   puedeDespublicarse,
@@ -141,6 +142,32 @@ async function main() {
   afirmar(
     (await puedeEngancharse(otro.id, paso.id)) !== null,
     "un paso que ya tiene ejercicio no admite un segundo",
+  );
+
+  // 3b. La carrera que `puedeEngancharse`/`pasoLibre` no pueden cerrar por
+  // sí solos: dos pestañas que los consultan casi a la vez pueden ver las
+  // dos un paso libre y las dos intentar el `create`. Aquí se salta el
+  // portero a propósito —el `create` de la línea 138 ya dejó a `publicado`
+  // colgado— para golpear directamente la unicidad de `pasoId` con un
+  // segundo `create`, tal como haría la segunda pestaña, y comprobar que
+  // `motivoSiChoquePorPaso` traduce ese choque al mismo motivo en vez de
+  // dejarlo reventar como un P2002 sin capturar.
+  let motivoDeLaCarrera: string | null = null;
+  try {
+    await prisma.pasoEjercicio.create({
+      data: { pasoId: paso.id, ejercicioId: otro.id, orden: 1 },
+    });
+  } catch (error) {
+    motivoDeLaCarrera = motivoSiChoquePorPaso(error);
+  }
+  afirmar(
+    motivoDeLaCarrera === "Ese paso ya tiene un ejercicio. Quita el que hay antes de poner otro.",
+    "el choque de la unicidad de pasoId se traduce al motivo de pasoLibre, no revienta con un P2002 sin capturar",
+  );
+  // Y el propio ejercicio se queda suelto: el `create` no llegó a colarse.
+  afirmar(
+    (await prisma.pasoEjercicio.count({ where: { ejercicioId: otro.id } })) === 0,
+    "el que pierde la carrera no queda enganchado a medias",
   );
 
   // 4. Regla 3: un ejercicio enganchado no se borra.

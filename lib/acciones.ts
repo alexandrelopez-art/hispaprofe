@@ -972,9 +972,13 @@ export async function responderEjercicio(formData: FormData) {
   if (!asignacion || asignacion.archivada) return;
 
   // El ejercicio tiene que estar colgado de este paso: si no, cualquiera
-  // podría puntuarse con las preguntas de otro.
+  // podría puntuarse con las preguntas de otro. `pasoId` ya es único —un
+  // paso no puede tener dos ejercicios—, así que basta para el `findUnique`;
+  // `ejercicioId` sigue yendo dentro del `where` como filtro añadido, no
+  // porque haga falta para localizar la fila, sino porque es la comprobación
+  // en sí: si no coincide con el que está colgado, no hay vínculo que valga.
   const vinculo = await prisma.pasoEjercicio.findUnique({
-    where: { pasoId_ejercicioId: { pasoId, ejercicioId } },
+    where: { pasoId, ejercicioId },
     select: { ejercicio: { select: { datos: true } } },
   });
   if (!vinculo) return;

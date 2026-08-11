@@ -144,6 +144,10 @@ export async function tieneTrabajo(pasoId: string): Promise<boolean> {
   return cuantos > 0;
 }
 
+/** El motivo que da `pasoLibre` cuando el paso ya tiene un ejercicio colgado. */
+const PASO_YA_TIENE_EJERCICIO =
+  "Ese paso ya tiene un ejercicio. Quita el que hay antes de poner otro.";
+
 /**
  * Si a este paso se le puede colgar un ejercicio cualquiera, o el motivo del
  * no. Las dos reglas que no miran a *qué* ejercicio es.
@@ -157,15 +161,46 @@ export async function pasoLibre(pasoId: string): Promise<string | null> {
   // La página del paso hace `findFirst` ordenado y descarta el resto, porque
   // la corrección escribe los puntos del paso entero y dos ejercicios se
   // pisarían. Sin esta negativa, el segundo se guardaría y no lo vería nadie.
+  //
+  // Este `count` avisa del caso normal, pero no cierra la carrera: dos
+  // peticiones que lo leen a la vez pueden verlo las dos en cero. Quien
+  // cierra la carrera de verdad es la unicidad de `PasoEjercicio.pasoId` en
+  // el esquema; `motivoSiChoquePorPaso`, más abajo, traduce ese choque al
+  // mismo motivo, por el otro camino.
   const yaHay = await prisma.pasoEjercicio.count({ where: { pasoId } });
   if (yaHay > 0) {
-    return "Ese paso ya tiene un ejercicio. Quita el que hay antes de poner otro.";
+    return PASO_YA_TIENE_EJERCICIO;
   }
 
   if (await tieneTrabajo(pasoId)) {
     return "Alguien ya trabajó en ese paso. Cambiarle el ejercicio dejaría sin sentido lo que respondió, lo que entregó o lo que ya le corregiste.";
   }
   return null;
+}
+
+/**
+ * Si el error es el choque de la unicidad `PasoEjercicio.pasoId`, el mismo
+ * motivo que da `pasoLibre` cuando lo ve venir a tiempo. Null si el error es
+ * cualquier otra cosa, para que quien llama decida si lo relanza.
+ *
+ * Hace falta porque `pasoLibre` pregunta antes de escribir y no puede cerrar
+ * la carrera él solo: dos peticiones que lo consultan casi a la vez pueden
+ * ver las dos un paso libre y las dos intentar colgarle su ejercicio. La que
+ * llega segunda a la base choca contra la unicidad y hay que traducirle el
+ * mismo motivo, no dejarla reventar con un P2002 en la cara del profesor.
+ *
+ * Se mira `modelName` y no el nombre de la constraint o sus columnas: esas
+ * dos formas cambian de versión a versión de Prisma —y ya han cambiado una
+ * vez entre el motor clásico y los driver adapters—, mientras que el modelo
+ * que chocó es estable. `PasoEjercicio` solo tiene esta unicidad además de
+ * su clave primaria, y un choque de cuid no ocurre en la práctica.
+ */
+export function motivoSiChoquePorPaso(error: unknown): string | null {
+  const esChoqueDelPasoUnico =
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    error.code === "P2002" &&
+    error.meta?.modelName === "PasoEjercicio";
+  return esChoqueDelPasoUnico ? PASO_YA_TIENE_EJERCICIO : null;
 }
 
 /**

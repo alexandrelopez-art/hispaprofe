@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { exigirProfesor } from "@/lib/profesor";
 import {
   duplicar,
+  motivoSiChoquePorPaso,
   pasoLibre,
   puedeBorrarse,
   puedeDesengancharse,
@@ -220,7 +221,17 @@ export async function engancharEjercicio(
   const motivo = await puedeEngancharse(ejercicioId, pasoId);
   if (motivo) return { error: motivo };
 
-  await prisma.pasoEjercicio.create({ data: { pasoId, ejercicioId, orden: 1 } });
+  try {
+    await prisma.pasoEjercicio.create({ data: { pasoId, ejercicioId, orden: 1 } });
+  } catch (error) {
+    // `puedeEngancharse` ya preguntó, pero dos pestañas pueden preguntar a la
+    // vez y ver las dos un paso libre: la que llega segunda a la base choca
+    // aquí contra la unicidad de `pasoId`, y se traduce al mismo motivo en
+    // vez de dejarla reventar con un P2002 sin capturar.
+    const motivoDelChoque = motivoSiChoquePorPaso(error);
+    if (motivoDelChoque) return { error: motivoDelChoque };
+    throw error;
+  }
 
   revalidatePath(`/pasos/${pasoId}`);
   refrescar(ejercicioId);
@@ -375,50 +386,62 @@ export async function pegarEjercicio(
   const abierto = abrirSobre(pegado);
   if ("error" in abierto) return { error: abierto.error };
 
-  const creadoId = await prisma.$transaction(async (tx) => {
-    const ejercicio = await tx.ejercicio.create({
-      data: {
-        tipo: abierto.tipo,
-        // El título lo pone la aplicación y no el sobre: ya sabe de qué
-        // secuencia y de qué paso se trata, así que pedírselo a quien escriba
-        // el sobre es pedirle que acierte algo que está en la pantalla.
-        titulo: `${paso.recorrido.titulo} · ${paso.titulo}`,
-        nivel: paso.recorrido.nivel,
-        // La del paso manda sobre la del recorrido: un paso puede llevar la
-        // suya propia, y si no la lleva hereda la de la prueba.
-        destreza: paso.destreza ?? paso.recorrido.destreza,
-        etiquetas: [],
-        datos: abierto.ejercicio as Prisma.InputJsonValue,
-        publicado: true,
-        autorId: usuario.id,
-      },
-      select: { id: true },
-    });
-
-    await tx.pasoEjercicio.create({
-      data: { pasoId, ejercicioId: ejercicio.id, orden: 1 },
-    });
-
-    if (abierto.bloque) {
-      // Al final de los que ya haya, igual que `crearBloque`: un paso puede
-      // llevar ya una consigna escrita a mano y el texto de la lectura va
-      // después, no encima.
-      const ultimo = await tx.bloque.aggregate({
-        where: { pasoId },
-        _max: { orden: true },
-      });
-      await tx.bloque.create({
+  let creadoId: string;
+  try {
+    creadoId = await prisma.$transaction(async (tx) => {
+      const ejercicio = await tx.ejercicio.create({
         data: {
-          pasoId,
-          tipo: "TEXTO",
-          texto: abierto.bloque,
-          orden: (ultimo._max.orden ?? 0) + 1,
+          tipo: abierto.tipo,
+          // El título lo pone la aplicación y no el sobre: ya sabe de qué
+          // secuencia y de qué paso se trata, así que pedírselo a quien
+          // escriba el sobre es pedirle que acierte algo que está en la
+          // pantalla.
+          titulo: `${paso.recorrido.titulo} · ${paso.titulo}`,
+          nivel: paso.recorrido.nivel,
+          // La del paso manda sobre la del recorrido: un paso puede llevar la
+          // suya propia, y si no la lleva hereda la de la prueba.
+          destreza: paso.destreza ?? paso.recorrido.destreza,
+          etiquetas: [],
+          datos: abierto.ejercicio as Prisma.InputJsonValue,
+          publicado: true,
+          autorId: usuario.id,
         },
+        select: { id: true },
       });
-    }
 
-    return ejercicio.id;
-  });
+      await tx.pasoEjercicio.create({
+        data: { pasoId, ejercicioId: ejercicio.id, orden: 1 },
+      });
+
+      if (abierto.bloque) {
+        // Al final de los que ya haya, igual que `crearBloque`: un paso puede
+        // llevar ya una consigna escrita a mano y el texto de la lectura va
+        // después, no encima.
+        const ultimo = await tx.bloque.aggregate({
+          where: { pasoId },
+          _max: { orden: true },
+        });
+        await tx.bloque.create({
+          data: {
+            pasoId,
+            tipo: "TEXTO",
+            texto: abierto.bloque,
+            orden: (ultimo._max.orden ?? 0) + 1,
+          },
+        });
+      }
+
+      return ejercicio.id;
+    });
+  } catch (error) {
+    // `pasoLibre` ya preguntó, pero entre esa pregunta y este `create` otra
+    // pestaña puede haber ganado la carrera: la unicidad de `pasoId` cierra
+    // lo que el `count` de arriba no podía cerrar, y aquí se traduce al
+    // mismo motivo en vez de dejarla reventar con un P2002 sin capturar.
+    const motivoDelChoque = motivoSiChoquePorPaso(error);
+    if (motivoDelChoque) return { error: motivoDelChoque };
+    throw error;
+  }
 
   revalidatePath(`/pasos/${pasoId}`);
   refrescar(creadoId);
