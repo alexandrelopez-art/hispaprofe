@@ -41,6 +41,25 @@ export default function PegarCodigo({
   const [cual, setCual] = useState(0);
   const [copiado, setCopiado] = useState(false);
 
+  /**
+   * Lo pegado vive en el estado, no en el DOM.
+   *
+   * No es una preferencia de estilo: React resetea el formulario en **toda**
+   * acción de función. `requestFormReset` se encola dentro del scope de la
+   * transición, antes de llamar a la acción, y acaba en un
+   * `HTMLFormElement.reset()` durante el commit. Un `<textarea>` sin valor
+   * propio vuelve entonces a su `defaultValue`, que sin `value` es la cadena
+   * vacía: el cuadro se quedaba en blanco justo en el momento en que hay que
+   * corregir lo que se pegó, que es el bucle en el que vive esta pantalla.
+   *
+   * Con `value`, React mantiene el `defaultValue` del nodo igual al valor
+   * controlado, así que ese mismo `reset()` devuelve el texto en vez de
+   * borrarlo. Es el patrón que `components/recursos/editor.tsx` usa en todos
+   * sus campos, y por eso los `<input type="hidden">` de aquí nunca se
+   * vaciaron.
+   */
+  const [pegado, setPegado] = useState("");
+
   const [comprobado, comprobar, comprobando] = useActionState<EstadoPegado, FormData>(
     comprobarPegado,
     {},
@@ -160,18 +179,28 @@ export default function PegarCodigo({
       </p>
 
       {/* ② El cuadro */}
-      <p className="mt-6 text-sm font-bold text-tinta">
-        2. Lo que te devuelva, pégalo aquí
-      </p>
-      <form action={comprobar} className="mt-2">
+      <form action={comprobar} className="mt-6">
         <input type="hidden" name="pasoId" value={pasoId} />
-        <textarea
-          name="pegado"
-          rows={10}
-          spellCheck={false}
-          placeholder='{ "bloque": "…", "ejercicio": { … } }'
-          className="w-full rounded-xl border-2 border-hp-200 p-3 font-mono text-xs text-tinta"
-        />
+        {/*
+          El nombre del campo va en un `<label>` que lo envuelve, que es como
+          etiqueta el proyecto —`components/recursos/campos.tsx` mete cada
+          campo dentro del suyo—. Antes era un `<p>` suelto: se veía, pero un
+          lector de pantalla no tenía ningún nombre que decir al llegar aquí.
+          `font-normal` en el campo deshace la negrita que hereda de la
+          etiqueta, igual que en `campos.tsx`.
+        */}
+        <label className="block text-sm font-bold text-tinta">
+          2. Lo que te devuelva, pégalo aquí
+          <textarea
+            name="pegado"
+            value={pegado}
+            onChange={(e) => setPegado(e.target.value)}
+            rows={10}
+            spellCheck={false}
+            placeholder='{ "bloque": "…", "ejercicio": { … } }'
+            className="mt-2 w-full rounded-xl border-2 border-hp-200 p-3 font-mono text-xs font-normal text-tinta"
+          />
+        </label>
         <button
           type="submit"
           onClick={() => setUltima("comprobar")}

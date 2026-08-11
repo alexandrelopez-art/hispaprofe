@@ -7,9 +7,14 @@ import type { MarcaEjercicio } from "@/lib/ejercicios/tipos";
  * es un sobre, así que enseñarle solo el contenido sería enseñarle otra cosa
  * distinta de la que tiene que devolver.
  *
- * Salen del examen ya sembrado —A2/B1 escolar, mayo de 2015— recortados a
- * dos ítems. Recortados y no inventados a propósito: un ejemplo con la voz
- * del examen de verdad le enseña a la IA el registro además del formato.
+ * Salen del examen ya sembrado —A2/B1 escolar, mayo de 2015— recortados a dos
+ * o tres ítems, los que hagan falta para que se vea la forma. Recortados y no
+ * inventados a propósito: un ejemplo con la voz del examen de verdad le enseña
+ * a la IA el registro además del formato.
+ *
+ * Ese número no es el que se le pide: el encargo dice expresamente que la
+ * cuenta de ítems no sale del ejemplo, porque en un paso libre —sin tarea del
+ * mapa, sin sección de números— el ejemplo sería el único número a la vista.
  *
  * **Cinco ejemplos para cuatro motores.** `opcion` tiene dos formas que el
  * encargo distingue —cada pregunta con sus propias `opciones`, o una lista
