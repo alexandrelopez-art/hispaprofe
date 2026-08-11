@@ -10,6 +10,18 @@ import type { Encargo } from "@/lib/pegado/encargo";
 import Previsualizacion from "@/components/recursos/previsualizacion";
 
 /**
+ * Cuál de las dos acciones fue la última en dispararse.
+ *
+ * Mismo mecanismo que ya usa `components/recursos/editor.tsx`, y por el
+ * mismo fallo ya sufrido allí: un `guardado.error ?? comprobado.error` no
+ * distingue cuál de los dos intentos es el vigente, así que un «Guardar»
+ * que falló seguía mandando encima de un «Comprobar» posterior que ya
+ * decía lo contrario. Se apunta en el `onClick` de cada botón, que corre
+ * antes de que el formulario se envíe.
+ */
+type Accion = "comprobar" | "guardar";
+
+/**
  * La tercera puerta para poner el ejercicio de un paso: pegarlo ya escrito.
  *
  * Dos mitades y en este orden: primero el encargo que se le da a una IA, y
@@ -38,9 +50,23 @@ export default function PegarCodigo({
     {},
   );
 
+  const [ultima, setUltima] = useState<Accion>("comprobar");
+  const resultado: Record<Accion, EstadoPegado> = { comprobar: comprobado, guardar: guardado };
+  const enMarcha: Record<Accion, boolean> = { comprobar: comprobando, guardar: guardando };
+
+  // Mientras la acción está en vuelo no se enseña su resultado anterior: ese
+  // ya es de un intento que el profesor acaba de reemplazar (mismo comentario
+  // que en editor.tsx). Si «Guardar» fue lo último, lo que se enseña es su
+  // propio resultado —error u ok— y no la previsualización de una
+  // comprobación anterior: `guardado.entendido` no existe nunca, así que esto
+  // también hace que la previsualización se retire en cuanto se pulsa
+  // «Guardar», haya ido bien o mal.
+  const vigente = enMarcha[ultima] ? undefined : resultado[ultima];
+  const error = vigente?.error;
+  const ok = vigente?.ok;
+  const entendido = vigente?.entendido;
+
   const encargo = encargos[cual] ?? encargos[0];
-  const error = guardado.error ?? comprobado.error;
-  const entendido = guardado.ok ? undefined : comprobado.entendido;
 
   function descargar() {
     // Un Blob y un enlace de usar y tirar: no hace falta ninguna ruta nueva,
@@ -138,6 +164,7 @@ export default function PegarCodigo({
         />
         <button
           type="submit"
+          onClick={() => setUltima("comprobar")}
           disabled={comprobando}
           className="mt-2 rounded-full border-2 border-hp-200 px-4 py-1.5 text-sm font-bold text-hp-600 transition-colors hover:border-hp-400 disabled:opacity-50"
         >
@@ -153,9 +180,9 @@ export default function PegarCodigo({
         <p className="mt-3 rounded-tarjeta bg-sol-100 px-4 py-3 text-sm text-tinta">{error}</p>
       )}
 
-      {guardado.ok && (
+      {ok && (
         <p className="mt-3 rounded-tarjeta bg-hp-100 px-4 py-3 text-sm font-semibold text-tinta">
-          {guardado.ok}
+          {ok}
         </p>
       )}
 
@@ -193,6 +220,7 @@ export default function PegarCodigo({
             />
             <button
               type="submit"
+              onClick={() => setUltima("guardar")}
               disabled={guardando}
               className="rounded-full bg-hp-500 px-5 py-2 text-sm font-bold text-white transition-colors hover:bg-hp-600 disabled:opacity-50"
             >
