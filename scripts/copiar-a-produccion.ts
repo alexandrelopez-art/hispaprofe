@@ -7,7 +7,8 @@
  * publicado. Esto las lleva.
  *
  * **Copia el material, no la clase.** Van los recorridos con sus pasos,
- * bloques, ejercicios y archivos. NO van los usuarios, ni los grupos, ni las
+ * bloques, ejercicios y archivos —los archivos `privado` no, que son entregas
+ * de alumnos—. NO van los usuarios, ni los grupos, ni las
  * asignaciones, ni las entregas, ni las notas: esa es la vida de un aula
  * concreta —con los `clerkId` de una instancia de Clerk que en producción no
  * existe—, y mezclarla sería meter alumnos de mentira en el sitio de verdad.
@@ -30,6 +31,19 @@
  *
  *   DESTINO_URL="postgresql://…" npx tsx scripts/copiar-a-produccion.ts --de-verdad
  *
+ * Solo algunos recorridos, repitiendo el argumento:
+ *
+ *   … --recorrido=cms5dr9t9000fy59gli9s09qz --recorrido=cms9n17h40000pu9glf8nzi05
+ *
+ * Sin `--recorrido` van todos, que era el comportamiento original. El filtro
+ * existe porque una base de desarrollo acumula pruebas —secuencias de dos
+ * pasos y sin bloques, con títulos tecleados de cualquier manera— y como el
+ * script no pisa nada, lo que se cuela en producción hay que borrarlo allí a
+ * mano. Acota los recorridos y lo que cuelga de ellos; los ejercicios y los
+ * archivos no privados siguen yendo enteros, porque viven en la biblioteca y
+ * no en un recorrido, y porque los bloques los referencian por id dentro de
+ * su contenido, donde este filtro no sabe mirar.
+ *
  * El origen es `DATABASE_URL` del `.env`, salvo que se dé `ORIGEN_URL`.
  */
 import "dotenv/config";
@@ -37,6 +51,12 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { Prisma, PrismaClient } from "@/lib/generated/prisma/client";
 
 const deVerdad = process.argv.includes("--de-verdad");
+
+/** Los recorridos que se piden por línea de órdenes. Vacío = todos. */
+const soloEstos = process.argv
+  .filter((a) => a.startsWith("--recorrido="))
+  .map((a) => a.slice("--recorrido=".length).trim())
+  .filter(Boolean);
 
 const origenUrl = process.env.ORIGEN_URL ?? process.env.DATABASE_URL;
 const destinoUrl = process.env.DESTINO_URL;
@@ -92,7 +112,30 @@ async function copiarFila(
 }
 
 async function main() {
-  console.log(deVerdad ? "COPIANDO DE VERDAD\n" : "ENSAYO: no se escribe nada\n");
+  console.log(deVerdad ? "COPIANDO DE VERDAD" : "ENSAYO: no se escribe nada");
+  console.log(
+    soloEstos.length > 0
+      ? `Recorridos pedidos: ${soloEstos.length}\n`
+      : "Recorridos: todos los del origen\n",
+  );
+
+  // Un id mal copiado no da error de Prisma: devuelve una fila menos y el
+  // informe final diría «2 copiados» tan tranquilo. Se comprueba aquí arriba,
+  // y no donde se leen los recorridos, porque para entonces los archivos y los
+  // ejercicios ya estarían escritos en el destino.
+  if (soloEstos.length > 0) {
+    const hay = await origen.recorrido.findMany({
+      where: { id: { in: soloEstos } },
+      select: { id: true },
+    });
+    const encontrados = new Set(hay.map((r) => r.id));
+    const perdidos = soloEstos.filter((id) => !encontrados.has(id));
+    if (perdidos.length > 0) {
+      throw new Error(
+        `No hay ningún recorrido con ${perdidos.length === 1 ? "el id" : "los ids"} ${perdidos.join(", ")} en el origen.`,
+      );
+    }
+  }
 
   // Quién firma lo copiado en el destino. Los ids de usuario del origen no
   // existen allí, así que se busca por correo, que es lo único que significa
@@ -123,8 +166,17 @@ async function main() {
 
   // 1. Los archivos primero: no dependen de nada, y todo lo demás los
   //    referencia por id dentro de su contenido.
+  //
+  //    Los `privado` se quedan fuera: son entregas de alumnos, no material
+  //    del profesor, y esta copia no lleva ni las entregas ni los alumnos.
+  //    Llegarían huérfanos —el archivo de una persona que en el destino no
+  //    existe—, que es justo la mezcla que el resto del script evita.
   const archivos = nueva();
-  const idsArchivo = await origen.archivo.findMany({ select: { id: true } });
+  const idsArchivo = await origen.archivo.findMany({
+    where: { privado: false },
+    select: { id: true },
+  });
+  const privados = await origen.archivo.count({ where: { privado: true } });
   for (const { id } of idsArchivo) {
     // De uno en uno, con los bytes dentro: veinticuatro audios pueden ser
     // cientos de megas, y traerlos todos a memoria de golpe para luego
@@ -141,7 +193,12 @@ async function main() {
         }),
     );
   }
-  console.log(`Archivos:   ${archivos.copiados} copiados, ${archivos.saltados} ya estaban`);
+  console.log(
+    `Archivos:   ${archivos.copiados} copiados, ${archivos.saltados} ya estaban` +
+      // Se dice en voz alta: un recuento que no menciona lo que dejó fuera se
+      // lee como «están todos», y la próxima vez nadie se acuerda del filtro.
+      (privados > 0 ? `, ${privados} privados no se copian` : ""),
+  );
 
   // 2. Los ejercicios: independientes de los recorridos —viven en la
   //    biblioteca— y los pasos los enganchan después.
@@ -178,10 +235,13 @@ async function main() {
   const bloques = nueva();
   const enganches = nueva();
 
-  for (const recorrido of await origen.recorrido.findMany({
+  const aCopiar = await origen.recorrido.findMany({
+    where: soloEstos.length > 0 ? { id: { in: soloEstos } } : {},
     include: { pasos: { include: { bloques: true, ejercicios: true } } },
     orderBy: { createdAt: "asc" },
-  })) {
+  });
+
+  for (const recorrido of aCopiar) {
     const { pasos: susPasos, ...soloRecorrido } = recorrido;
     await copiarFila(
       recorrido.id,
