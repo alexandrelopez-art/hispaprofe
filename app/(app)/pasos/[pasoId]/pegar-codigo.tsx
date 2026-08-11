@@ -54,17 +54,27 @@ export default function PegarCodigo({
   const resultado: Record<Accion, EstadoPegado> = { comprobar: comprobado, guardar: guardado };
   const enMarcha: Record<Accion, boolean> = { comprobar: comprobando, guardar: guardando };
 
-  // Mientras la acción está en vuelo no se enseña su resultado anterior: ese
-  // ya es de un intento que el profesor acaba de reemplazar (mismo comentario
-  // que en editor.tsx). Si «Guardar» fue lo último, lo que se enseña es su
-  // propio resultado —error u ok— y no la previsualización de una
-  // comprobación anterior: `guardado.entendido` no existe nunca, así que esto
-  // también hace que la previsualización se retire en cuanto se pulsa
-  // «Guardar», haya ido bien o mal.
+  // `error` y `ok` sí necesitan la exclusión de `ultima`/`enMarcha`: son los
+  // que un `??` sin más se pisaba (mismo fallo, mismo arreglo que en
+  // editor.tsx). Mientras la acción vigente está en vuelo no se enseña su
+  // resultado anterior, que ya es de un intento reemplazado.
   const vigente = enMarcha[ultima] ? undefined : resultado[ultima];
   const error = vigente?.error;
   const ok = vigente?.ok;
-  const entendido = vigente?.entendido;
+
+  // `entendido` no entra en ese mismo mecanismo, y a propósito: no es una
+  // carrera entre dos intentos, es un pestillo que solo se cierra una vez.
+  // Guardar con éxito no tiene marcha atrás (`guardado.ok` ya no se
+  // desharía), pero un guardado que **falla** —el paso ya ocupado por otra
+  // pestaña— no invalida la comprobación anterior: `comprobado.entendido`
+  // sigue siendo la lectura correcta de lo pegado, y el profesor tiene que
+  // poder reintentar «Guardar» con el mismo clic, sin pasar otra vez por
+  // «Comprobar». Si lo que cambia es la propia comprobación, `ultima` vuelve
+  // a `"comprobar"` de todos modos y esto se refresca igual. Leerlo por
+  // `vigente` aquí retiraba la previsualización —y su botón de guardar—
+  // en cualquier fallo de guardado, que es justo el escenario en el que
+  // hace falta reintentar rápido.
+  const entendido = guardado.ok ? undefined : comprobado.entendido;
 
   const encargo = encargos[cual] ?? encargos[0];
 
