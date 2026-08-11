@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { exigirProfesor } from "@/lib/profesor";
 import {
   duplicar,
+  pasoLibre,
   puedeBorrarse,
   puedeDesengancharse,
   puedeDespublicarse,
@@ -14,6 +15,8 @@ import {
   puedeEngancharse,
   revisarDatos,
 } from "@/lib/recursos";
+import { avisoDeItems, numeroDeTarea, tareaDe } from "@/lib/dele";
+import { abrirSobre, resumir } from "@/lib/pegado/sobre";
 
 /**
  * Lo que devuelven todas las acciones de Recursos.
@@ -240,4 +243,184 @@ export async function desengancharEjercicio(
   revalidatePath(`/pasos/${pasoId}`);
   refrescar();
   return { ok: "Quitado." };
+}
+
+/**
+ * Lo que devuelve la puerta de pegar por código.
+ *
+ * No reutiliza `EstadoRecurso` porque tiene algo más que decir: qué ha
+ * entendido del texto pegado, para poder enseñarlo y previsualizarlo antes de
+ * escribir nada. Ver ese ejercicio antes de guardarlo es la mitad del valor de
+ * esta pantalla.
+ */
+export type EstadoPegado = {
+  error?: string;
+  ok?: string;
+  entendido?: {
+    /** «relacionar · 6 parejas · 3 sobrantes». */
+    resumen: string;
+    /** «En el examen esta tarea lleva 6…». Avisa, no rechaza. */
+    aviso: string | null;
+    /** El texto que se convertirá en bloque, para enseñarlo. */
+    bloque: string | null;
+    /** Los datos del ejercicio, para dárselos a `Previsualizacion`. */
+    datos: unknown;
+  };
+};
+
+/**
+ * El paso con lo que hace falta para nombrar y situar su ejercicio.
+ *
+ * Lo comparten las dos acciones: la que comprueba y la que guarda. Se lee dos
+ * veces a propósito —una por acción— porque entre pulsar «Comprobar» y pulsar
+ * «Guardar» pueden pasar diez minutos, y en ese rato otro puede haber
+ * enganchado un ejercicio a ese mismo paso.
+ */
+async function pasoParaPegar(pasoId: string) {
+  return prisma.paso.findUnique({
+    where: { id: pasoId },
+    select: {
+      id: true,
+      titulo: true,
+      orden: true,
+      destreza: true,
+      recorrido: { select: { titulo: true, nivel: true, destreza: true, tipo: true } },
+    },
+  });
+}
+
+type PasoParaPegar = NonNullable<Awaited<ReturnType<typeof pasoParaPegar>>>;
+
+/**
+ * Qué tarea del examen es este paso, o null.
+ *
+ * La misma regla que usa la ficha del paso, llamada y no copiada: el título
+ * manda —«Tarea 3»— y el `orden` es la reserva.
+ */
+function tareaDelPaso(paso: PasoParaPegar) {
+  if (paso.recorrido.tipo !== "PREPARACION_DELE" || !paso.recorrido.destreza) return null;
+  return tareaDe(paso.recorrido.nivel, paso.recorrido.destreza, numeroDeTarea(paso));
+}
+
+/**
+ * Lee lo pegado y dice qué ha entendido, **sin tocar la base**.
+ *
+ * Las negativas del paso se comprueban aquí y no solo al guardar: dejar pegar
+ * y validar un examen entero para decir al final que el paso estaba ocupado es
+ * hacer trabajar para nada.
+ */
+export async function comprobarPegado(
+  _prev: EstadoPegado,
+  formData: FormData,
+): Promise<EstadoPegado> {
+  await exigirProfesor();
+  const pasoId = String(formData.get("pasoId") ?? "");
+  const pegado = String(formData.get("pegado") ?? "");
+  if (!pasoId) return { error: "Falta el paso." };
+
+  const paso = await pasoParaPegar(pasoId);
+  if (!paso) return { error: "Ese paso ya no existe." };
+
+  const motivo = await pasoLibre(pasoId);
+  if (motivo) return { error: motivo };
+
+  const abierto = abrirSobre(pegado);
+  if ("error" in abierto) return { error: abierto.error };
+
+  // El aviso de ítems avisa y no rechaza, que es como funciona todo el mapa:
+  // un ejercicio de práctica más corto que la tarea oficial es una decisión
+  // pedagógica, no un error.
+  const tarea = tareaDelPaso(paso);
+  const aviso = tarea ? avisoDeItems(tarea, abierto.ejercicio) : null;
+
+  return {
+    entendido: {
+      resumen: resumir(abierto.ejercicio),
+      aviso,
+      bloque: abierto.bloque,
+      datos: abierto.ejercicio,
+    },
+  };
+}
+
+/**
+ * Crea el ejercicio, lo engancha al paso y, si el sobre traía texto, le pone
+ * su bloque. **Las tres cosas o ninguna**: un ejercicio creado y sin enganchar
+ * sería un huérfano en la lista de Recursos que nadie sabría de dónde salió.
+ *
+ * **Nace publicado.** `puedeEngancharse` exige que un ejercicio no sea un
+ * borrador para colgarlo de un paso, y con razón. Aquí esa regla no se salta:
+ * se cumple por adelantado, porque quien pulsa este botón acaba de ver la
+ * previsualización, que es exactamente lo que significa publicar. De propina,
+ * el ejercicio queda en Recursos y otro paso lo puede reutilizar.
+ */
+export async function pegarEjercicio(
+  _prev: EstadoPegado,
+  formData: FormData,
+): Promise<EstadoPegado> {
+  const usuario = await exigirProfesor();
+  const pasoId = String(formData.get("pasoId") ?? "");
+  const pegado = String(formData.get("pegado") ?? "");
+  if (!pasoId) return { error: "Falta el paso." };
+
+  const paso = await pasoParaPegar(pasoId);
+  if (!paso) return { error: "Ese paso ya no existe." };
+
+  // Se vuelve a preguntar aunque «Comprobar» ya lo hiciera: entre las dos
+  // pulsaciones pueden pasar diez minutos y otra pestaña puede haber
+  // enganchado un ejercicio a este mismo paso.
+  const motivo = await pasoLibre(pasoId);
+  if (motivo) return { error: motivo };
+
+  const abierto = abrirSobre(pegado);
+  if ("error" in abierto) return { error: abierto.error };
+
+  const creadoId = await prisma.$transaction(async (tx) => {
+    const ejercicio = await tx.ejercicio.create({
+      data: {
+        tipo: abierto.tipo,
+        // El título lo pone la aplicación y no el sobre: ya sabe de qué
+        // secuencia y de qué paso se trata, así que pedírselo a quien escriba
+        // el sobre es pedirle que acierte algo que está en la pantalla.
+        titulo: `${paso.recorrido.titulo} · ${paso.titulo}`,
+        nivel: paso.recorrido.nivel,
+        // La del paso manda sobre la del recorrido: un paso puede llevar la
+        // suya propia, y si no la lleva hereda la de la prueba.
+        destreza: paso.destreza ?? paso.recorrido.destreza,
+        etiquetas: [],
+        datos: abierto.ejercicio as Prisma.InputJsonValue,
+        publicado: true,
+        autorId: usuario.id,
+      },
+      select: { id: true },
+    });
+
+    await tx.pasoEjercicio.create({
+      data: { pasoId, ejercicioId: ejercicio.id, orden: 1 },
+    });
+
+    if (abierto.bloque) {
+      // Al final de los que ya haya, igual que `crearBloque`: un paso puede
+      // llevar ya una consigna escrita a mano y el texto de la lectura va
+      // después, no encima.
+      const ultimo = await tx.bloque.aggregate({
+        where: { pasoId },
+        _max: { orden: true },
+      });
+      await tx.bloque.create({
+        data: {
+          pasoId,
+          tipo: "TEXTO",
+          texto: abierto.bloque,
+          orden: (ultimo._max.orden ?? 0) + 1,
+        },
+      });
+    }
+
+    return ejercicio.id;
+  });
+
+  revalidatePath(`/pasos/${pasoId}`);
+  refrescar(creadoId);
+  return { ok: "Pegado y enganchado." };
 }
