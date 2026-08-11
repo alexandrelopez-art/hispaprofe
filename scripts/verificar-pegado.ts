@@ -20,6 +20,18 @@ function afirmar(condicion: boolean, mensaje: string) {
   console.log(`OK: ${mensaje}`);
 }
 
+/**
+ * El campo que solo aparece en el encargo de ese motor: prueba de que el
+ * encargo describe de verdad su forma, y no solo que `Encargo.motor` repite
+ * el parámetro que se le pasó.
+ */
+const PALABRA_DEL_MOTOR: Record<MarcaEjercicio, string> = {
+  opcion: "preguntas",
+  relacionar: "parejas",
+  huecos: "huecos",
+  ordenar: "piezas",
+};
+
 /** Un sobre válido de relacionar, corto pero completo. */
 const SOBRE_BUENO = {
   bloque: "## Tablón de anuncios\n\n**A.** Grupo de música busca sala.",
@@ -246,6 +258,32 @@ async function main() {
     );
   }
 
+  // ─── El ejemplo de `opcion` con lista común ──────────────────────────
+  //
+  // No es un motor más: es la otra forma de `opcion`, la que le toca a una
+  // tarea con `listaComun`. No está en `MOTORES` porque no es una marca de
+  // `MarcaEjercicio`; se comprueba aparte y con más detalle, porque un fallo
+  // aquí es el mismo "error caro" del proyecto enseñado de vuelta a la IA.
+  const listaComunAbierta = abrirSobre(JSON.stringify(EJEMPLOS.opcionListaComun));
+  afirmar(!("error" in listaComunAbierta), "el ejemplo de opción con lista común es un sobre que se abre");
+  if ("error" in listaComunAbierta) throw new Error(listaComunAbierta.error);
+  afirmar(
+    listaComunAbierta.tipo === TIPO_DE_EJERCICIO.opcion,
+    "el ejemplo de opción con lista común es del motor que dice ser",
+  );
+  const ejercicioListaComun = listaComunAbierta.ejercicio as {
+    opcionesComunes?: unknown;
+    preguntas: { opciones?: unknown }[];
+  };
+  afirmar(
+    Array.isArray(ejercicioListaComun.opcionesComunes) && ejercicioListaComun.opcionesComunes.length >= 2,
+    "el ejemplo de opción con lista común lleva `opcionesComunes`",
+  );
+  afirmar(
+    ejercicioListaComun.preguntas.every((p) => p.opciones === undefined),
+    "en el ejemplo de opción con lista común ninguna pregunta lleva sus propias `opciones`",
+  );
+
   // ─── El encargo, tarea por tarea ─────────────────────────────────────
   let tareasVistas = 0;
   for (const prueba of PRUEBAS) {
@@ -254,7 +292,10 @@ async function main() {
       const encargo = componerEncargo(`${prueba.nivel} · Tarea ${tarea.numero}`, tarea.motor, tarea);
       tareasVistas++;
 
-      afirmar(encargo.motor === tarea.motor, `${cual}: el encargo usa el motor del mapa`);
+      afirmar(
+        encargo.texto.includes(PALABRA_DEL_MOTOR[tarea.motor]),
+        `${cual}: el encargo describe de verdad el motor del mapa (habla de «${PALABRA_DEL_MOTOR[tarea.motor]}»)`,
+      );
       afirmar(
         encargo.texto.includes(`"${tarea.motor}"`),
         `${cual}: el encargo nombra el motor dentro del JSON que pide`,
@@ -296,13 +337,31 @@ async function main() {
         );
       }
 
+      // La afirmación que impide que vuelva la contradicción entre el
+      // ejemplo y la regla: el ejemplo resuelto que se enseña —no la
+      // descripción del esquema,
+      // que menciona `opcionesComunes` en las dos formas— trae esa casilla
+      // exactamente cuando la tarea reparte de una lista común. Se busca la
+      // forma JSON `"opcionesComunes":`, con comillas y dos puntos, y no la
+      // palabra a secas entre comillas invertidas: esa la usan también
+      // «Los números de esta tarea» y la lista de campos, para las tareas
+      // de `opcion` sin lista común.
       afirmar(
-        encargo.texto.includes("no lleva audio"),
-        `${cual}: el encargo dice que el audio no va dentro`,
+        encargo.texto.includes('"opcionesComunes":') === (tarea.motor === "opcion" && tarea.listaComun),
+        `${cual}: el ejemplo resuelto trae opcionesComunes exactamente cuando la tarea usa lista común`,
       );
     }
   }
   afirmar(tareasVistas === 52, `el mapa tiene 52 tareas y se han recorrido las ${tareasVistas}`);
+
+  // El aviso de que no hay audio es un párrafo estático, idéntico en las 52
+  // tareas y en los 4 encargos genéricos: comprobarlo una vez sobre un
+  // encargo cualquiera prueba lo mismo que comprobarlo 52 veces dentro del
+  // bucle.
+  afirmar(
+    componerEncargo("Prueba", "opcion", null).texto.includes("no lleva audio"),
+    "el encargo dice que el audio no va dentro del ejercicio",
+  );
 
   // ─── El encargo de un paso libre ─────────────────────────────────────
   const libres = encargosPara("Calentamiento", null);

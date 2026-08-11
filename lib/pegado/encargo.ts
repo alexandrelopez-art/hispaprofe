@@ -95,6 +95,12 @@ export function componerEncargo(
   motor: MarcaEjercicio,
   tarea: TareaDele | null,
 ): Encargo {
+  // `opcion` tiene dos formas, y enseñar la que no toca contradice la regla
+  // de «Los números de esta tarea» dos secciones más abajo. Sin tarea del
+  // mapa no hay `listaComun` que mirar, así que se queda con el ejemplo de
+  // siempre: es el mismo caso que el resto de los datos ausentes.
+  const ejemplo = motor === "opcion" && tarea?.listaComun ? EJEMPLOS.opcionListaComun : EJEMPLOS[motor];
+
   const sobran = tarea ? sobrantesDe(tarea) : 0;
 
   const cuenta: string[] = [];
@@ -162,7 +168,7 @@ ${REGLAS[motor].map((l) => `- ${l}`).join("\n")}
 Del mismo tipo, recortado a dos ítems:
 
 \`\`\`json
-${JSON.stringify(EJEMPLOS[motor], null, 2)}
+${JSON.stringify(ejemplo, null, 2)}
 \`\`\`
 
 ## Al transcribir
