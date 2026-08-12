@@ -2,6 +2,35 @@
 
 Fecha: 2026-08-11
 
+> **SUPERADO. No se implementó.** Se escribió sin saber que ya existía
+> `2026-08-01-pegar-por-codigo-design.md`, que resuelve el mismo problema y
+> que estaba a medio implementar en la rama `pegar-por-codigo`. Lo que se
+> implementó es aquel.
+>
+> Se descartó este por dos razones. La primera, que aquel llega más lejos:
+> **la aplicación compone el encargo** que se le da a la IA, ya rellenado con
+> lo que el mapa sabe de esa tarea, y este diseño daba por hecho que el JSON
+> te lo apañabas tú. La segunda, que aquel ya tenía tres tareas terminadas y
+> revisadas —el sobre, los ejemplos y el encargo— y este las habría rehecho
+> peor: su `analizarSobre` hace un `JSON.parse` pelado, mientras que
+> `lib/pegado/sobre.ts` quita la valla ```` ```json ```` y recorta contando
+> las llaves de verdad, porque las marcas `{{id}}` de los huecos rompen el
+> recorte ingenuo. Sin eso, el primer intento de todo el mundo falla con
+> «eso no es JSON».
+>
+> **Difieren en la forma, y esa es la decisión de fondo:** aquí se pega el
+> examen entero de una vez; allí, una tarea por viaje, dentro de la ficha de
+> su paso —porque es el paso el que le da al encargo la información que lo
+> hace útil.
+>
+> **Lo único que este diseño tenía de propio y que sigue sin resolverse** es
+> el audio: el enlace de Drive de un MP3 descargado por el servidor
+> (`POST /api/archivos`) para convertirlo en un bloque `AUDIO` de verdad. Hoy
+> un audio de Drive pegado en la ficha del paso se guarda como `EMBED`
+> (`editor-bloques.tsx`), y `maximoDeEscucha` solo raciona los `AUDIO`: en una
+> prueba de comprensión auditiva, eso es un reproductor sin tope de escuchas.
+> Es anterior a las dos ramas y sigue abierto.
+
 ## El problema
 
 Montar una prueba del DELE en la aplicación son ocho pasos a mano, y solo uno

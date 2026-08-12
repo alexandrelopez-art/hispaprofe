@@ -1,5 +1,19 @@
 # Pegar el examen entero — plan de implementación
 
+> **SUPERADO. NO EJECUTAR.** Ninguna de sus cinco tareas se implementó, y
+> `lib/pegado-dele.ts`, `lib/acciones-pegado.ts` y `pegar-examen.tsx` no
+> existen ni van a existir. El porqué está en la cabecera de su diseño,
+> `docs/superpowers/specs/2026-08-11-pegar-el-examen-design.md`.
+>
+> Lo que se implementó es el plan del 1 de agosto,
+> `docs/superpowers/plans/2026-08-01-pegar-por-codigo.md`, que resuelve el
+> mismo problema con otra forma —una tarea por viaje, dentro de la ficha de su
+> paso— y que además compone el encargo para la IA, cosa que este plan no
+> hacía.
+>
+> Se deja como rastro de la decisión, no como trabajo pendiente. Que su fecha
+> sea posterior no significa que sea el vigente: es al contrario.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Una caja en la página de la secuencia que recibe el JSON de una prueba del DELE y monta sus tareas —paso, bloques, ejercicio publicado y enganche—, saltándose las que ya están y explicando las que no valen.
