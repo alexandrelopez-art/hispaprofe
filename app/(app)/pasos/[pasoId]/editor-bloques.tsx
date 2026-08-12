@@ -4,6 +4,7 @@ import { useState } from "react";
 import { crearBloque, obtenerMetadatos } from "@/lib/acciones";
 import EditorTexto from "@/components/editor-texto";
 import SubirImagen from "@/components/subir-imagen";
+import { idDrive } from "@/lib/bloques";
 
 type Tipo = "TEXTO" | "EMBED" | "AUDIO" | "IMAGEN" | "ENLACE";
 
@@ -66,16 +67,6 @@ function extraerSrc(entrada: string): string {
   if (vimeo) return `https://player.vimeo.com/video/${vimeo[1]}`;
 
   return t;
-}
-
-/** Saca el ID de un enlace de Google Drive, venga en la forma que venga. */
-function idDrive(t: string): string {
-  return (
-    t.match(/drive\.google\.com\/file\/d\/([\w-]+)/)?.[1] ??
-    t.match(/drive\.google\.com\/open\?id=([\w-]+)/)?.[1] ??
-    t.match(/[?&]id=([\w-]{20,})/)?.[1] ??
-    ""
-  );
 }
 
 /**
