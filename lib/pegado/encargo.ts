@@ -133,12 +133,6 @@ export function componerEncargo(
   motor: MarcaEjercicio,
   tarea: TareaDele | null,
 ): Encargo {
-  // `opcion` tiene dos formas, y enseñar la que no toca contradice la regla
-  // de «Los números de esta tarea» dos secciones más abajo. Sin tarea del
-  // mapa no hay `listaComun` que mirar, así que se queda con el ejemplo de
-  // siempre: es el mismo caso que el resto de los datos ausentes.
-  const ejemplo = motor === "opcion" && tarea?.listaComun ? EJEMPLOS.opcionListaComun : EJEMPLOS[motor];
-
   /**
    * Si esta tarea es un cloze, con el pasaje dentro del propio ejercicio.
    *
@@ -156,6 +150,28 @@ export function componerEncargo(
    * `opcion`, y las ocho tareas `CLOZE` del mapa se construyen con `opcion`.
    */
   const cloze = motor === "opcion" && tarea?.formato === "CLOZE";
+
+  // `opcion` tiene ahora tres formas, y enseñar la que no toca contradice la
+  // regla de «Los números de esta tarea» —o la de «Reglas que no se pueden
+  // romper»— dos secciones más abajo. La precedencia es explícita porque no
+  // hay dos formas que se puedan combinar en el ejemplo:
+  //   1. Cloze primero. Es el caso más frágil de los tres —un ejemplo sin
+  //      `texto` enseña a perder el pasaje, y el error no avisa en ninguna
+  //      pantalla— y hoy ninguna tarea del mapa es a la vez `CLOZE` y
+  //      `listaComun: true` (las ocho tareas `CLOZE` la llevan en `false`;
+  //      lo comprueba `scripts/verificar-pegado.ts` recorriendo las 52). Si
+  //      algún día lo fuera, el pasaje manda: sin `texto` no hay cloze que
+  //      enseñar, así que cloze pesa más que lista común.
+  //   2. Lista común, si no es cloze.
+  //   3. El ejemplo de siempre, en cualquier otro caso —incluido el paso
+  //      libre, donde no hay tarea del mapa y por tanto no hay `listaComun`
+  //      ni `formato` que mirar: es el mismo caso que el resto de los datos
+  //      ausentes.
+  const ejemplo = cloze
+    ? EJEMPLOS.opcionCloze
+    : motor === "opcion" && tarea?.listaComun
+      ? EJEMPLOS.opcionListaComun
+      : EJEMPLOS[motor];
 
   // El pasaje se documenta entre las dos mitades de `opcion`, y sus reglas
   // detrás de las de siempre.

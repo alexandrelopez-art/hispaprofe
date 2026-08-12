@@ -327,6 +327,32 @@ async function main() {
     "en el ejemplo de opción con lista común ninguna pregunta lleva sus propias `opciones`",
   );
 
+  // ─── El ejemplo de `opcion` con el pasaje de un cloze ────────────────
+  //
+  // Tercera forma de `opcion`, la que le toca a una tarea `CLOZE`. Igual que
+  // la lista común, se comprueba aparte y con más detalle: un fallo aquí es
+  // el mismo «error caro» del proyecto, enseñado de vuelta a la IA.
+  const clozeAbierto = abrirSobre(JSON.stringify(EJEMPLOS.opcionCloze));
+  afirmar(!("error" in clozeAbierto), "el ejemplo de opción con pasaje de cloze es un sobre que se abre");
+  if ("error" in clozeAbierto) throw new Error(clozeAbierto.error);
+  afirmar(
+    clozeAbierto.tipo === TIPO_DE_EJERCICIO.opcion,
+    "el ejemplo de opción con pasaje de cloze es del motor que dice ser",
+  );
+  afirmar(
+    clozeAbierto.bloque === null,
+    "el ejemplo de opción con pasaje de cloze no trae bloque: el pasaje va dentro de `ejercicio`",
+  );
+  const ejercicioCloze = clozeAbierto.ejercicio as { texto?: unknown; preguntas: { opciones?: unknown }[] };
+  afirmar(
+    typeof ejercicioCloze.texto === "string" && ejercicioCloze.texto.length > 0,
+    "el ejemplo de opción con pasaje de cloze lleva `texto`",
+  );
+  afirmar(
+    ejercicioCloze.preguntas.every((p) => Array.isArray(p.opciones) && p.opciones.length >= 2),
+    "en el ejemplo de opción con pasaje de cloze cada pregunta trae sus propias `opciones`",
+  );
+
   // ─── El encargo, tarea por tarea ─────────────────────────────────────
   let tareasVistas = 0;
   for (const prueba of PRUEBAS) {
@@ -430,6 +456,20 @@ async function main() {
       afirmar(
         encargo.texto.includes('"opcionesComunes":') === (tarea.motor === "opcion" && tarea.listaComun),
         `${cual}: el ejemplo resuelto trae opcionesComunes exactamente cuando la tarea usa lista común`,
+      );
+
+      // La misma afirmación, para la tercera forma de `opcion`: el ejemplo
+      // resuelto trae `texto` exactamente cuando la tarea es un cloze. Se
+      // busca la forma JSON `"texto":`, con comillas y dos puntos, y no la
+      // palabra suelta entre comillas invertidas: esa la usan también
+      // `CAMPO_TEXTO_CLOZE`, la frase de `bloque` que dice dónde no va el
+      // pasaje, y el encargo de `huecos`, que tiene su propio campo `texto`
+      // con otro significado. Sin la forma exacta, esta afirmación no podría
+      // fallar nunca —`texto` aparece en prosa en las 52 tareas— y una
+      // afirmación que no puede fallar es un defecto en este proyecto.
+      afirmar(
+        encargo.texto.includes('"texto":') === esCloze,
+        `${cual}: el ejemplo resuelto trae "texto" exactamente cuando la tarea es un cloze`,
       );
     }
   }

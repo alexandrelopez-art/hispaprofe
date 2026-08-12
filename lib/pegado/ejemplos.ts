@@ -16,21 +16,24 @@ import type { MarcaEjercicio } from "@/lib/ejercicios/tipos";
  * cuenta de ítems no sale del ejemplo, porque en un paso libre —sin tarea del
  * mapa, sin sección de números— el ejemplo sería el único número a la vista.
  *
- * **Cinco ejemplos para cuatro motores.** `opcion` tiene dos formas que el
- * encargo distingue —cada pregunta con sus propias `opciones`, o una lista
- * común en `opcionesComunes` que varias preguntas comparten—, y el encargo de
- * una tarea con lista común (`MATCH_PERSON`, `ATTRIB`) dice explícitamente
- * que «ninguna pregunta lleva su propio `opciones`». Enseñar ahí el ejemplo
- * de la otra forma es peor que no enseñar ninguno: contradice la regla que
- * el propio documento acaba de dar, y una IA que copie el ejemplo en vez de
- * leer la regla comete justo «el error caro» de este proyecto. Por eso hay
- * un `opcionListaComun` además de `opcion`.
+ * **Seis ejemplos para cuatro motores.** `opcion` tiene tres formas que el
+ * encargo distingue —cada pregunta con sus propias `opciones`; una lista
+ * común en `opcionesComunes` que varias preguntas comparten; o un pasaje en
+ * `texto` con sus marcas `{{n}}`, el cloze—, y el encargo de cada una dice
+ * explícitamente lo que la otra forma no cumple: una tarea con lista común
+ * (`MATCH_PERSON`, `ATTRIB`) exige que «ninguna pregunta lleve su propio
+ * `opciones`»; un cloze exige que «el pasaje va en `texto` y no en `bloque`».
+ * Enseñar ahí el ejemplo de otra forma es peor que no enseñar ninguno:
+ * contradice la regla que el propio documento acaba de dar, y una IA que
+ * copie el ejemplo en vez de leer la regla comete justo «el error caro» de
+ * este proyecto. Por eso hay un `opcionListaComun` y un `opcionCloze` además
+ * de `opcion`.
  *
  * `scripts/verificar-pegado.ts` comprueba que cada uno pasa el esquema de su
  * motor. Es la comprobación que impide que un ejemplo roto enseñe a devolver
  * basura sin que nada avise.
  */
-export const EJEMPLOS: Record<MarcaEjercicio | "opcionListaComun", unknown> = {
+export const EJEMPLOS: Record<MarcaEjercicio | "opcionListaComun" | "opcionCloze", unknown> = {
   relacionar: {
     bloque:
       "## Tablón de anuncios\n\n" +
@@ -122,6 +125,38 @@ export const EJEMPLOS: Record<MarcaEjercicio | "opcionListaComun", unknown> = {
           enunciado: "¿Quién forma parte de un grupo?",
           correctas: [2],
         },
+      ],
+    },
+  },
+
+  /**
+   * `opcion` con el pasaje de un cloze: el mismo extracto de la Tarea 4 del
+   * A2/B1 escolar (mayo de 2015, ver `scripts/sembrar-dele-a2b1-lectura.ts`)
+   * que dio los otros cinco ejemplos, recortado a tres huecos y renumerado
+   * desde `{{1}}` en vez de sus marcas reales `{{19}}`…`{{21}}` — lo que se
+   * enseña es la forma, no en qué tarea iba.
+   *
+   * Sin `bloque` y con el pasaje dentro de `ejercicio`, en `texto`: es
+   * justo lo que pide `REGLAS_CLOZE` dos secciones más arriba del encargo, y
+   * lo que ni `opcion` ni `opcionListaComun` pueden enseñar aquí sin
+   * contradecirla. Si un cloze enseñara cualquiera de esos dos, la IA
+   * copiaría un `bloque` con el pasaje suelto y unas `preguntas` sin `texto`
+   * — un ejercicio válido donde cada hueco pierde la frase en la que está,
+   * que es lo único que se estaba preguntando.
+   */
+  opcionCloze: {
+    ejercicio: {
+      ejercicio: "opcion",
+      consigna: "Lee el texto y rellena los huecos con la opción correcta.",
+      multiple: false,
+      presentacion: "desplegable",
+      texto:
+        "Buscamos nuevos talentos\n\n" +
+        "Nunca {{1}} sabe dónde puede estar el próximo Juan Antonio Bayona. O el próximo Norman Foster, o David Delfín o Banksy… Si te gusta escribir, si tu {{2}} libre lo dedicas a diseñar, a componer canciones o cualquier forma de creación artística, este puede ser tu momento. No importa de dónde eres: {{3}} interesa descubrir tu talento y compartir tus creaciones.",
+      preguntas: [
+        { id: "1", enunciado: "1.", opciones: ["me", "se", "le"], correctas: [1] },
+        { id: "2", enunciado: "2.", opciones: ["momento", "tiempo", "ocio"], correctas: [1] },
+        { id: "3", enunciado: "3.", opciones: ["nos", "si", "se"], correctas: [0] },
       ],
     },
   },
