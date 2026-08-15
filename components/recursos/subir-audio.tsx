@@ -36,9 +36,23 @@ function enMegas(bytes: number): string {
 export default function SubirAudio({
   valor,
   alCambiar,
+  alFallar,
 }: {
   valor?: string;
   alCambiar: (url: string | undefined) => void;
+  /**
+   * Avisa con la dirección que no se pudo traer, para que quien pinta este
+   * componente pueda ofrecer otra salida.
+   *
+   * Opcional porque el editor de Recursos no tiene ninguna que ofrecer: allí,
+   * un audio que no se puede traer es un audio que no entra. El editor de
+   * bloques sí, porque un audio de Drive todavía se puede incrustar —sin
+   * racionar—, y esa decisión es del profesor y no de este componente.
+   *
+   * `SubirAudio` no sabe qué es un bloque ni qué es un `EMBED`: solo dice qué
+   * dirección falló.
+   */
+  alFallar?: (direccion: string) => void;
 }) {
   const entrada = useRef<HTMLInputElement>(null);
   const [subiendo, setSubiendo] = useState(false);
@@ -95,6 +109,7 @@ export default function SubirAudio({
       const json = await respuesta.json();
       if (!respuesta.ok) {
         setError(json.error ?? "No se pudo traer el audio de esa dirección.");
+        alFallar?.(enlace);
         return;
       }
       // Lo que se guarda es la dirección **nuestra**, no la de Drive: el
@@ -104,6 +119,7 @@ export default function SubirAudio({
       setDireccion("");
     } catch {
       setError("No se pudo traer el audio de esa dirección.");
+      alFallar?.(enlace);
     } finally {
       setTrayendo(false);
     }
