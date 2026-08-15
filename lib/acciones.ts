@@ -12,6 +12,7 @@ import { desmarcarSiNoRevisado } from "@/lib/progreso";
 import { estudianteAsignable } from "@/lib/estudiantes";
 import { corregir, analizar } from "@/lib/ejercicios/registro";
 import type { Respuestas } from "@/lib/ejercicios/tipos";
+import { motivoSiAudioDeDrive } from "@/lib/bloques";
 import { Prisma } from "@/lib/generated/prisma/client";
 import type {
   Destreza,
@@ -614,7 +615,9 @@ export async function borrarPaso(formData: FormData) {
   redirect(`/recorridos/${paso.recorridoId}`);
 }
 
-export async function crearBloque(formData: FormData) {
+export async function crearBloque(
+  formData: FormData,
+): Promise<{ error: string } | undefined> {
   await exigirProfesor();
   const pasoId = String(formData.get("pasoId") ?? "");
   const tipo = String(formData.get("tipo") ?? "") as TipoBloque;
@@ -625,6 +628,14 @@ export async function crearBloque(formData: FormData) {
   if (!pasoId || !tipo) return;
   if (tipo === "TEXTO" && !texto) return;
   if (tipo !== "TEXTO" && !url) return;
+
+  // El portero del audio: un audio de Drive no se puede racionar. Vive en
+  // `lib/bloques.ts` y no aquí porque este archivo es `"use server"` —todo lo
+  // que exporta es un endpoint público— y un script no puede ejercitarlo sin
+  // sesión. Lo pregunta también `editarBloque`: sin las dos, la puerta que
+  // quedara abierta bastaría para colar el audio sin racionar.
+  const motivo = motivoSiAudioDeDrive(tipo, url);
+  if (motivo) return { error: motivo };
 
   const ultimo = await prisma.bloque.aggregate({
     where: { pasoId },
@@ -855,7 +866,9 @@ export async function moverPaso(formData: FormData) {
 }
 
 /** Actualiza el contenido de un bloque ya creado. */
-export async function editarBloque(formData: FormData) {
+export async function editarBloque(
+  formData: FormData,
+): Promise<{ error: string } | undefined> {
   await exigirProfesor();
   const id = String(formData.get("bloqueId") ?? "");
   if (!id) return;
@@ -871,6 +884,13 @@ export async function editarBloque(formData: FormData) {
   // Un bloque vacio no se guarda: para eso está el botón de borrar.
   if (existente.tipo === "TEXTO" && !texto) return;
   if (existente.tipo !== "TEXTO" && !url) return;
+
+  // La segunda puerta, y la que tenía el fallo más raro: `editarBloque` no
+  // cambia el `tipo`, así que pegarle una dirección de Drive a un bloque que
+  // ya es `AUDIO` lo dejaba racionado pero mudo —el `Reproductor` recibía una
+  // dirección que el navegador no puede reproducir—.
+  const motivo = motivoSiAudioDeDrive(existente.tipo, url);
+  if (motivo) return { error: motivo };
 
   await prisma.bloque.update({
     where: { id },

@@ -111,6 +111,9 @@ export default function EditorBloques({ pasoId }: { pasoId: string }) {
   const [aviso, setAviso] = useState("");
   const [falloImagen, setFalloImagen] = useState(false);
   const [enviando, setEnviando] = useState(false);
+  // Lo que el servidor contesta cuando se niega. Es la única forma de saberlo:
+  // `crearBloque` es una acción, y aquí se llama a mano y se espera.
+  const [motivo, setMotivo] = useState<string | null>(null);
   // Drive no sirve audio para reproduccion directa, pero si ofrece su
   // propio reproductor incrustable. Se guarda como EMBED, no como AUDIO.
   const audioDeDrive = tipo === "AUDIO" ? idDrive(entrada) : "";
@@ -175,6 +178,7 @@ export default function EditorBloques({ pasoId }: { pasoId: string }) {
   async function enviar() {
     if (!listo || enviando) return;
     setEnviando(true);
+    setMotivo(null);
     try {
       const fd = new FormData();
       fd.set("pasoId", pasoId);
@@ -183,7 +187,11 @@ export default function EditorBloques({ pasoId }: { pasoId: string }) {
       fd.set("url", src);
       fd.set("etiqueta", etiqueta);
       fd.set("imagen", imagen);
-      await crearBloque(fd);
+      const resultado = await crearBloque(fd);
+      if (resultado?.error) {
+        setMotivo(resultado.error);
+        return;
+      }
       reiniciar();
     } finally {
       setEnviando(false);
@@ -397,6 +405,12 @@ export default function EditorBloques({ pasoId }: { pasoId: string }) {
             </p>
           )}
         </div>
+      )}
+
+      {motivo && (
+        <p className="mt-3 rounded-xl bg-bloque3/20 px-4 py-2 text-sm text-tinta">
+          {motivo}
+        </p>
       )}
 
       <button

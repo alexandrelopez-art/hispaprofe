@@ -55,6 +55,9 @@ export default function BloqueEditable({
   const [etiqueta, setEtiqueta] = useState(bloque.etiqueta ?? "");
   const [imagen, setImagen] = useState(bloque.imagen ?? "");
   const [guardando, setGuardando] = useState(false);
+  // Lo que el servidor contesta cuando se niega. Es la única forma de saberlo:
+  // `editarBloque` es una acción, y aquí se llama a mano y se espera.
+  const [motivo, setMotivo] = useState<string | null>(null);
 
   const esTexto = bloque.tipo === "TEXTO";
   const listo = esTexto ? texto.trim() !== "" : url.trim() !== "";
@@ -64,12 +67,14 @@ export default function BloqueEditable({
     setUrl(bloque.url ?? "");
     setEtiqueta(bloque.etiqueta ?? "");
     setImagen(bloque.imagen ?? "");
+    setMotivo(null);
     setEditando(false);
   }
 
   async function guardar() {
     if (!listo || guardando) return;
     setGuardando(true);
+    setMotivo(null);
     try {
       const fd = new FormData();
       fd.set("bloqueId", bloque.id);
@@ -77,7 +82,11 @@ export default function BloqueEditable({
       fd.set("url", url);
       fd.set("etiqueta", etiqueta);
       fd.set("imagen", imagen);
-      await editarBloque(fd);
+      const resultado = await editarBloque(fd);
+      if (resultado?.error) {
+        setMotivo(resultado.error);
+        return;
+      }
       setEditando(false);
     } finally {
       setGuardando(false);
@@ -195,6 +204,12 @@ export default function BloqueEditable({
                 </>
               )}
             </>
+          )}
+
+          {motivo && (
+            <p className="mt-3 rounded-xl bg-bloque3/20 px-4 py-2 text-sm text-tinta">
+              {motivo}
+            </p>
           )}
 
           <div className="mt-4 flex gap-2">
