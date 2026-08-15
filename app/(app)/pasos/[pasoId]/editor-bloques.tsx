@@ -4,6 +4,7 @@ import { useState } from "react";
 import { crearBloque, obtenerMetadatos } from "@/lib/acciones";
 import EditorTexto from "@/components/editor-texto";
 import SubirImagen from "@/components/subir-imagen";
+import SubirAudio from "@/components/recursos/subir-audio";
 import { idDrive } from "@/lib/bloques";
 
 type Tipo = "TEXTO" | "EMBED" | "AUDIO" | "IMAGEN" | "ENLACE";
@@ -36,7 +37,7 @@ const TIPOS: { id: Tipo; label: string; ayuda: string }[] = [
     id: "AUDIO",
     label: "Audio",
     ayuda:
-      "Dirección directa de un archivo mp3. Si es de Google Drive, se convierte solo en reproductor incrustado.",
+      "Súbelo desde el ordenador, o pega su dirección de Drive y el servidor irá a buscarlo. El archivo se guarda dentro, así que se puede racionar en una prueba.",
   },
 ];
 
@@ -114,9 +115,15 @@ export default function EditorBloques({ pasoId }: { pasoId: string }) {
   // Lo que el servidor contesta cuando se niega. Es la única forma de saberlo:
   // `crearBloque` es una acción, y aquí se llama a mano y se espera.
   const [motivo, setMotivo] = useState<string | null>(null);
+  // La dirección de Drive que no se pudo traer, si la hubo. Es lo que habilita
+  // la escotilla, y solo aparece después de un intento fallido: sin eso, la
+  // salida fácil estaría siempre delante de la buena.
+  const [driveQueFallo, setDriveQueFallo] = useState<string | null>(null);
+  // Si el profesor ha pedido a mano incrustarla igualmente.
+  const [incrustarDrive, setIncrustarDrive] = useState(false);
   // Drive no sirve audio para reproduccion directa, pero si ofrece su
   // propio reproductor incrustable. Se guarda como EMBED, no como AUDIO.
-  const audioDeDrive = tipo === "AUDIO" ? idDrive(entrada) : "";
+  const audioDeDrive = tipo === "AUDIO" && incrustarDrive ? idDrive(driveQueFallo ?? "") : "";
 
   const src =
     tipo === "TEXTO"
@@ -127,7 +134,11 @@ export default function EditorBloques({ pasoId }: { pasoId: string }) {
           ? urlDirectaMedia(entrada)
           : extraerSrc(entrada);
 
-  const tipoFinal: Tipo = audioDeDrive ? "EMBED" : tipo;
+  // Un audio de Drive ya no se convierte solo en `EMBED`: eso lo dejaba fuera
+  // del racionamiento sin decírselo a nadie (ver `motivoSiAudioDeDrive`). La
+  // conversión sigue existiendo, pero solo cuando el profesor la pide a mano,
+  // en la escotilla de abajo.
+  const tipoFinal: Tipo = incrustarDrive ? "EMBED" : tipo;
   const origen = origenDe(src);
   const listo = tipo === "TEXTO" ? texto.trim() !== "" : src !== "";
   const ayuda = TIPOS.find((t) => t.id === tipo)!.ayuda;
@@ -139,6 +150,10 @@ export default function EditorBloques({ pasoId }: { pasoId: string }) {
     setImagen("");
     setAviso("");
     setFalloImagen(false);
+    // Sin esto, un intento fallido de una tanda anterior dejaría la escotilla
+    // (o su marca de "pedida") colgando en el siguiente bloque de audio.
+    setDriveQueFallo(null);
+    setIncrustarDrive(false);
   }
 
   function cambiarTipo(nuevo: Tipo) {
@@ -252,6 +267,38 @@ export default function EditorBloques({ pasoId }: { pasoId: string }) {
             }}
             etiqueta="Subir desde el ordenador"
           />
+        </div>
+      )}
+
+      {tipo === "AUDIO" && (
+        <div className="mt-3">
+          <SubirAudio
+            valor={entrada.startsWith("/api/archivos/") ? entrada : undefined}
+            alCambiar={(url) => {
+              setEntrada(url ?? "");
+              setFalloImagen(false);
+              setDriveQueFallo(null);
+            }}
+            alFallar={setDriveQueFallo}
+          />
+        </div>
+      )}
+
+      {tipo === "AUDIO" && driveQueFallo && !incrustarDrive && (
+        <div className="mt-3 rounded-xl bg-sol-100 px-4 py-3">
+          <p className="text-sm text-tinta">
+            Si no consigues que el servidor lo traiga, puedes ponerlo como
+            reproductor de Drive. Cuenta que <strong>así no se cuentan las
+            escuchas</strong>: en una prueba del examen, el estudiante podrá
+            oírlo tantas veces como quiera.
+          </p>
+          <button
+            type="button"
+            onClick={() => setIncrustarDrive(true)}
+            className="mt-2 h-9 rounded-full border border-hp-200 bg-white px-4 text-sm font-bold text-tinta transition-colors hover:border-hp-400"
+          >
+            Ponerlo como reproductor de Drive
+          </button>
         </div>
       )}
 
