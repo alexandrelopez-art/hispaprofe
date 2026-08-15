@@ -278,13 +278,17 @@ export default function EditorBloques({ pasoId }: { pasoId: string }) {
               setEntrada(url ?? "");
               setFalloImagen(false);
               setDriveQueFallo(null);
+              // Sin esto, `incrustarDrive` se queda pedido de un intento
+              // anterior: si luego falla otro traer, el bloque vuelve a
+              // EMBED sin pasar por la escotilla ni enseñar su aviso.
+              setIncrustarDrive(false);
             }}
             alFallar={setDriveQueFallo}
           />
         </div>
       )}
 
-      {tipo === "AUDIO" && driveQueFallo && !incrustarDrive && (
+      {tipo === "AUDIO" && driveQueFallo && idDrive(driveQueFallo) !== "" && !incrustarDrive && (
         <div className="mt-3 rounded-xl bg-sol-100 px-4 py-3">
           <p className="text-sm text-tinta">
             Si no consigues que el servidor lo traiga, puedes ponerlo como
@@ -401,10 +405,14 @@ export default function EditorBloques({ pasoId }: { pasoId: string }) {
               </div>
             ) : falloImagen ? (
               <p className="rounded-xl bg-bloque3/20 px-3 py-2 text-xs text-tinta">
-                Esa dirección no reproduce ningún audio. Tiene que ser el
-                archivo en sí, terminado en .mp3 o .m4a. Si está en SoundCloud,
-                Ivoox o Spotify, usa «Genially, vídeo o actividad» y pega su
-                código de inserción.
+                Esa dirección no reproduce ningún audio aquí. Si es un enlace
+                de Drive, el navegador no puede tocar el archivo directamente
+                desde él: no lo pegues en este cuadro, usa el campo de más
+                arriba y pulsa «Traer de esa dirección», que es el que lo
+                descarga y permite racionarlo en una prueba. Si en cambio está
+                en SoundCloud, Ivoox o Spotify —que no se pueden descargar—,
+                usa «Genially, vídeo o actividad» y pega su código de
+                inserción.
               </p>
             ) : (
               <audio

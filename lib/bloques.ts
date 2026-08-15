@@ -13,14 +13,24 @@
  * Reconoce las tres formas que se pegan de verdad, y la primera es la que se
  * copia de la barra del navegador. Vivía dentro de `editor-bloques.tsx`; se
  * mueve aquí porque ahora también la necesita el portero, que es de servidor.
+ *
+ * La tercera forma —`?id=` suelto— es la que produce `urlDirectaMedia` al
+ * reescribir lo que se pega en el editor, así que es la que de verdad llega
+ * a `crearBloque`. Por eso exige que la dirección sea de `drive.google.com`:
+ * sin esa condición, cualquier CDN ajeno con un `id=` largo en la query se
+ * confundiría con Drive y el portero lo rechazaría por un motivo falso.
  */
 export function idDrive(entrada: string): string {
-  return (
-    entrada.match(/drive\.google\.com\/file\/d\/([\w-]+)/)?.[1] ??
-    entrada.match(/drive\.google\.com\/open\?id=([\w-]+)/)?.[1] ??
-    entrada.match(/[?&]id=([\w-]{20,})/)?.[1] ??
-    ""
-  );
+  const deLaVista = entrada.match(/drive\.google\.com\/file\/d\/([\w-]+)/)?.[1];
+  if (deLaVista) return deLaVista;
+
+  const deAbrir = entrada.match(/drive\.google\.com\/open\?id=([\w-]+)/)?.[1];
+  if (deAbrir) return deAbrir;
+
+  const suelta = entrada.includes("drive.google.com")
+    ? entrada.match(/[?&]id=([\w-]{20,})/)?.[1]
+    : undefined;
+  return suelta ?? "";
 }
 
 /**

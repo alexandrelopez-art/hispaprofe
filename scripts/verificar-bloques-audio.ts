@@ -29,6 +29,13 @@ async function main() {
   const YA_CONVERTIDA = "https://drive.google.com/file/d/1AbC_dEfGhIjKlMnOpQr/preview";
   const NUESTRA = "/api/archivos/cms5dr9t9000fy59gli9s09qz";
   const DIRECTA = "https://ejemplo.test/audios/tarea1.mp3";
+  // La forma que de verdad sale de `urlDirectaMedia` al reescribir lo que se
+  // pega en el editor: es la que llega a `crearBloque`, y la única de las
+  // tres ramas de `idDrive` sin caso propio hasta este arreglo.
+  const REESCRITA = "https://drive.google.com/uc?export=view&id=1AbC_dEfGhIjKlMnOpQr";
+  // Un CDN ajeno con un `id=` largo en la query: parece la forma suelta de
+  // Drive, pero no lo es. Si `idDrive` no exigiera el host, la caería igual.
+  const CDN_AJENO = "https://cdn.ejemplo.test/audio.mp3?id=1AbC_dEfGhIjKlMnOpQr";
 
   afirmar(
     idDrive(DEL_NAVEGADOR) !== "",
@@ -40,6 +47,11 @@ async function main() {
   );
   afirmar(idDrive(NUESTRA) === "", "idDrive no confunde una dirección nuestra con Drive");
   afirmar(idDrive(DIRECTA) === "", "idDrive no confunde una dirección directa con Drive");
+  afirmar(idDrive(REESCRITA) !== "", "idDrive caza la forma ?id= suelta, que es la que produce urlDirectaMedia");
+  afirmar(
+    idDrive(CDN_AJENO) === "",
+    "idDrive no confunde un id= largo de un CDN ajeno con uno de Drive",
+  );
 
   afirmar(esAudioDeDrive(YA_CONVERTIDA), "esAudioDeDrive reconoce la forma ya convertida a /preview");
   afirmar(
@@ -69,6 +81,14 @@ async function main() {
   afirmar(
     motivoSiAudioDeDrive("AUDIO", DIRECTA) === null,
     "el portero deja pasar un AUDIO con una dirección directa: esa suena y se raciona",
+  );
+  afirmar(
+    motivoSiAudioDeDrive("AUDIO", REESCRITA) !== null,
+    "el portero rechaza lo que el editor manda de verdad al crear: la dirección ya reescrita por urlDirectaMedia",
+  );
+  afirmar(
+    motivoSiAudioDeDrive("AUDIO", CDN_AJENO) === null,
+    "el portero deja pasar un audio de un CDN ajeno aunque lleve un id= largo, que no es de Drive",
   );
   afirmar(
     (motivoSiAudioDeDrive("AUDIO", DEL_NAVEGADOR) ?? "").toLowerCase().includes("drive"),
