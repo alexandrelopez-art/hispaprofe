@@ -9,6 +9,8 @@ import {
 import BotonConfirmar from "@/components/boton-confirmar";
 import EditorTexto from "@/components/editor-texto";
 import SubirImagen from "@/components/subir-imagen";
+import SubirAudio from "@/components/recursos/subir-audio";
+import { esAudioDeDrive } from "@/lib/bloques";
 
 const etiquetaTipo: Record<string, string> = {
   TEXTO: "Texto",
@@ -42,11 +44,13 @@ export default function BloqueEditable({
   bloque,
   indice,
   total,
+  racionado,
   children,
 }: {
   bloque: Bloque;
   indice: number;
   total: number;
+  racionado: boolean;
   children: React.ReactNode;
 }) {
   const [editando, setEditando] = useState(false);
@@ -146,6 +150,19 @@ export default function BloqueEditable({
         </form>
       </div>
 
+      {/* Solo la ve el profesor, y no por una condición de aquí: esta marca vive
+          dentro de `BloqueEditable`, y la página solo envuelve el bloque en
+          `BloqueEditable` cuando `esProfe` (ver page.tsx). Si algún día se
+          mueve a `BloqueContenido` —que sí lo ve el estudiante— la marca
+          empieza a delatar al examen que el audio no cuenta las escuchas. */}
+      {racionado && esAudioDeDrive(bloque.url) && (
+        <p className="mt-2 rounded-xl bg-sol-100 px-3 py-2 text-xs text-tinta">
+          Este contenido va incrustado de Drive: la aplicación no puede contar
+          cuántas veces se abre. En una prueba, el estudiante puede oírlo sin
+          límite.
+        </p>
+      )}
+
       {editando ? (
         <div className="rounded-tarjeta border border-hp-200 bg-white p-4">
           {esTexto ? (
@@ -165,6 +182,15 @@ export default function BloqueEditable({
               {bloque.tipo === "IMAGEN" && (
                 <div className="mt-2">
                   <SubirImagen alSubir={setUrl} etiqueta="Cambiar la imagen" />
+                </div>
+              )}
+
+              {bloque.tipo === "AUDIO" && (
+                <div className="mt-2">
+                  <SubirAudio
+                    valor={url.startsWith("/api/archivos/") ? url : undefined}
+                    alCambiar={(nueva) => setUrl(nueva ?? "")}
+                  />
                 </div>
               )}
 

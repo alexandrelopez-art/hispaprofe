@@ -445,6 +445,7 @@ export default async function PasoPage({
                 bloque={bloque}
                 indice={i}
                 total={paso.bloques.length}
+                racionado={racionado}
               >
                 <BloqueContenido
                   bloque={bloque}
