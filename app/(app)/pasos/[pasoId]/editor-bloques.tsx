@@ -134,11 +134,11 @@ export default function EditorBloques({ pasoId }: { pasoId: string }) {
           ? urlDirectaMedia(entrada)
           : extraerSrc(entrada);
 
-  // Un audio de Drive ya no se convierte solo en `EMBED`: eso lo dejaba fuera
-  // del racionamiento sin decírselo a nadie (ver `motivoSiAudioDeDrive`). La
-  // conversión sigue existiendo, pero solo cuando el profesor la pide a mano,
-  // en la escotilla de abajo.
-  const tipoFinal: Tipo = incrustarDrive ? "EMBED" : tipo;
+  // El audio de un bloque solo se convierte en EMBED cuando
+  // el profesor lo ha pedido a mano Y sigue habiendo un enlace
+  // de Drive que incrustar: si al final se consigue traer, el
+  // bloque vuelve a nacer AUDIO y se raciona.
+  const tipoFinal: Tipo = audioDeDrive ? "EMBED" : tipo;
   const origen = origenDe(src);
   const listo = tipo === "TEXTO" ? texto.trim() !== "" : src !== "";
   const ayuda = TIPOS.find((t) => t.id === tipo)!.ayuda;
