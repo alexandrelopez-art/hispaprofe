@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import ffmpegEmpaquetado from "ffmpeg-static";
 
 /**
  * Comprime el audio que sube el profesor, para que no tenga que hacerlo él.
@@ -82,18 +83,40 @@ const EXTENSIONES: Record<string, string> = {
 
 /**
  * Un nombre legible para lo que graba el navegador, que llega sin ninguno.
- * `comprimirAudio` nombra con él el archivo temporal, y acaba en la columna
- * `Archivo.nombre`, que es lo que ve el profesor.
+ * Acaba en la columna `Archivo.nombre`, que es lo que ve el profesor —pero no
+ * lo usa `comprimirAudio` para nombrar nada en disco: sus archivos
+ * temporales se llaman siempre `entrada` y `salida-N.m4a`, fijos a
+ * propósito, para que un `Content-Disposition` hostil de la vía por
+ * dirección no pueda escribir donde quiera en el sistema de archivos con lo
+ * que ponga aquí.
  */
 export function nombreDeGrabacion(tipo: string): string {
   return `grabacion.${EXTENSIONES[tipo] ?? "audio"}`;
 }
 
 type Compresor = {
+  /** Cómo se llama para contarlo, que ya no es lo mismo que cómo se ejecuta. */
+  nombre: string;
   orden: string;
   /** Los argumentos, dados el archivo de entrada y el de salida. */
   args: (entrada: string, salida: string) => string[];
 };
+
+/**
+ * Los argumentos de ffmpeg, que ahora los usan dos entradas de la lista: el
+ * `ffmpeg` que pueda haber en el `PATH` y el que llevamos empaquetado. Es el
+ * mismo programa, así que se le habla igual; escribirlo dos veces sería dejar
+ * puesta la trampa de que un día alguien arregle una copia y no la otra.
+ *
+ * `-vn` descarta cualquier flujo de vídeo: muchos MP3 llevan una carátula
+ * incrustada, que ffmpeg trata como vídeo (mjpeg) y selecciona por defecto, y
+ * el muxer de `.m4a` no admite mjpeg y aborta con un MP3 perfectamente sano.
+ * `-nostdin` evita que, lanzado sin terminal, se quede esperando entrada por
+ * teclado en vez de fallar o terminar.
+ */
+const ARGS_FFMPEG = (e: string, s: string) => [
+  "-y", "-nostdin", "-i", e, "-vn", "-ac", "1", "-c:a", "aac", "-b:a", "48k", s,
+];
 
 // En el orden en que se prueban. `afconvert` primero porque viene con macOS
 // y es la máquina donde esto corre hoy; `ffmpeg` para cualquier otra.
@@ -108,18 +131,31 @@ type Compresor = {
 // navegador de la mayoría.
 const COMPRESORES: Compresor[] = [
   {
+    nombre: "afconvert",
     orden: "afconvert",
     args: (e, s) => ["-f", "mp4f", "-d", "aac", "-b", "48000", "-c", "1", e, s],
   },
   {
+    nombre: "ffmpeg",
     orden: "ffmpeg",
-    // `-vn` descarta cualquier flujo de vídeo: muchos MP3 llevan una carátula
-    // incrustada, que ffmpeg trata como vídeo (mjpeg) y selecciona por
-    // defecto, y el muxer de `.m4a` no admite mjpeg y aborta con un MP3
-    // perfectamente sano. `-nostdin` evita que, lanzado sin terminal, se
-    // quede esperando entrada por teclado en vez de fallar o terminar.
-    args: (e, s) => ["-y", "-nostdin", "-i", e, "-vn", "-ac", "1", "-c:a", "aac", "-b:a", "48k", s],
+    args: ARGS_FFMPEG,
   },
+  // El último a propósito: es el único que existe siempre, así que ponerlo
+  // antes dejaría los otros dos sin usarse nunca. Y hace falta porque en
+  // Vercel no hay ninguno de los dos anteriores —`afconvert` es de macOS, y el
+  // runtime no trae `ffmpeg`—: o el binario viaja dentro del despliegue o no
+  // hay con qué comprimir.
+  //
+  // El diseño del 01/08/2026 descartó este paquete por sus 80 MB y por la
+  // GPL-3.0, con la condición de que «el día que se despliegue en Linux,
+  // instalar ffmpeg en ese servidor es una línea de configuración». Esa
+  // condición no se cumple aquí: en Vercel no hay servidor donde instalar
+  // nada. Sobre la licencia: el binario se ejecuta como proceso aparte y no se
+  // distribuye —corre en nuestro servidor, a nadie le llega una copia—, y la
+  // GPLv3 no tiene cláusula de uso en red.
+  ...(ffmpegEmpaquetado
+    ? [{ nombre: "ffmpeg empaquetado", orden: ffmpegEmpaquetado, args: ARGS_FFMPEG }]
+    : []),
 ];
 
 /**
@@ -197,7 +233,7 @@ export async function hayCompresor(): Promise<boolean> {
  * en vez de fingir que se probó.
  */
 export async function compresoresInstalados(): Promise<string[]> {
-  return (await buscarCompresores()).map((c) => c.orden);
+  return (await buscarCompresores()).map((c) => c.nombre);
 }
 
 /**
@@ -237,8 +273,9 @@ export async function comprimirAudio(
   const compresores = await buscarCompresores();
   if (compresores.length === 0) {
     throw new CompresorAusenteError(
-      "No hay ningún compresor de audio en esta máquina. En macOS viene " +
-        "`afconvert`; en otros sistemas hace falta instalar `ffmpeg`.",
+      "No hay ningún compresor de audio disponible. Debería venir uno " +
+        "empaquetado con la aplicación: si esto sale en el servidor, el " +
+        "binario de `ffmpeg-static` no ha viajado con el despliegue.",
     );
   }
 

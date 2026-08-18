@@ -9,6 +9,8 @@ import {
 import BotonConfirmar from "@/components/boton-confirmar";
 import EditorTexto from "@/components/editor-texto";
 import SubirImagen from "@/components/subir-imagen";
+import SubirAudio from "@/components/recursos/subir-audio";
+import { esAudioDeDrive } from "@/lib/bloques";
 
 const etiquetaTipo: Record<string, string> = {
   TEXTO: "Texto",
@@ -42,11 +44,13 @@ export default function BloqueEditable({
   bloque,
   indice,
   total,
+  racionado,
   children,
 }: {
   bloque: Bloque;
   indice: number;
   total: number;
+  racionado: boolean;
   children: React.ReactNode;
 }) {
   const [editando, setEditando] = useState(false);
@@ -55,6 +59,9 @@ export default function BloqueEditable({
   const [etiqueta, setEtiqueta] = useState(bloque.etiqueta ?? "");
   const [imagen, setImagen] = useState(bloque.imagen ?? "");
   const [guardando, setGuardando] = useState(false);
+  // Lo que el servidor contesta cuando se niega. Es la única forma de saberlo:
+  // `editarBloque` es una acción, y aquí se llama a mano y se espera.
+  const [motivo, setMotivo] = useState<string | null>(null);
 
   const esTexto = bloque.tipo === "TEXTO";
   const listo = esTexto ? texto.trim() !== "" : url.trim() !== "";
@@ -64,12 +71,14 @@ export default function BloqueEditable({
     setUrl(bloque.url ?? "");
     setEtiqueta(bloque.etiqueta ?? "");
     setImagen(bloque.imagen ?? "");
+    setMotivo(null);
     setEditando(false);
   }
 
   async function guardar() {
     if (!listo || guardando) return;
     setGuardando(true);
+    setMotivo(null);
     try {
       const fd = new FormData();
       fd.set("bloqueId", bloque.id);
@@ -77,7 +86,11 @@ export default function BloqueEditable({
       fd.set("url", url);
       fd.set("etiqueta", etiqueta);
       fd.set("imagen", imagen);
-      await editarBloque(fd);
+      const resultado = await editarBloque(fd);
+      if (resultado?.error) {
+        setMotivo(resultado.error);
+        return;
+      }
       setEditando(false);
     } finally {
       setGuardando(false);
@@ -137,6 +150,19 @@ export default function BloqueEditable({
         </form>
       </div>
 
+      {/* Solo la ve el profesor, y no por una condición de aquí: esta marca vive
+          dentro de `BloqueEditable`, y la página solo envuelve el bloque en
+          `BloqueEditable` cuando `esProfe` (ver page.tsx). Si algún día se
+          mueve a `BloqueContenido` —que sí lo ve el estudiante— la marca
+          empieza a delatar al examen que el audio no cuenta las escuchas. */}
+      {racionado && esAudioDeDrive(bloque.url) && (
+        <p className="mt-2 rounded-xl bg-sol-100 px-3 py-2 text-xs text-tinta">
+          Este contenido va incrustado de Drive: la aplicación no puede contar
+          cuántas veces se abre. En una prueba, el estudiante puede oírlo sin
+          límite.
+        </p>
+      )}
+
       {editando ? (
         <div className="rounded-tarjeta border border-hp-200 bg-white p-4">
           {esTexto ? (
@@ -156,6 +182,15 @@ export default function BloqueEditable({
               {bloque.tipo === "IMAGEN" && (
                 <div className="mt-2">
                   <SubirImagen alSubir={setUrl} etiqueta="Cambiar la imagen" />
+                </div>
+              )}
+
+              {bloque.tipo === "AUDIO" && (
+                <div className="mt-2">
+                  <SubirAudio
+                    valor={url.startsWith("/api/archivos/") ? url : undefined}
+                    alCambiar={(nueva) => setUrl(nueva ?? "")}
+                  />
                 </div>
               )}
 
@@ -195,6 +230,12 @@ export default function BloqueEditable({
                 </>
               )}
             </>
+          )}
+
+          {motivo && (
+            <p className="mt-3 rounded-xl bg-bloque3/20 px-4 py-2 text-sm text-tinta">
+              {motivo}
+            </p>
           )}
 
           <div className="mt-4 flex gap-2">

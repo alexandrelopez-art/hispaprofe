@@ -1,18 +1,27 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ["@prisma/client", "@prisma/adapter-pg", "pg"],
+  serverExternalPackages: ["@prisma/client", "@prisma/adapter-pg", "pg", "ffmpeg-static"],
+
+  // El binario de ffmpeg no es código que el empaquetador pueda seguir: nadie
+  // lo importa, se lanza como proceso. Sin esto no viaja con la función y en
+  // producción no hay con qué comprimir. Las claves son rutas de ruta (route
+  // globs) y los valores se resuelven desde la raíz del proyecto.
+  outputFileTracingIncludes: {
+    "/api/archivos": ["./node_modules/ffmpeg-static/ffmpeg"],
+    "/api/entregas/audio": ["./node_modules/ffmpeg-static/ffmpeg"],
+  },
 
   // Con `proxy.ts` en la raíz, Next bufferiza el cuerpo de toda petición que
   // pase por él —incluidas las de `/api`— ANTES de que corra el manejador de
-  // la ruta, y por defecto solo guarda los primeros 10 MB. Pasado ese tope el
-  // resto se descarta en silencio (solo un WARN en el registro) y
-  // `peticion.formData()` revienta con un audio de 35,7 MB aunque el tope de
-  // `MAXIMO_AUDIO` en la ruta diga 100 MB: ese tope no significa nada si este
-  // no lo iguala o lo supera. Aviso también de coste: al bufferizarse antes
-  // del manejador, cualquiera sin sesión puede hacer que el servidor reserve
-  // hasta este tamaño en memoria antes de que la ruta llegue a comprobar el
-  // 403. En un portátil no se nota; en un despliegue real conviene saberlo.
+  // la ruta, y por defecto solo guarda los primeros 10 MB.
+  //
+  // Ojo: este número solo manda en local. En Vercel el cuerpo de una petición
+  // no puede pasar de 4,5 MB y lo corta la plataforma antes de llegar aquí,
+  // así que los topes que de verdad valen en producción son los de las rutas
+  // (`MAXIMO_SUBIDA` y `MAXIMO_AUDIO_RECIBIDO`), puestos por debajo de esa
+  // cifra. Esto se queda para que en el portátil el comportamiento no sea
+  // distinto por accidente.
   experimental: {
     proxyClientMaxBodySize: 100 * 1024 * 1024,
   },

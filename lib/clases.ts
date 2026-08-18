@@ -47,6 +47,96 @@ export function euros(centimos: number | null): string {
   return `${(centimos / 100).toFixed(2).replace(".", ",")} €`;
 }
 
+/**
+ * Lo que sale de leer el campo de precio de la ficha.
+ *
+ * Tres respuestas y no un `number | null`, porque el nulo tendría que
+ * significar a la vez «el campo estaba vacío, ponlo en automático» y «esto no
+ * es un precio», que son cosas opuestas: una guarda y la otra rechaza.
+ */
+export type Precio =
+  | { clase: "automatico" }
+  | { clase: "importe"; centimos: number }
+  | { clase: "invalido"; motivo: string };
+
+/**
+ * Interpreta lo que el profesor teclea en el campo de precio.
+ *
+ * Admite coma y punto porque las dos llegan: la coma es lo que da el teclado
+ * en español y el punto lo que sale de copiar y pegar de una hoja de cálculo.
+ * Y admite el símbolo del euro y los espacios de sobra por lo mismo.
+ *
+ * Cero se acepta: es una clase gratis a propósito, que este proyecto ya
+ * distingue del nulo —el olvido— en `importeDeClase`.
+ */
+export function interpretarPrecio(bruto: string): Precio {
+  const limpio = bruto.replace(/[€\s]/g, "").replace(",", ".");
+  if (limpio === "") return { clase: "automatico" };
+
+  // Se comprueba con una expresión regular y no con `Number`: `Number("")` es
+  // cero, `Number("30abc")` es NaN pero `parseFloat("30abc")` es 30, y ninguno
+  // de los dos sabe decir que «30,555» tiene un decimal de más.
+  if (!/^\d+(\.\d{1,2})?$/.test(limpio)) {
+    return {
+      clase: "invalido",
+      motivo: "Escribe el precio en euros, con dos decimales como mucho. Por ejemplo: 30,50",
+    };
+  }
+
+  // Por el texto y no multiplicando por cien: `30.10 * 100` es 3009.999… en
+  // coma flotante, y `Math.round` lo taparía casi siempre, que es peor que no
+  // taparlo nunca.
+  const [enteros, decimales = ""] = limpio.split(".");
+  return { clase: "importe", centimos: Number(enteros) * 100 + Number(decimales.padEnd(2, "0")) };
+}
+
+/**
+ * Qué hay que hacer con el precio guardado, dado lo que hay en el campo y lo
+ * que había antes.
+ *
+ * Existe por una trampa que no se ve mirando el campo: la ficha lo enseña
+ * **vacío** cuando el importe lo calculó la tarifa, porque enseñar esa cifra
+ * haría creer que está escrita a mano y guardar el formulario la convertiría en
+ * escrita a mano sin que nadie lo pidiera. Y entonces «vacío» ya no puede
+ * significar siempre «ponlo en automático»: si lo significara, guardar la ficha
+ * de una clase ya dada le borraría su importe **cada vez**, sin que nadie
+ * tocara el precio.
+ *
+ * Así que vacío significa dos cosas según lo que hubiera: borrar si el precio
+ * era a mano, y no tocar nada si lo calculó la tarifa.
+ */
+export type CambioDePrecio =
+  | { clase: "escribir"; centimos: number }
+  | { clase: "borrar" }
+  | { clase: "sin cambio" }
+  | { clase: "invalido"; motivo: string };
+
+export function cambioDePrecio(bruto: string, teniaAMano: boolean): CambioDePrecio {
+  const precio = interpretarPrecio(bruto);
+  if (precio.clase === "invalido") return { clase: "invalido", motivo: precio.motivo };
+  if (precio.clase === "importe") return { clase: "escribir", centimos: precio.centimos };
+  return teniaAMano ? { clase: "borrar" } : { clase: "sin cambio" };
+}
+
+/**
+ * Si al editar una clase hay que tirar su importe.
+ *
+ * Un importe **calculado** sí: noventa minutos cobrados a precio de sesenta es
+ * un número que miente, así que se borra y la ficha vuelve a pedirlo. Uno
+ * **escrito a mano** no: son los euros que se cobran por esa clase, y no
+ * salieron de multiplicar nada, así que corregir la duración no los cambia.
+ */
+export function importeCaduca(
+  estado: string,
+  minutosNuevos: number,
+  minutosViejos: number,
+  importeAMano: boolean,
+): boolean {
+  if (estado !== "DADA") return false;
+  if (minutosNuevos === minutosViejos) return false;
+  return !importeAMano;
+}
+
 /** Minutos en «1 h 30 min». */
 export function horas(minutos: number): string {
   const h = Math.floor(minutos / 60);

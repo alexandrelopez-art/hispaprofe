@@ -87,27 +87,51 @@ const FORMATOS_OFRECIDOS = [...TIPOS_ADMITIDOS, ".mp3", ".m4a", ".ogg", ".wav", 
 /**
  * El tope de lo que la puerta acepta recibir. Copia a mano de
  * `MAXIMO_AUDIO_RECIBIDO` en `lib/expresion.ts`, y las dos tienen que moverse
- * juntas. Comprobarlo aquí no es adornar: un archivo de 300 MB no llegaba
- * siquiera a la puerta —el proxy recorta el cuerpo antes— y el alumno recibía
- * «No se pudo leer la grabación enviada. Vuelve a intentarlo», después de la
- * subida y sin que reintentar arreglara nada.
+ * juntas. Comprobarlo aquí no es adornar: un archivo que se pasa no llega
+ * siquiera a la puerta —lo corta Vercel, o el proxy en local— y el alumno
+ * recibía «No se pudo leer la grabación enviada. Vuelve a intentarlo»,
+ * después de la subida y sin que reintentar arreglara nada.
  */
-const MAXIMO_ARCHIVO = 50 * 1024 * 1024;
+const MAXIMO_ARCHIVO = 4 * 1024 * 1024;
 
-/** «49,7 MB», para poder decirle al alumno cuánto pesa lo que ha elegido. */
+/** «4,2 MB», para poder decirle al alumno cuánto pesa lo que ha elegido. */
 function enMegas(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toLocaleString("es-ES", { maximumFractionDigits: 1 })} MB`;
 }
 
 /**
+ * El caudal con el que graba, en bits por segundo.
+ *
+ * Sin esto Chrome graba a unos 128 kbps, y los quince minutos que la propia
+ * grabadora permite salen a 14 MB: un rechazo seguro, porque el tope de lo que
+ * se puede mandar son cuatro. A 32 kbps esos quince minutos rondan los 3,6 MB.
+ *
+ * El códec de verdad no lo decide este número, lo decide el navegador según lo
+ * que acepte de `CONTENEDORES`: ese pide `audio/mp4;codecs=mp4a.40.2`
+ * primero, y Chrome, Edge y Safari lo aceptan, así que en la mayoría de los
+ * casos lo que se graba a 32 kbps es AAC-LC, no Opus —y AAC-LC a 32 kbps mono
+ * es peor que Opus al mismo caudal—. El margen contra el tope es de todos
+ * modos solo 400 KB: es un caudal medio y no un techo, así que una grabación
+ * con mucho ruido de fondo puede pasarse un poco, y por eso el tope de
+ * `entregarAudio` sigue ahí, para cazarla y explicarlo. Si al escuchar una
+ * grabación de verdad la calidad no da la talla, la salida no es subir este
+ * número —vuelve a acercarse al tope—, es preferir Opus en `CONTENEDORES`,
+ * ahora que en producción sí hay un `ffmpeg` empaquetado que sabe abrirlo.
+ */
+const CAUDAL = 32000;
+
+/**
  * Los contenedores que se le piden a `MediaRecorder`, en orden de preferencia.
  *
- * No es un capricho de formatos: el servidor comprime con `afconvert` cuando
- * no hay `ffmpeg` —el caso de la máquina de hoy—, y `afconvert` es CoreAudio,
- * que **no sabe abrir WebM**. Dejar que Chrome elija su contenedor por defecto
- * (`audio/webm;codecs=opus`) hacía que toda grabación de Chrome, Edge o
- * Android rebotara en «No se pudo procesar la grabación», siempre, sin ninguna
- * otra puerta. MP4 y Ogg sí los abre, así que se le pide uno de esos primero.
+ * No es un capricho de formatos, aunque hoy importa en un solo sitio: en la
+ * máquina del profesor, que no tiene `ffmpeg` instalado, el compresor que se
+ * usa es `afconvert`, que es CoreAudio y **no sabe abrir WebM**. Ahí, dejar
+ * que Chrome elija su contenedor por defecto (`audio/webm;codecs=opus`)
+ * rebotaba en «No se pudo procesar la grabación» sin ninguna otra puerta. En
+ * producción esto ya no hace falta para que la grabación pase: siempre viaja
+ * un `ffmpeg` empaquetado (`ffmpeg-static`), y ese sí abre WebM. MP4 y Ogg se
+ * piden primero de todos modos, porque el único sitio donde de verdad hace
+ * falta es ese Mac.
  *
  * Y no basta con pedir el envase: hay que pedir también el contenido. Pedir
  * `audio/mp4` a secas le deja a Chrome elegir el códec, y elige Opus, que
@@ -338,7 +362,13 @@ export default function Grabadora({
     try {
       let pista: MediaStream;
       try {
-        pista = await navigator.mediaDevices.getUserMedia({ audio: true });
+        // Un canal, no dos: es voz, y el estéreo dobla el tamaño para no
+        // aportar nada. `ideal` y no un número pelado a propósito: como
+        // restricción exacta, un micrófono que solo sepa dar estéreo haría
+        // que `getUserMedia` fallara y el alumno se quedaría sin botón.
+        pista = await navigator.mediaDevices.getUserMedia({
+          audio: { channelCount: { ideal: 1 } },
+        });
       } catch {
         // Permiso denegado o sin micrófono. No hay segundo intento que valga
         // la pena: se le ofrece el rodeo, que es lo que sí puede hacer.
@@ -363,8 +393,8 @@ export default function Grabadora({
         // El contenedor se pide, no se acepta el que salga: ver `CONTENEDORES`.
         const contenedor = contenedorPreferido();
         grabadora = contenedor
-          ? new MediaRecorder(pista, { mimeType: contenedor })
-          : new MediaRecorder(pista);
+          ? new MediaRecorder(pista, { mimeType: contenedor, audioBitsPerSecond: CAUDAL })
+          : new MediaRecorder(pista, { audioBitsPerSecond: CAUDAL });
 
         const trozos: Blob[] = [];
         grabadora.ondataavailable = (e) => {
@@ -436,8 +466,26 @@ export default function Grabadora({
 
   async function entregarAudio() {
     if (!pendiente) return;
-    setEstado("enviando");
     setError(null);
+
+    // `MAXIMO_ARCHIVO` también se comprueba en `elegirArchivo`, pero esa es
+    // la vía del archivo subido por el rodeo. Esta es la vía de grabar aquí
+    // dentro, y `CAUDAL` es una indicación para `MediaRecorder` y no un
+    // techo: Firefox graba Ogg/Opus en VBR, así que una grabación larga con
+    // ruido de fondo puede pasarse de los 4,5 MB que corta Vercel igual que
+    // puede pasarse un archivo del rodeo. Sin esta comprobación la respuesta
+    // no es JSON, el `catch` de más abajo la convierte en «No se pudo
+    // entregar la grabación. Vuelve a intentarlo», y el alumno reintenta la
+    // misma grabación para siempre.
+    if (pendiente.blob.size > MAXIMO_ARCHIVO) {
+      setError(
+        `Esta grabación pesa ${enMegas(pendiente.blob.size)} y el tope son ` +
+          `${enMegas(MAXIMO_ARCHIVO)}. Repite la toma, más corta.`,
+      );
+      return;
+    }
+
+    setEstado("enviando");
 
     const cuerpo = new FormData();
     cuerpo.set("pasoId", pasoId);
@@ -501,11 +549,15 @@ export default function Grabadora({
     setSegundos(0);
 
     // Los dos rechazos, aquí y no en el servidor, porque aquí se puede decir
-    // qué hacer. El de la puerta llega después de subir 300 MB y no orienta.
+    // qué hacer. El de la puerta llega después de subir 20 MB y no orienta.
     if (archivo.size > MAXIMO_ARCHIVO) {
+      // Quien llega aquí solo puede hacerlo por el rodeo —el input de archivo
+      // solo se pinta con `rodeo`, y el botón «Grabar» solo sin él, así que
+      // son excluyentes—: no tiene micrófono o le denegaron el permiso, y no
+      // hay ningún botón «arriba» que lo saque de este apuro.
       setError(
         `Ese archivo pesa ${enMegas(archivo.size)} y el tope son ${enMegas(MAXIMO_ARCHIVO)}. ` +
-          `Manda una grabación más corta, o guárdala en MP3 antes de subirla.`,
+          `Manda un archivo más corto, o guárdalo en un formato comprimido (MP3 o M4A) antes de mandarlo.`,
       );
       return;
     }

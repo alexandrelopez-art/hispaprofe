@@ -5,11 +5,14 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getUsuarioActual } from "@/lib/usuario";
 import { exigirProfesor } from "@/lib/profesor";
+import { grabacionesBorrables, puedeBorrarRecorrido } from "@/lib/recorridos";
+import { esGrabacionEntregada, PREFIJO_GRABACION } from "@/lib/expresion";
 import { listarEstudiantes } from "@/lib/google";
 import { desmarcarSiNoRevisado } from "@/lib/progreso";
 import { estudianteAsignable } from "@/lib/estudiantes";
 import { corregir, analizar } from "@/lib/ejercicios/registro";
 import type { Respuestas } from "@/lib/ejercicios/tipos";
+import { motivoSiAudioDeDrive } from "@/lib/bloques";
 import { Prisma } from "@/lib/generated/prisma/client";
 import type {
   Destreza,
@@ -539,20 +542,71 @@ export async function renombrarPaso(formData: FormData) {
   revalidatePath(`/recorridos/${paso.recorridoId}`);
 }
 
-/** Borra un paso con sus bloques y su historial de completado. */
+/**
+ * Borra un paso con sus bloques y su historial de completado.
+ *
+ * `exigirProfesor` a secas no basta, igual que en `borrarRecorrido`: dice
+ * «eres profesor o administrador», no «esta secuencia es tuya». Sin la
+ * segunda comprobación, un profesor que no puede borrar la secuencia de otro
+ * podía vaciarla paso a paso, y eso se lleva las grabaciones de los alumnos
+ * por delante.
+ */
 export async function borrarPaso(formData: FormData) {
-  await exigirProfesor();
+  const usuario = await exigirProfesor();
   const pasoId = String(formData.get("pasoId") ?? "");
   if (!pasoId) return;
 
   const paso = await prisma.paso.findUnique({
     where: { id: pasoId },
-    select: { recorridoId: true },
+    select: { recorridoId: true, recorrido: { select: { autorId: true } } },
   });
   if (!paso) return;
+  if (!puedeBorrarRecorrido(usuario, paso.recorrido)) return;
+
+  // Las mismas dos cosas que en `borrarRecorrido`, por el mismo motivo: la
+  // escucha cuelga del paso por un `pasoId` sin relación, y la grabación de
+  // una entrega no la borra nadie más. Se calcula antes de la transacción.
+  const entregas = await prisma.pasoCompletado.findMany({
+    where: { pasoId, entrega: { startsWith: PREFIJO_GRABACION } },
+    select: { entrega: true },
+  });
+  const suyos = entregas
+    .filter((c) => esGrabacionEntregada(c.entrega))
+    .map((c) => c.entrega!.slice(PREFIJO_GRABACION.length));
+  // Solo los que no nombre nadie más, por lo mismo que en `borrarRecorrido`:
+  // `entrega` es texto libre del alumno.
+  const fuera = await prisma.pasoCompletado.findMany({
+    where: { pasoId: { not: pasoId }, entrega: { startsWith: PREFIJO_GRABACION } },
+    select: { entrega: true },
+  });
+  const nombradosFuera = new Set(
+    fuera
+      .filter((c) => esGrabacionEntregada(c.entrega))
+      .map((c) => c.entrega!.slice(PREFIJO_GRABACION.length)),
+  );
+  const candidatos = suyos.filter((id) => !nombradosFuera.has(id));
+
+  // Y solo lo privado, por el mismo motivo que ahora criba `grabacionesBorrables`
+  // en `lib/recorridos.ts`: un candidato puede ser en realidad una imagen o un
+  // audio del profesor —`Bloque.url`, o el `audio` de un ejercicio de `opcion`
+  // o `relacionar`— que un alumno tecleó como entrega de una tarea escrita
+  // (`puedeEntregar` no mira el contenido, solo el largo y la modalidad). Sin
+  // este filtro, borrar este paso se llevaría ese material de todas las demás
+  // secuencias y ejercicios que lo usan.
+  const archivoIds =
+    candidatos.length === 0
+      ? []
+      : (
+          await prisma.archivo.findMany({
+            where: { id: { in: candidatos }, privado: true },
+            select: { id: true },
+          })
+        ).map((a) => a.id);
 
   await prisma.$transaction([
     prisma.pasoCompletado.deleteMany({ where: { pasoId } }),
+    prisma.escucha.deleteMany({ where: { pasoId } }),
+    prisma.archivo.deleteMany({ where: { id: { in: archivoIds } } }),
     // `CitaOral.pasoId` no tiene relación —está razonado en el esquema—, así
     // que nada la borra en cascada: sin esto, la clase seguía pintando una
     // línea con el nombre del alumno y sin título para siempre, y
@@ -567,7 +621,9 @@ export async function borrarPaso(formData: FormData) {
   redirect(`/recorridos/${paso.recorridoId}`);
 }
 
-export async function crearBloque(formData: FormData) {
+export async function crearBloque(
+  formData: FormData,
+): Promise<{ error: string } | undefined> {
   await exigirProfesor();
   const pasoId = String(formData.get("pasoId") ?? "");
   const tipo = String(formData.get("tipo") ?? "") as TipoBloque;
@@ -578,6 +634,14 @@ export async function crearBloque(formData: FormData) {
   if (!pasoId || !tipo) return;
   if (tipo === "TEXTO" && !texto) return;
   if (tipo !== "TEXTO" && !url) return;
+
+  // El portero del audio: un audio de Drive no se puede racionar. Vive en
+  // `lib/bloques.ts` y no aquí porque este archivo es `"use server"` —todo lo
+  // que exporta es un endpoint público— y un script no puede ejercitarlo sin
+  // sesión. Lo pregunta también `editarBloque`: sin las dos, la puerta que
+  // quedara abierta bastaría para colar el audio sin racionar.
+  const motivo = motivoSiAudioDeDrive(tipo, url);
+  if (motivo) return { error: motivo };
 
   const ultimo = await prisma.bloque.aggregate({
     where: { pasoId },
@@ -808,7 +872,9 @@ export async function moverPaso(formData: FormData) {
 }
 
 /** Actualiza el contenido de un bloque ya creado. */
-export async function editarBloque(formData: FormData) {
+export async function editarBloque(
+  formData: FormData,
+): Promise<{ error: string } | undefined> {
   await exigirProfesor();
   const id = String(formData.get("bloqueId") ?? "");
   if (!id) return;
@@ -824,6 +890,13 @@ export async function editarBloque(formData: FormData) {
   // Un bloque vacio no se guarda: para eso está el botón de borrar.
   if (existente.tipo === "TEXTO" && !texto) return;
   if (existente.tipo !== "TEXTO" && !url) return;
+
+  // La segunda puerta, y la que tenía el fallo más raro: `editarBloque` no
+  // cambia el `tipo`, así que pegarle una dirección de Drive a un bloque que
+  // ya es `AUDIO` lo dejaba racionado pero mudo —el `Reproductor` recibía una
+  // dirección que el navegador no puede reproducir—.
+  const motivo = motivoSiAudioDeDrive(existente.tipo, url);
+  if (motivo) return { error: motivo };
 
   await prisma.bloque.update({
     where: { id },
@@ -1089,4 +1162,69 @@ export async function desmarcarPasoHecho(formData: FormData) {
   revalidatePath(`/pasos/${pasoId}`);
   revalidatePath(`/recorridos/${paso.recorridoId}`);
   revalidatePath("/dashboard");
+}
+
+/**
+ * Borra una secuencia entera con todo lo que cuelga de ella.
+ *
+ * `exigirProfesor` no basta y por eso hay una segunda comprobación: esa solo
+ * dice «eres profesor o administrador», y aquí hace falta saber si esta
+ * secuencia es tuya. La regla vive en `lib/recorridos.ts` para que un script
+ * pueda ejercitar los cuatro casos.
+ */
+export async function borrarRecorrido(formData: FormData) {
+  const usuario = await exigirProfesor();
+  const recorridoId = String(formData.get("recorridoId") ?? "");
+  if (!recorridoId) return;
+
+  const recorrido = await prisma.recorrido.findUnique({
+    where: { id: recorridoId },
+    select: { autorId: true },
+  });
+  if (!recorrido) return;
+  if (!puedeBorrarRecorrido(usuario, recorrido)) return;
+
+  const pasos = await prisma.paso.findMany({
+    where: { recorridoId },
+    select: { id: true },
+  });
+  const pasoIds = pasos.map((p) => p.id);
+
+  // Fuera de la transacción a propósito: son tres lecturas que deciden qué
+  // archivos se pueden llevar —qué se entrega dentro, qué se entrega fuera, y
+  // cuáles de los candidatos son de verdad privados—, y meterlas dentro
+  // alargaría la transacción sin ganar nada. Lo peor que puede pasar entre
+  // medias es que alguien entregue una grabación nueva, y esa se queda en pie
+  // en vez de borrarse de más. Los `pasoIds` ya están calculados arriba, así
+  // que se le pasan: no hace falta que la función los vuelva a pedir.
+  const archivoIds = await grabacionesBorrables(recorridoId, pasoIds);
+
+  await prisma.$transaction([
+    // `CitaOral.pasoId` y `Escucha.pasoId` no tienen relación declarada —está
+    // razonado en el esquema—, así que nada las borra en cascada y hace falta
+    // la lista de ids. Es la misma trampa que ya aprendió `borrarPaso` con las
+    // citas.
+    prisma.citaOral.deleteMany({ where: { pasoId: { in: pasoIds } } }),
+    prisma.escucha.deleteMany({ where: { pasoId: { in: pasoIds } } }),
+    // Estas tres sí tienen relación declarada con `Paso`, así que filtran por
+    // ella en vez de por la lista de ids: si entre la lectura de `pasoIds` de
+    // arriba y esta transacción apareciera un paso nuevo, un filtro por lista
+    // fija no lo vería y `paso.deleteMany` de más abajo chocaría con su clave
+    // ajena, tirando la transacción entera abajo con un error crudo para el
+    // profesor. Un filtro de relación se recalcula en el momento de borrar y
+    // no puede quedarse corto.
+    prisma.pasoCompletado.deleteMany({ where: { paso: { recorridoId } } }),
+    // Las voces de los alumnos. Sin esto quedarían en la base sin nada que las
+    // referencie: ni accesibles ni suprimibles.
+    prisma.archivo.deleteMany({ where: { id: { in: archivoIds } } }),
+    prisma.bloque.deleteMany({ where: { paso: { recorridoId } } }),
+    prisma.pasoEjercicio.deleteMany({ where: { paso: { recorridoId } } }),
+    prisma.asignacion.deleteMany({ where: { recorridoId } }),
+    prisma.paso.deleteMany({ where: { recorridoId } }),
+    prisma.recorrido.delete({ where: { id: recorridoId } }),
+  ]);
+
+  revalidatePath("/recorridos");
+  revalidatePath("/dashboard");
+  redirect("/recorridos");
 }

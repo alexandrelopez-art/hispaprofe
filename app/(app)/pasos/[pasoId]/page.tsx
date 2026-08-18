@@ -18,6 +18,7 @@ import { numeroDeTarea, tareaDe } from "@/lib/dele";
 import { TIPO_DE_EJERCICIO } from "@/lib/recursos";
 import { analizarExpresion, versionPublicaExpresion } from "@/lib/expresion";
 import Entrega from "@/components/expresion/entrega";
+import { esAudioDeDrive } from "@/lib/bloques";
 
 // Fuerza render dinámico: lee de la base en cada visita.
 export const dynamic = "force-dynamic";
@@ -65,11 +66,6 @@ type BloqueData = {
   etiqueta: string | null;
   imagen: string | null;
 };
-
-/** Los audios de Drive van en iframe, pero no necesitan alto de vídeo. */
-function esAudioDeDrive(url: string | null): boolean {
-  return Boolean(url && url.includes("drive.google.com") && url.endsWith("/preview"));
-}
 
 // Renderiza un bloque según su tipo.
 function BloqueContenido({
@@ -459,6 +455,7 @@ export default async function PasoPage({
                 bloque={bloque}
                 indice={i}
                 total={paso.bloques.length}
+                racionado={racionado}
               >
                 <BloqueContenido
                   bloque={bloque}

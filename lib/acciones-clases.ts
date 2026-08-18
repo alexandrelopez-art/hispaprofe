@@ -7,9 +7,11 @@ import { exigirProfesor } from "@/lib/profesor";
 import {
   abrirDeber,
   borrarClase,
+  cambioDePrecio,
   cerrarDeber,
   cerrarDeberesDeClase,
   congelarImporte,
+  importeCaduca,
   sincronizarDeberes,
   validarClase,
 } from "@/lib/clases";
@@ -45,6 +47,7 @@ async function exigirClaseSuya(claseId: string) {
       grupoId: true,
       deberes: true,
       importeCentimos: true,
+      importeAMano: true,
     },
   });
   if (!clase) throw new Error("Esa clase no existe.");
@@ -134,6 +137,51 @@ function datosDeClase(formData: FormData): {
   };
 }
 
+/**
+ * Lo que hay que escribir en las columnas del precio, o el motivo del rechazo.
+ *
+ * Aparte de `datosDeClase` porque no es un campo más: decide dos columnas a la
+ * vez, puede no tocar ninguna, y puede negarse. Meter eso en el objeto que se
+ * escribe tal cual en la base habría obligado a que `datosDeClase` supiera de
+ * rechazos.
+ *
+ * Devuelve un objeto vacío cuando no hay nada que cambiar, para poder
+ * esparcirlo en el `data` sin condicionales por el medio.
+ */
+function precioDeClase(
+  formData: FormData,
+  teniaAMano: boolean,
+): {
+  importeCentimos?: number | null;
+  importeAMano?: boolean;
+  motivo?: string;
+  // No es una columna: es la señal para `editarClase` de que hay que forzar
+  // el recálculo a mano. Hay que quitarla del objeto antes de esparcirlo en
+  // el `data` del `update`, o Prisma se encontraría un campo que no existe.
+  volverALaTarifa?: boolean;
+} {
+  const cambio = cambioDePrecio(String(formData.get("precio") ?? ""), teniaAMano);
+  if (cambio.clase === "invalido") return { motivo: cambio.motivo };
+  if (cambio.clase === "escribir") {
+    return { importeCentimos: cambio.centimos, importeAMano: true };
+  }
+  if (cambio.clase === "borrar") {
+    // Vuelve a automático: el importe se borra para que la tarifa lo
+    // recalcule. Es la única forma de deshacer un precio escrito, y sin ella
+    // teclear un número una vez dejaría esa clase fuera de la tarifa para
+    // siempre.
+    //
+    // Si la clase todavía no está dada, eso basta: el recálculo normal ocurre
+    // solo al marcarla como tal. Pero si ya está DADA, marcarla dada otra vez
+    // no es una opción —los botones de estado no pintan el actual, así que en
+    // una clase ya dada no existe un botón «Marcar como dada»—, así que
+    // `editarClase` tiene que llamar a `congelarImporte` él mismo. Esta marca
+    // es cómo se lo pide.
+    return { importeCentimos: null, importeAMano: false, volverALaTarifa: true };
+  }
+  return {};
+}
+
 export async function crearClase(formData: FormData) {
   const usuario = await exigirProfesor();
 
@@ -142,10 +190,17 @@ export async function crearClase(formData: FormData) {
   if (!(await grupoAsignable(usuario, datos.grupoId))) return;
   if (!(await estudianteAsignable(datos.estudianteId))) return;
 
+  // `false` porque una clase que todavía no existe no tenía ningún precio a
+  // mano, así que un campo vacío aquí solo puede significar «sin cambio», y el
+  // objeto vacío que devuelve deja los valores por defecto de la columna.
+  const precio = precioDeClase(formData, false);
+  if (precio.motivo) return;
+
   await prisma.clase.create({
     data: {
       profesorId: usuario.id,
       ...datos,
+      ...precio,
     },
   });
 
@@ -172,16 +227,44 @@ export async function editarClase(formData: FormData) {
     return;
   }
 
-  // Cambiar la duración de una clase ya dada deja su precio sin cuadrar: 90
-  // minutos cobrados a 60. Vuelve a null para que la ficha lo pida en vez de
-  // mentir, y descongelarlo exige volver a marcarla dada a mano.
-  const importeCaduco =
-    clase.estado === "DADA" && datos.minutos !== clase.minutos;
+  const precio = precioDeClase(formData, clase.importeAMano);
+  if (precio.motivo) return;
+
+  // El importe viejo solo caduca si el profesor no ha escrito ni borrado nada:
+  // si tocó el campo, lo que él dice manda y `precio` ya trae las dos columnas.
+  //
+  // La comparación es contra `undefined` a propósito, y no se puede cambiar
+  // por `!precio.importeCentimos`: un cero es un precio de verdad en este
+  // proyecto —una clase gratis a propósito, ver `importeDeClase`— y esa
+  // simplificación lo confundiría con «no tocó nada», dejando que `caduca` se
+  // llevara por delante un precio de 0 € puesto adrede.
+  const noTocoElPrecio = precio.importeCentimos === undefined;
+  const caduca =
+    noTocoElPrecio &&
+    importeCaduca(clase.estado, datos.minutos, clase.minutos, clase.importeAMano);
+
+  // `volverALaTarifa` no es una columna: se quita aquí y se usa después de
+  // escribir, no antes.
+  const { volverALaTarifa, ...datosDePrecio } = precio;
 
   await prisma.clase.update({
     where: { id: claseId },
-    data: { ...datos, ...(importeCaduco ? { importeCentimos: null } : {}) },
+    data: {
+      ...datos,
+      ...datosDePrecio,
+      ...(caduca ? { importeCentimos: null, importeAMano: false } : {}),
+    },
   });
+
+  // El recálculo normal cuelga de marcar la clase como dada:
+  // `cambiarEstadoClase` solo llama a `congelarImporte` cuando llega
+  // estado=DADA. Pero los botones de estado no pintan el actual, así que en
+  // una clase que ya está dada no hay ningún botón «Marcar como dada» que
+  // pueda disparar eso. Si el profesor borra aquí el precio de una clase ya
+  // dada, sin esta llamada el importe se quedaría en null hasta que alguien
+  // la volviera a agendar y la marcara dada otra vez —dos pasos que nada en
+  // la pantalla propone—, así que se fuerza el mismo recálculo a mano.
+  if (volverALaTarifa && clase.estado === "DADA") await congelarImporte(claseId);
 
   // Solo si cambió el destinatario: `destinatariosDe` lee los miembros de
   // ahora, así que rehacer los deberes por cualquier otra edición borraría

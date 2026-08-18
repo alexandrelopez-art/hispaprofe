@@ -4,6 +4,8 @@ import { useState } from "react";
 import { crearBloque, obtenerMetadatos } from "@/lib/acciones";
 import EditorTexto from "@/components/editor-texto";
 import SubirImagen from "@/components/subir-imagen";
+import SubirAudio from "@/components/recursos/subir-audio";
+import { idDrive } from "@/lib/bloques";
 
 type Tipo = "TEXTO" | "EMBED" | "AUDIO" | "IMAGEN" | "ENLACE";
 
@@ -35,7 +37,7 @@ const TIPOS: { id: Tipo; label: string; ayuda: string }[] = [
     id: "AUDIO",
     label: "Audio",
     ayuda:
-      "Dirección directa de un archivo mp3. Si es de Google Drive, se convierte solo en reproductor incrustado.",
+      "Súbelo desde el ordenador, o pega su dirección de Drive y el servidor irá a buscarlo. El archivo se guarda dentro, así que se puede racionar en una prueba.",
   },
 ];
 
@@ -66,16 +68,6 @@ function extraerSrc(entrada: string): string {
   if (vimeo) return `https://player.vimeo.com/video/${vimeo[1]}`;
 
   return t;
-}
-
-/** Saca el ID de un enlace de Google Drive, venga en la forma que venga. */
-function idDrive(t: string): string {
-  return (
-    t.match(/drive\.google\.com\/file\/d\/([\w-]+)/)?.[1] ??
-    t.match(/drive\.google\.com\/open\?id=([\w-]+)/)?.[1] ??
-    t.match(/[?&]id=([\w-]{20,})/)?.[1] ??
-    ""
-  );
 }
 
 /**
@@ -120,9 +112,18 @@ export default function EditorBloques({ pasoId }: { pasoId: string }) {
   const [aviso, setAviso] = useState("");
   const [falloImagen, setFalloImagen] = useState(false);
   const [enviando, setEnviando] = useState(false);
+  // Lo que el servidor contesta cuando se niega. Es la única forma de saberlo:
+  // `crearBloque` es una acción, y aquí se llama a mano y se espera.
+  const [motivo, setMotivo] = useState<string | null>(null);
+  // La dirección de Drive que no se pudo traer, si la hubo. Es lo que habilita
+  // la escotilla, y solo aparece después de un intento fallido: sin eso, la
+  // salida fácil estaría siempre delante de la buena.
+  const [driveQueFallo, setDriveQueFallo] = useState<string | null>(null);
+  // Si el profesor ha pedido a mano incrustarla igualmente.
+  const [incrustarDrive, setIncrustarDrive] = useState(false);
   // Drive no sirve audio para reproduccion directa, pero si ofrece su
   // propio reproductor incrustable. Se guarda como EMBED, no como AUDIO.
-  const audioDeDrive = tipo === "AUDIO" ? idDrive(entrada) : "";
+  const audioDeDrive = tipo === "AUDIO" && incrustarDrive ? idDrive(driveQueFallo ?? "") : "";
 
   const src =
     tipo === "TEXTO"
@@ -133,6 +134,10 @@ export default function EditorBloques({ pasoId }: { pasoId: string }) {
           ? urlDirectaMedia(entrada)
           : extraerSrc(entrada);
 
+  // El audio de un bloque solo se convierte en EMBED cuando
+  // el profesor lo ha pedido a mano Y sigue habiendo un enlace
+  // de Drive que incrustar: si al final se consigue traer, el
+  // bloque vuelve a nacer AUDIO y se raciona.
   const tipoFinal: Tipo = audioDeDrive ? "EMBED" : tipo;
   const origen = origenDe(src);
   const listo = tipo === "TEXTO" ? texto.trim() !== "" : src !== "";
@@ -145,6 +150,10 @@ export default function EditorBloques({ pasoId }: { pasoId: string }) {
     setImagen("");
     setAviso("");
     setFalloImagen(false);
+    // Sin esto, un intento fallido de una tanda anterior dejaría la escotilla
+    // (o su marca de "pedida") colgando en el siguiente bloque de audio.
+    setDriveQueFallo(null);
+    setIncrustarDrive(false);
   }
 
   function cambiarTipo(nuevo: Tipo) {
@@ -184,6 +193,7 @@ export default function EditorBloques({ pasoId }: { pasoId: string }) {
   async function enviar() {
     if (!listo || enviando) return;
     setEnviando(true);
+    setMotivo(null);
     try {
       const fd = new FormData();
       fd.set("pasoId", pasoId);
@@ -192,7 +202,11 @@ export default function EditorBloques({ pasoId }: { pasoId: string }) {
       fd.set("url", src);
       fd.set("etiqueta", etiqueta);
       fd.set("imagen", imagen);
-      await crearBloque(fd);
+      const resultado = await crearBloque(fd);
+      if (resultado?.error) {
+        setMotivo(resultado.error);
+        return;
+      }
       reiniciar();
     } finally {
       setEnviando(false);
@@ -253,6 +267,42 @@ export default function EditorBloques({ pasoId }: { pasoId: string }) {
             }}
             etiqueta="Subir desde el ordenador"
           />
+        </div>
+      )}
+
+      {tipo === "AUDIO" && (
+        <div className="mt-3">
+          <SubirAudio
+            valor={entrada.startsWith("/api/archivos/") ? entrada : undefined}
+            alCambiar={(url) => {
+              setEntrada(url ?? "");
+              setFalloImagen(false);
+              setDriveQueFallo(null);
+              // Sin esto, `incrustarDrive` se queda pedido de un intento
+              // anterior: si luego falla otro traer, el bloque vuelve a
+              // EMBED sin pasar por la escotilla ni enseñar su aviso.
+              setIncrustarDrive(false);
+            }}
+            alFallar={setDriveQueFallo}
+          />
+        </div>
+      )}
+
+      {tipo === "AUDIO" && driveQueFallo && idDrive(driveQueFallo) !== "" && !incrustarDrive && (
+        <div className="mt-3 rounded-xl bg-sol-100 px-4 py-3">
+          <p className="text-sm text-tinta">
+            Si no consigues que el servidor lo traiga, puedes ponerlo como
+            reproductor de Drive. Cuenta que <strong>así no se cuentan las
+            escuchas</strong>: en una prueba del examen, el estudiante podrá
+            oírlo tantas veces como quiera.
+          </p>
+          <button
+            type="button"
+            onClick={() => setIncrustarDrive(true)}
+            className="mt-2 h-9 rounded-full border border-hp-200 bg-white px-4 text-sm font-bold text-tinta transition-colors hover:border-hp-400"
+          >
+            Ponerlo como reproductor de Drive
+          </button>
         </div>
       )}
 
@@ -355,10 +405,14 @@ export default function EditorBloques({ pasoId }: { pasoId: string }) {
               </div>
             ) : falloImagen ? (
               <p className="rounded-xl bg-bloque3/20 px-3 py-2 text-xs text-tinta">
-                Esa dirección no reproduce ningún audio. Tiene que ser el
-                archivo en sí, terminado en .mp3 o .m4a. Si está en SoundCloud,
-                Ivoox o Spotify, usa «Genially, vídeo o actividad» y pega su
-                código de inserción.
+                Esa dirección no reproduce ningún audio aquí. Si es un enlace
+                de Drive, el navegador no puede tocar el archivo directamente
+                desde él: no lo pegues en este cuadro, usa el campo de más
+                arriba y pulsa «Traer de esa dirección», que es el que lo
+                descarga y permite racionarlo en una prueba. Si en cambio está
+                en SoundCloud, Ivoox o Spotify —que no se pueden descargar—,
+                usa «Genially, vídeo o actividad» y pega su código de
+                inserción.
               </p>
             ) : (
               <audio
@@ -406,6 +460,12 @@ export default function EditorBloques({ pasoId }: { pasoId: string }) {
             </p>
           )}
         </div>
+      )}
+
+      {motivo && (
+        <p className="mt-3 rounded-xl bg-bloque3/20 px-4 py-2 text-sm text-tinta">
+          {motivo}
+        </p>
       )}
 
       <button

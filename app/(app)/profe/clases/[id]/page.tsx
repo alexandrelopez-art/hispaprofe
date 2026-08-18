@@ -57,6 +57,7 @@ export default async function ClasePage({
       notas: true,
       deberes: true,
       importeCentimos: true,
+      importeAMano: true,
       estudiante: {
         select: {
           id: true,
@@ -430,6 +431,39 @@ export default async function ClasePage({
             defaultValue={clase.donde ?? ""}
             className="mt-1 h-10 w-full rounded-full border border-hp-200 bg-fondo px-4 text-sm font-normal text-tinta outline-none focus:border-hp-400"
           />
+        </label>
+
+        <label className="block text-sm font-semibold text-tinta">
+          Precio
+          {/* El navegador para el envío antes de que salga de aquí, y enseña
+              el `title`. Sin esto, un precio mal escrito hacía que la acción
+              volviera sin guardar **nada** —ni el sitio, ni el enlace, ni las
+              notas— y sin decir por qué: el motivo que calcula
+              `interpretarPrecio` no tiene por dónde llegar a la pantalla,
+              porque este formulario llama a la acción directamente y no
+              recoge nada de vuelta. La comprobación del servidor se queda
+              igual: esta es comodidad, no la guarda de verdad. */}
+          <input
+            type="text"
+            name="precio"
+            inputMode="decimal"
+            pattern="\s*\d+([.,]\d{1,2})?\s*€?\s*"
+            title="Escribe el precio en euros, con dos decimales como mucho. Por ejemplo: 30,50"
+            defaultValue={
+              clase.importeAMano && clase.importeCentimos !== null
+                ? (clase.importeCentimos / 100).toLocaleString("es-ES", {
+                    minimumFractionDigits: 2,
+                    // Sin agrupar: lo que sale aquí viaja de vuelta por el mismo campo.
+                    useGrouping: false,
+                  })
+                : ""
+            }
+            placeholder="Automático, según la tarifa"
+            className="mt-1 h-10 w-full rounded-full border border-hp-200 bg-fondo px-4 text-sm font-normal text-tinta outline-none focus:border-hp-400"
+          />
+          <span className="mt-1 block text-xs font-normal text-tinta-suave">
+            Déjalo vacío para cobrar lo que diga la tarifa por hora.
+          </span>
         </label>
 
         <label className="block text-sm font-semibold text-tinta sm:col-span-2">

@@ -416,6 +416,11 @@ model Clase {
   importeCentimos Int?
   cobradaEl       DateTime?
 
+  /// Si el importe lo escribió el profesor en vez de calcularlo la tarifa.
+  /// Es lo único que distingue las dos cosas, y de eso depende que corregir
+  /// la duración de una clase ya dada le borre el precio o se lo respete.
+  importeAMano Boolean @default(false)
+
   googleEventoId String? // id del evento espejo en Google Calendar (tanda 2)
 
   asignados   Deber[]

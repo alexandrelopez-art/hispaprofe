@@ -16,6 +16,12 @@ import { prisma } from "@/lib/prisma";
 import { getUsuarioActual } from "@/lib/usuario";
 
 /**
+ * Comprimir tarda unos segundos; cinco minutos es el máximo del plan y va de
+ * sobra.
+ */
+export const maxDuration = 300;
+
+/**
  * El alumno manda su grabación.
  *
  * Ruta aparte de `/api/archivos` y no un parámetro más de aquella por tres
@@ -105,8 +111,10 @@ export async function POST(peticion: Request) {
 
   let comprimido;
   try {
-    // Lo que graba el navegador llega sin nombre, y `comprimirAudio` nombra
-    // con él el archivo temporal.
+    // Lo que graba el navegador llega sin nombre; esto solo le da uno para
+    // la columna `Archivo.nombre`. `comprimirAudio` no lo usa para nombrar
+    // nada en disco: sus archivos temporales tienen nombres fijos (ver
+    // `lib/audio.ts`).
     comprimido = await comprimirAudio(recibido, nombreDeGrabacion(tipoRecibido), tipoRecibido);
   } catch (e) {
     if (e instanceof CompresorAusenteError) {
