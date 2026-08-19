@@ -86,9 +86,11 @@ particulares, donde significa lo que siempre ha significado.
 
 `empezarPractica(recorridoId)` comprueba, por este orden:
 
-1. Quien pulsa es un estudiante con sesión y **no está bloqueado**
-   (`bloqueoDelActual`). No existe hoy una guarda de estudiante equivalente a
-   `exigirProfesor` (`lib/profesor.ts:7`): la trae esta acción.
+1. Quien pulsa es un estudiante con sesión. No existe hoy una guarda de
+   estudiante equivalente a `exigirProfesor` (`lib/profesor.ts:7`): la trae esta
+   acción. Del bloqueo no se ocupa: `getUsuarioActual` ya devuelve `null` para
+   un usuario bloqueado (`dejarEntrar` → `estaBloqueado`, `lib/usuario.ts:37`),
+   así que un bloqueado cae en el mismo camino que uno sin sesión.
 2. El recorrido es `PREPARACION_DELE`, está **publicado** y **no es del bloque
    3**. Un id escrito a mano no abre un examen blanco por la puerta de atrás.
 3. El alumno tiene un grupo sin archivar; de ahí sale el `profesorId` de la
@@ -142,7 +144,8 @@ propios que se borran al terminar). Tiene que fallar si alguien rompe:
 - Un recorrido del bloque 3 no se puede empezar aunque se escriba su id a mano.
 - Un alumno sin grupo, o con el grupo archivado, recibe el motivo y no una
   asignación.
-- Un alumno bloqueado no se autoasigna nada.
+- (El alumno bloqueado no necesita caso propio: `getUsuarioActual` ya devuelve
+  `null` para él, así que cae por donde cae quien no tiene sesión.)
 - La asignación nace con el profesor del grupo del alumno.
 - Con asignación ya existente, empezar otra vez no la desarchiva, no le cambia
   el profesor y no reinicia sus escuchas.
