@@ -15,7 +15,11 @@ import {
   puedePublicarse,
   resumenDeBorrado,
 } from "@/lib/recorridos";
-import { estadoDePasos, type EstadoPaso } from "@/lib/progreso";
+import {
+  estadoDePasos,
+  sobreCuantosPorPaso,
+  type EstadoPaso,
+} from "@/lib/progreso";
 import BotonConfirmar from "@/components/boton-confirmar";
 import { notFound } from "next/navigation";
 import Link from "next/link";
@@ -150,6 +154,24 @@ export default async function RecorridoDetallePage({
   const estados = asignacionPropia
     ? await estadoDePasos(asignacionPropia.id)
     : new Map<string, { estado: EstadoPaso; puntos: number | null }>();
+
+  // Solo para quien tiene la secuencia asignada: traer los datos de cada
+  // ejercicio cuesta —en una tarea del DELE llevan el texto de lectura
+  // entero—, y sin asignación no hay ninguna nota que enseñar.
+  const sobre = asignacionPropia
+    ? await sobreCuantosPorPaso(recorrido.pasos.map((p) => p.id))
+    : new Map<string, number | null>();
+
+  // El total suma solo lo que tiene máximo: mezclar los puntos que el profe
+  // pone a mano, que no van sobre nada, daría una fracción que miente.
+  const conNota = recorrido.pasos.filter(
+    (p) => (estados.get(p.id)?.puntos ?? null) !== null && sobre.get(p.id),
+  );
+  const totalSacado = conNota.reduce(
+    (suma, p) => suma + (estados.get(p.id)?.puntos ?? 0),
+    0,
+  );
+  const totalSobre = conNota.reduce((suma, p) => suma + (sobre.get(p.id) ?? 0), 0);
 
   return (
     <div className="mx-auto max-w-3xl px-6 py-12">
@@ -364,8 +386,14 @@ export default async function RecorridoDetallePage({
                           {paso.titulo}
                         </p>
                         {marca?.estado === "REVISADO" && (
+                          // Con denominador cuando se puede deducir del
+                          // ejercicio: un «12» suelto no dice si es sobre doce
+                          // o sobre veinticinco. Los pasos que corrige el profe
+                          // a mano no tienen máximo, y esos se quedan en «pts».
                           <span className="shrink-0 rounded-full bg-sol-300 px-2 py-0.5 text-[11px] font-extrabold text-tinta">
-                            {marca.puntos ?? 0} pts
+                            {sobre.get(paso.id)
+                              ? `${marca.puntos ?? 0}/${sobre.get(paso.id)}`
+                              : `${marca.puntos ?? 0} pts`}
                           </span>
                         )}
                       </div>
@@ -426,6 +454,13 @@ export default async function RecorridoDetallePage({
             </section>
           );
         })}
+
+        {totalSobre > 0 && (
+          <p className="mb-8 rounded-tarjeta border border-hp-100 bg-white px-5 py-4 text-sm font-bold text-tinta shadow-suave">
+            Llevas {totalSacado} de {totalSobre} en {conNota.length}{" "}
+            {conNota.length === 1 ? "tarea corregida" : "tareas corregidas"}.
+          </p>
+        )}
 
         {esProfe && recorrido.tipo === "PREPARACION_DELE" && recorrido.destreza && (
           <TareasSugeridas

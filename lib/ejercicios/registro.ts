@@ -114,3 +114,34 @@ export function corregir(
       return corregirOrdenar(e.datos, respuestas);
   }
 }
+
+/**
+ * Sobre cuántos puntos va un ejercicio, o `null` si no se puede saber.
+ *
+ * `PasoCompletado.puntos` es un entero suelto, y un «12» no dice si es un
+ * doce sobre doce o sobre veinticinco. El único que sabe la cuenta es el
+ * ejercicio, y la sabe por lo mismo que la sabe `resumir`: cuántos ítems hay
+ * que resolver.
+ *
+ * En `relacionar` cuentan las parejas y no los sobrantes: un sobrante es un
+ * distractor, no algo que el alumno tenga que acertar.
+ *
+ * Devuelve `null` —y no cero— cuando no hay ejercicio, cuando el motor no se
+ * reconoce o cuando los datos no pasan su propio esquema. Un cero sería una
+ * nota «sobre 0», que es peor que no enseñar denominador.
+ */
+export function cuantosItems(datos: unknown): number | null {
+  const analizado = analizar(datos);
+  if (!analizado) return null;
+
+  const cuantos =
+    analizado.tipo === "opcion"
+      ? analizado.datos.preguntas.length
+      : analizado.tipo === "relacionar"
+        ? analizado.datos.parejas.length
+        : analizado.tipo === "huecos"
+          ? analizado.datos.huecos.length
+          : analizado.datos.piezas.length;
+
+  return cuantos > 0 ? cuantos : null;
+}

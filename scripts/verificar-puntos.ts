@@ -10,6 +10,7 @@ import {
   estadoDePasos,
   resumenEstudiante,
 } from "@/lib/progreso";
+import { cuantosItems } from "@/lib/ejercicios/registro";
 
 function afirmar(condicion: boolean, mensaje: string) {
   if (!condicion) {
@@ -193,6 +194,46 @@ async function main() {
       where: { id: { in: [profesor.id, estudiante.id] } },
     });
   }
+
+
+  // ─── Sobre cuántos puntos va cada paso ─────────────────────────────────
+  // `PasoCompletado.puntos` es un entero suelto: «12» no dice si es sobre 12 o
+  // sobre 25. El máximo se deduce del ejercicio, que es lo único que sabe
+  // cuántos ítems tiene.
+  afirmar(
+    cuantosItems({
+      ejercicio: "opcion",
+      consigna: "c",
+      multiple: false,
+      preguntas: [
+        { id: "1", enunciado: "a", opciones: ["x", "y"], correctas: [0] },
+        { id: "2", enunciado: "b", opciones: ["x", "y"], correctas: [1] },
+      ],
+    }) === 2,
+    "una tarea de dos preguntas va sobre 2",
+  );
+
+  // Los sobrantes no puntúan: son distractores, no ítems que resolver.
+  afirmar(
+    cuantosItems({
+      ejercicio: "relacionar",
+      consigna: "c",
+      parejas: [
+        { id: "1", izquierda: "a", derecha: "A" },
+        { id: "2", izquierda: "b", derecha: "B" },
+      ],
+      sobrantes: ["C", "D", "E"],
+    }) === 2,
+    "en relacionar cuentan las parejas y no los sobrantes",
+  );
+
+  afirmar(cuantosItems(null) === null, "sin datos no se inventa un máximo");
+  afirmar(cuantosItems({ ejercicio: "loquesea" }) === null, "ni con un motor desconocido");
+  afirmar(
+    cuantosItems({ ejercicio: "opcion", consigna: "c", multiple: false, preguntas: [] }) === null,
+    "ni cuando el ejercicio no pasa su propio esquema",
+  );
+
 
   console.log("\nTodas las verificaciones pasan.");
 }

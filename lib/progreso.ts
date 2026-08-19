@@ -1,3 +1,4 @@
+import { cuantosItems } from "@/lib/ejercicios/registro";
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/lib/generated/prisma/client";
 
@@ -163,4 +164,38 @@ export async function desmarcarSiNoRevisado(
     where: { asignacionId, pasoId, verificadoEl: null, entrega: null },
   });
   return count > 0;
+}
+
+/**
+ * Sobre cuántos puntos va cada uno de estos pasos, o `null` el que no se
+ * pueda saber.
+ *
+ * Se pide aparte de `estadoDePasos` porque cuesta más: hay que traer los
+ * datos del ejercicio de cada paso, que en una tarea del DELE llevan el texto
+ * de lectura entero. Quien solo quiera saber si un paso está entregado no
+ * tiene por qué pagar eso.
+ *
+ * Un paso sin ejercicio —los que corrige el profe a mano, un Genially o una
+ * expresión escrita— no tiene máximo deducible y sale `null`: su nota se
+ * enseña sin denominador, que es la verdad, en vez de inventarle un total.
+ */
+export async function sobreCuantosPorPaso(
+  pasoIds: string[],
+): Promise<Map<string, number | null>> {
+  if (pasoIds.length === 0) return new Map();
+
+  const vinculos = await prisma.pasoEjercicio.findMany({
+    where: { pasoId: { in: pasoIds } },
+    orderBy: { orden: "asc" },
+    select: { pasoId: true, ejercicio: { select: { datos: true } } },
+  });
+
+  const sobre = new Map<string, number | null>();
+  for (const v of vinculos) {
+    // El primero de cada paso: el mismo criterio que usa la página para
+    // decidir cuál se enseña.
+    if (sobre.has(v.pasoId)) continue;
+    sobre.set(v.pasoId, cuantosItems(v.ejercicio.datos));
+  }
+  return sobre;
 }
