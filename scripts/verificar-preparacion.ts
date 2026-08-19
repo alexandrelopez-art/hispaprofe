@@ -12,7 +12,9 @@ import {
   abrirPractica,
   catalogoDeBloque,
   cuantosPorBloque,
+  distintivos,
   estadoDeAsignacion,
+  type Tarjeta,
   profesorDelEstudiante,
 } from "@/lib/catalogo-preparacion";
 import {
@@ -542,6 +544,34 @@ async function main() {
     (await profesorDelEstudiante(alumno.id)) === null,
     "con el grupo archivado, el alumno se queda sin profesor",
   );
+
+  // ─── El desempate de dos tarjetas que se leerían igual ─────────────────
+  // El caso real: la lectura de mayo 2015 y la del modelo 0 comparten nivel y
+  // prueba, así que sin esto salen dos tarjetas idénticas.
+  const comoTarjeta = (id: string, titulo: string, destreza: "CE" | "CO"): Tarjeta => ({
+    recorridoId: id,
+    titulo,
+    nivel: "A2_B1_ESCOLAR",
+    destreza,
+    examen: null,
+    pasos: 4,
+    estado: { clase: "SIN_ASIGNAR" },
+  });
+
+  const gemelas = distintivos([
+    comoTarjeta("a", "A2/B1 escolar \u00b7 Comprensi\u00f3n de lectura (mayo 2015)", "CE"),
+    comoTarjeta("b", "A2/B1 escolar \u00b7 Comprensi\u00f3n de lectura (modelo 0)", "CE"),
+    comoTarjeta("c", "A2/B1 escolar \u00b7 Comprensi\u00f3n auditiva (mayo 2015)", "CO"),
+  ]);
+  afirmar(gemelas.get("a") === "mayo 2015", `la que choca lleva su par\u00e9ntesis (dice ${gemelas.get("a")})`);
+  afirmar(gemelas.get("b") === "modelo 0", `y la otra el suyo (dice ${gemelas.get("b")})`);
+  afirmar(!gemelas.has("c"), "la que no choca con nadie no gana distintivo");
+
+  const sinParentesis = distintivos([
+    comoTarjeta("d", "Lectura suelta", "CE"),
+    comoTarjeta("e", "Otra lectura", "CE"),
+  ]);
+  afirmar(sinParentesis.get("d") === "Lectura suelta", "sin par\u00e9ntesis se cae al t\u00edtulo entero");
 
   console.log("\nTodo en orden.");
 }

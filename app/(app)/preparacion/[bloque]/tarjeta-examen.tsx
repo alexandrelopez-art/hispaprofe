@@ -49,10 +49,13 @@ export default function TarjetaExamen({
   tarjeta,
   motivo,
   bloque,
+  distintivo,
 }: {
   tarjeta: Tarjeta;
   motivo: string | null;
   bloque: string;
+  /** Lo que separa esta tarjeta de otra que se leería igual, o null. */
+  distintivo: string | null;
 }) {
   // Quién decide la puerta es la asignación, no los pasos hechos: un examen
   // blanco que su profe le abrió y que todavía no ha tocado tiene que
@@ -68,6 +71,11 @@ export default function TarjetaExamen({
           {tarjeta.destreza
             ? (NOMBRE_PRUEBA[tarjeta.destreza] ?? tarjeta.destreza)
             : tarjeta.titulo}
+          {distintivo && (
+            <span className="ml-2 rounded-full bg-fondo px-2 py-0.5 text-xs font-bold text-tinta-suave">
+              {distintivo}
+            </span>
+          )}
         </h3>
         <p className="mt-1 text-sm text-tinta-suave">
           {tarjeta.pasos} {tarjeta.pasos === 1 ? "tarea" : "tareas"} ·{" "}

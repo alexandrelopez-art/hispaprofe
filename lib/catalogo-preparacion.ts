@@ -308,3 +308,30 @@ export async function abrirPractica(
     throw e;
   }
 }
+
+/**
+ * Lo que distingue a dos tarjetas que se leerían igual.
+ *
+ * El encabezado de una tarjeta es «nivel · prueba», y eso basta casi siempre.
+ * Pero dos secuencias del mismo nivel y la misma prueba —la lectura de mayo
+ * 2015 y la del modelo 0, que es el caso real de hoy— salen idénticas: cuatro
+ * tareas, sin empezar, y ninguna forma de saber cuál es cuál. Esta función
+ * devuelve, solo para las que chocan, el trozo del título que las separa.
+ *
+ * Se prefiere el paréntesis final del título («mayo 2015», «modelo 0») al
+ * título entero porque el título repite el nivel y la prueba que la tarjeta ya
+ * enseña encima; si no hay paréntesis, se cae al título completo, que feo o no
+ * dice la verdad.
+ */
+export function distintivos(tarjetas: Tarjeta[]): Map<string, string> {
+  const cuantas = new Map<string, number>();
+  const clave = (t: Tarjeta) => `${t.examen ?? ""}·${t.nivel}·${t.destreza ?? ""}`;
+  for (const t of tarjetas) cuantas.set(clave(t), (cuantas.get(clave(t)) ?? 0) + 1);
+
+  const marcas = new Map<string, string>();
+  for (const t of tarjetas) {
+    if ((cuantas.get(clave(t)) ?? 0) < 2) continue;
+    marcas.set(t.recorridoId, /\(([^()]+)\)\s*$/.exec(t.titulo)?.[1] ?? t.titulo);
+  }
+  return marcas;
+}

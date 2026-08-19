@@ -1,6 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { catalogoDeBloque, profesorDelEstudiante } from "@/lib/catalogo-preparacion";
+import {
+  catalogoDeBloque,
+  distintivos,
+  profesorDelEstudiante,
+} from "@/lib/catalogo-preparacion";
 import { bloquePorNombre } from "@/lib/preparacion";
 import { getUsuarioActual } from "@/lib/usuario";
 import TarjetaExamen from "./tarjeta-examen";
@@ -18,6 +22,10 @@ export default async function BloquePage({
 
   const usuario = await getUsuarioActual();
   const tarjetas = await catalogoDeBloque(bloque.orden, usuario?.id ?? null);
+  // Sobre el catálogo entero y no por grupo: dos tarjetas que chocan lo hacen
+  // dentro del mismo examen, así que el resultado es el mismo, y calcularlo una
+  // vez evita repetir el recuento en cada sección.
+  const marcas = distintivos(tarjetas);
 
   // El motivo se resuelve una vez para toda la página: es el mismo para todas
   // las tarjetas y depende del alumno, no del examen.
@@ -81,6 +89,7 @@ export default async function BloquePage({
                     tarjeta={t}
                     motivo={motivo}
                     bloque={bloque.nombre}
+                    distintivo={marcas.get(t.recorridoId) ?? null}
                   />
                 ))}
               </div>
