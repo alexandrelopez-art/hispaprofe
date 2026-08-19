@@ -8,7 +8,12 @@
  * Ejecutar con:  npx tsx scripts/verificar-preparacion.ts
  */
 import "dotenv/config";
-import { catalogoDeBloque, estadoDeAsignacion } from "@/lib/catalogo-preparacion";
+import {
+  abrirPractica,
+  catalogoDeBloque,
+  estadoDeAsignacion,
+  profesorDelEstudiante,
+} from "@/lib/catalogo-preparacion";
 import {
   BLOQUES,
   bloquePedido,
@@ -26,7 +31,12 @@ function afirmar(condicion: boolean, mensaje: string) {
 // Una marca por proceso para reconocer lo que crea esta pasada y poder
 // limpiarlo desde el `.finally()` aunque una afirmación reviente a mitad.
 const marca = `verificar-preparacion-${process.pid}`;
-const creados = { recorridos: [] as string[], usuarios: [] as string[], grupos: [] as string[] };
+const creados = {
+  recorridos: [] as string[],
+  usuarios: [] as string[],
+  grupos: [] as string[],
+  pasosCompletados: [] as string[],
+};
 
 async function main() {
   // ─── La tabla de bloques ───────────────────────────────────────────────
@@ -171,6 +181,144 @@ async function main() {
     "lo del bloque 2 no sale en el bloque 3",
   );
 
+  // ─── La puerta ─────────────────────────────────────────────────────────
+  const profe = await prisma.user.create({
+    data: { email: `${marca}-profe@ejemplo.test`, role: "PROFESOR" },
+    select: { id: true },
+  });
+  creados.usuarios.push(profe.id);
+
+  const alumno = await prisma.user.create({
+    data: { email: `${marca}-alumno@ejemplo.test`, role: "STUDENT" },
+    select: { id: true },
+  });
+  creados.usuarios.push(alumno.id);
+
+  const huerfano = await prisma.user.create({
+    data: { email: `${marca}-huerfano@ejemplo.test`, role: "STUDENT" },
+    select: { id: true },
+  });
+  creados.usuarios.push(huerfano.id);
+
+  const grupo = await prisma.grupo.create({
+    data: {
+      nombre: `${marca} · grupo`,
+      profesorId: profe.id,
+      miembros: { create: [{ estudianteId: alumno.id }] },
+    },
+    select: { id: true },
+  });
+  creados.grupos.push(grupo.id);
+
+  afirmar(
+    (await profesorDelEstudiante(alumno.id)) === profe.id,
+    "el profesor de un alumno sale de su grupo",
+  );
+  afirmar(
+    (await profesorDelEstudiante(huerfano.id)) === null,
+    "un alumno sin grupo no tiene profesor",
+  );
+
+  const blanco = await prisma.recorrido.create({
+    data: {
+      titulo: `${marca} · examen blanco`,
+      nivel: "B1",
+      tipo: "PREPARACION_DELE",
+      orden: 3,
+      publicado: true,
+    },
+    select: { id: true },
+  });
+  creados.recorridos.push(blanco.id);
+
+  const rechazoBorrador = await abrirPractica(alumno.id, borrador.id);
+  afirmar(
+    "error" in rechazoBorrador,
+    `un borrador no se puede empezar (dijo: ${JSON.stringify(rechazoBorrador)})`,
+  );
+
+  const rechazoBlanco = await abrirPractica(alumno.id, blanco.id);
+  afirmar(
+    "error" in rechazoBlanco,
+    "un examen blanco no se puede empezar aunque se escriba su id a mano",
+  );
+
+  const rechazoSinGrupo = await abrirPractica(huerfano.id, publicado.id);
+  afirmar("error" in rechazoSinGrupo, "un alumno sin grupo recibe el motivo");
+  afirmar(
+    (await prisma.asignacion.count({ where: { estudianteId: huerfano.id } })) === 0,
+    "y no se le crea ninguna asignación",
+  );
+
+  const abierta = await abrirPractica(alumno.id, publicado.id);
+  afirmar("asignacionId" in abierta, "un alumno con grupo sí puede empezar");
+  const asignacion = await prisma.asignacion.findFirstOrThrow({
+    where: { estudianteId: alumno.id, recorridoId: publicado.id },
+    select: { id: true, profesorId: true, archivada: true },
+  });
+  afirmar(
+    asignacion.profesorId === profe.id,
+    "la asignación nace con el profesor de su grupo",
+  );
+
+  // La otra mitad de `catalogoDeBloque`, la que cruza recorridos con
+  // asignaciones, no tenía prueba con un estudianteId real: hasta aquí solo
+  // se había ejercitado con `null`. Se comprueba aquí, con la asignación recién
+  // abierta y todavía sin tocar, antes de que el resto de la puerta la archive
+  // o le cambie el dueño.
+  const catalogoDelAlumno = await catalogoDeBloque(2, alumno.id);
+  const tarjetaAlumno = catalogoDelAlumno.find((t) => t.recorridoId === publicado.id);
+  afirmar(
+    tarjetaAlumno?.estado.clase === "SIN_EMPEZAR",
+    "con asignación pero sin pasos hechos, la tarjeta del alumno está sin empezar",
+  );
+
+  const pasoDePublicado = await prisma.paso.findFirstOrThrow({
+    where: { recorridoId: publicado.id },
+    select: { id: true },
+  });
+  const pasoCompletado = await prisma.pasoCompletado.create({
+    data: { asignacionId: asignacion.id, pasoId: pasoDePublicado.id },
+    select: { id: true },
+  });
+  creados.pasosCompletados.push(pasoCompletado.id);
+
+  const catalogoTrasUnPaso = await catalogoDeBloque(2, alumno.id);
+  const tarjetaTrasUnPaso = catalogoTrasUnPaso.find((t) => t.recorridoId === publicado.id);
+  afirmar(
+    tarjetaTrasUnPaso?.estado.clase === "A_MEDIAS" &&
+      tarjetaTrasUnPaso.estado.hechos === 1 &&
+      tarjetaTrasUnPaso.estado.total === 2,
+    "con un paso de dos hecho, la tarjeta del alumno está a medias (1 de 2)",
+  );
+
+  // Si ya la tenía, empezar otra vez no toca nada. Es lo que separa esta
+  // puerta de `asignarA`, cuyo upsert desarchivaría y reescribiría el dueño.
+  await prisma.asignacion.update({
+    where: { id: asignacion.id },
+    data: { archivada: true, profesorId: huerfano.id },
+  });
+  const segunda = await abrirPractica(alumno.id, publicado.id);
+  afirmar("asignacionId" in segunda, "empezar dos veces no da error, lleva a la suya");
+  const despues = await prisma.asignacion.findUniqueOrThrow({
+    where: { id: asignacion.id },
+    select: { archivada: true, profesorId: true },
+  });
+  afirmar(despues.archivada === true, "no desarchiva la que su profe archivó");
+  afirmar(despues.profesorId === huerfano.id, "ni le cambia el dueño a la entrega");
+  afirmar(
+    (await prisma.asignacion.count({ where: { estudianteId: alumno.id, recorridoId: publicado.id } })) === 1,
+    "y no crea una segunda",
+  );
+
+  // Un grupo archivado cuenta como no tener grupo: su profesor ya no responde
+  // por ese alumno.
+  await prisma.grupo.update({ where: { id: grupo.id }, data: { archivado: true } });
+  afirmar(
+    (await profesorDelEstudiante(alumno.id)) === null,
+    "con el grupo archivado, el alumno se queda sin profesor",
+  );
+
   console.log("\nTodo en orden.");
 }
 
@@ -188,6 +336,11 @@ main()
         fallos++;
         console.error(`limpieza · ${que}: ${e instanceof Error ? e.message : e}`);
       }
+    }
+
+    // Antes que las asignaciones, que es lo que exige su clave foránea.
+    for (const id of creados.pasosCompletados) {
+      await intentar("paso completado", () => prisma.pasoCompletado.delete({ where: { id } }));
     }
 
     // El orden importa: primero lo que apunta al recorrido, luego el recorrido.

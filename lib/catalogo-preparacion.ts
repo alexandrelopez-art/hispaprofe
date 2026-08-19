@@ -1,4 +1,5 @@
 import type { Destreza, Nivel } from "@/lib/generated/prisma/enums";
+import { bloquePorOrden } from "@/lib/preparacion";
 import { prisma } from "@/lib/prisma";
 
 /**
@@ -99,4 +100,71 @@ export async function catalogoDeBloque(
     pasos: r._count.pasos,
     estado: estadoDeAsignacion(r._count.pasos, porRecorrido.get(r.id) ?? []),
   }));
+}
+
+/**
+ * El profesor que responde por este alumno: el de su grupo.
+ *
+ * Un alumno no tiene «su profesor» guardado en ninguna parte; se deduce del
+ * grupo, que es el único vínculo real que existe hoy. Con varios grupos
+ * activos se toma aquel en el que entró más tarde: es un desempate arbitrario
+ * y por eso se escribe aquí, en vez de dejarlo al orden que devuelva la base.
+ *
+ * Un grupo archivado no cuenta: su profesor ya no responde por ese alumno.
+ */
+export async function profesorDelEstudiante(estudianteId: string): Promise<string | null> {
+  const membresia = await prisma.miembroGrupo.findFirst({
+    where: { estudianteId, grupo: { archivado: false } },
+    orderBy: { createdAt: "desc" },
+    select: { grupo: { select: { profesorId: true } } },
+  });
+  return membresia?.grupo.profesorId ?? null;
+}
+
+/**
+ * Abre una práctica a un alumno: comprueba y crea la asignación, o dice por
+ * qué no.
+ *
+ * Si ya tenía asignación de ese recorrido **no se toca nada** y se devuelve la
+ * suya. No se reutiliza `asignarA` (`lib/acciones.ts`), cuyo `upsert` pone
+ * `archivada: false` y reescribe el `profesorId`: por esa vía un alumno
+ * resucitaría una asignación que su profe archivó, o le cambiaría el dueño a su
+ * propia entrega. Esta puerta crea, o no hace nada.
+ */
+export async function abrirPractica(
+  estudianteId: string,
+  recorridoId: string,
+): Promise<{ error: string } | { asignacionId: string }> {
+  const recorrido = await prisma.recorrido.findUnique({
+    where: { id: recorridoId },
+    select: { tipo: true, orden: true, publicado: true },
+  });
+  if (!recorrido || recorrido.tipo !== "PREPARACION_DELE") {
+    return { error: "Esa secuencia no es de preparación al DELE." };
+  }
+  if (!recorrido.publicado) {
+    return { error: "Esta secuencia todavía es un borrador." };
+  }
+
+  const bloque = bloquePorOrden(recorrido.orden);
+  if (!bloque || !bloque.autoservicio) {
+    return { error: "Este examen lo abre tu profesor." };
+  }
+
+  const yaLaTiene = await prisma.asignacion.findUnique({
+    where: { estudianteId_recorridoId: { estudianteId, recorridoId } },
+    select: { id: true },
+  });
+  if (yaLaTiene) return { asignacionId: yaLaTiene.id };
+
+  const profesorId = await profesorDelEstudiante(estudianteId);
+  if (!profesorId) {
+    return { error: "Habla con tu profe para que te dé un grupo." };
+  }
+
+  const nueva = await prisma.asignacion.create({
+    data: { estudianteId, recorridoId, profesorId },
+    select: { id: true },
+  });
+  return { asignacionId: nueva.id };
 }
