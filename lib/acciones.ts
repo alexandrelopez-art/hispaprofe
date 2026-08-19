@@ -5,7 +5,11 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getUsuarioActual } from "@/lib/usuario";
 import { exigirProfesor } from "@/lib/profesor";
-import { grabacionesBorrables, puedeBorrarRecorrido } from "@/lib/recorridos";
+import {
+  grabacionesBorrables,
+  puedeBorrarRecorrido,
+  puedePublicarse,
+} from "@/lib/recorridos";
 import { esGrabacionEntregada, PREFIJO_GRABACION } from "@/lib/expresion";
 import { listarEstudiantes } from "@/lib/google";
 import { desmarcarSiNoRevisado } from "@/lib/progreso";
@@ -1189,6 +1193,38 @@ export async function desmarcarPasoHecho(formData: FormData) {
  * secuencia es tuya. La regla vive en `lib/recorridos.ts` para que un script
  * pueda ejercitar los cuatro casos.
  */
+/**
+ * Publica o retira una secuencia del catálogo del alumno.
+ *
+ * Quién puede: el mismo criterio que borrarla. Publicar pasa por
+ * `puedePublicarse`; despublicar no, porque retirar algo del escaparate
+ * siempre tiene que poder hacerse.
+ */
+export async function publicarRecorrido(formData: FormData) {
+  const usuario = await exigirProfesor();
+  const recorridoId = String(formData.get("recorridoId") ?? "");
+  if (!recorridoId) return;
+  const publicar = formData.get("publicar") === "si";
+
+  const recorrido = await prisma.recorrido.findUnique({
+    where: { id: recorridoId },
+    select: { autorId: true },
+  });
+  if (!recorrido) return;
+  if (!puedeBorrarRecorrido(usuario, recorrido)) return;
+
+  if (publicar && (await puedePublicarse(recorridoId))) return;
+
+  await prisma.recorrido.update({
+    where: { id: recorridoId },
+    data: { publicado: publicar },
+  });
+
+  revalidatePath(`/recorridos/${recorridoId}`);
+  revalidatePath("/recorridos");
+  revalidatePath("/preparacion");
+}
+
 export async function borrarRecorrido(formData: FormData) {
   const usuario = await exigirProfesor();
   const recorridoId = String(formData.get("recorridoId") ?? "");

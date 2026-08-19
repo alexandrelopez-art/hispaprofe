@@ -181,3 +181,29 @@ export async function grabacionesBorrables(
   });
   return privados.map((a) => a.id);
 }
+
+/**
+ * Si esta secuencia se puede publicar, o el motivo del no.
+ *
+ * Publicar es lo que la hace aparecer en el catálogo del alumno
+ * (`/preparacion`), así que la única regla es la que evita una tarjeta que no
+ * lleva a ninguna parte: sin pasos, no se publica.
+ *
+ * Despublicar no pasa por aquí a propósito: retirar algo del escaparate
+ * siempre se puede, y una regla que impidiera hacerlo dejaría material
+ * publicado por error sin forma de quitarlo.
+ *
+ * Vive aquí y no en la acción por el criterio de este archivo: una acción de
+ * servidor necesita sesión, así que ningún script podría ejercitar la regla.
+ */
+export async function puedePublicarse(recorridoId: string): Promise<string | null> {
+  const recorrido = await prisma.recorrido.findUnique({
+    where: { id: recorridoId },
+    select: { _count: { select: { pasos: true } } },
+  });
+  if (!recorrido) return "Esa secuencia ya no existe.";
+  if (recorrido._count.pasos === 0) {
+    return "Todavía no tiene ningún paso: publicada sería una tarjeta que no lleva a ninguna parte.";
+  }
+  return null;
+}

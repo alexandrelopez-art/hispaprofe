@@ -84,9 +84,16 @@ export default function TarjetaExamen({
       </div>
 
       {estado === "ARCHIVADA" ? (
-        <p className="rounded-full bg-fondo px-4 py-2 text-xs font-bold text-tinta-suave">
-          Habla con tu profe para recuperarlo
-        </p>
+        // Se le deja mirar, no seguir: el servidor ya se niega a aceptar
+        // entregas y a contar escuchas sobre una asignación archivada, así que
+        // el enlace no abre ninguna puerta. Sin él, el alumno pierde de vista
+        // su propio trabajo, que es lo único que aquí estaba en juego.
+        <Link
+          href={`/recorridos/${tarjeta.recorridoId}`}
+          className="rounded-full border border-hp-200 px-4 py-2 text-xs font-bold text-tinta-suave transition-colors hover:border-hp-400 hover:text-tinta"
+        >
+          Ver lo que hiciste
+        </Link>
       ) : estado !== "SIN_ASIGNAR" ? (
         <Link
           href={`/recorridos/${tarjeta.recorridoId}`}

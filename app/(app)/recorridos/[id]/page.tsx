@@ -7,8 +7,14 @@ import {
   borrarRecorrido,
   crearPaso,
   moverPaso,
+  publicarRecorrido,
 } from "@/lib/acciones";
-import { avisoDeBorrado, puedeBorrarRecorrido, resumenDeBorrado } from "@/lib/recorridos";
+import {
+  avisoDeBorrado,
+  puedeBorrarRecorrido,
+  puedePublicarse,
+  resumenDeBorrado,
+} from "@/lib/recorridos";
 import { estadoDePasos, type EstadoPaso } from "@/lib/progreso";
 import BotonConfirmar from "@/components/boton-confirmar";
 import { notFound } from "next/navigation";
@@ -76,6 +82,12 @@ export default async function RecorridoDetallePage({
   const aviso = sePuedeBorrar
     ? avisoDeBorrado(recorrido.titulo, await resumenDeBorrado(recorrido.id))
     : null;
+
+  // Quien puede borrarla puede publicarla: es la misma responsabilidad sobre
+  // la misma secuencia. El motivo solo se pide si está en borrador, que es
+  // cuando puede impedir algo.
+  const motivoDePublicar =
+    sePuedeBorrar && !recorrido.publicado ? await puedePublicarse(recorrido.id) : null;
 
   const [estudiantes, asignaciones] = esProfe
     ? await Promise.all([
@@ -164,6 +176,47 @@ export default async function RecorridoDetallePage({
           {nivelLabel[recorrido.nivel] ?? recorrido.nivel}
         </span>
       </div>
+
+      {sePuedeBorrar && (
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <span
+            className={`rounded-full px-3 py-1 text-xs font-bold ${
+              recorrido.publicado
+                ? "bg-bloque2/40 text-tinta"
+                : "bg-fondo text-tinta-suave"
+            }`}
+          >
+            {recorrido.publicado ? "Publicada" : "Borrador"}
+          </span>
+
+          {recorrido.publicado ? (
+            <form action={publicarRecorrido}>
+              <input type="hidden" name="recorridoId" value={recorrido.id} />
+              <input type="hidden" name="publicar" value="no" />
+              <BotonConfirmar
+                aviso={`«${recorrido.titulo}» dejará de aparecer en la preparación del alumno. Quien ya la tenga asignada la sigue teniendo, pero nadie nuevo podrá empezarla.`}
+                title="Retirarla del catálogo del alumno"
+                className="rounded-full border border-hp-200 px-4 py-1 text-sm font-bold text-tinta-suave transition-colors hover:border-bloque3 hover:text-tinta"
+              >
+                Despublicar
+              </BotonConfirmar>
+            </form>
+          ) : motivoDePublicar ? (
+            <p className="text-sm text-tinta-suave">{motivoDePublicar}</p>
+          ) : (
+            <form action={publicarRecorrido}>
+              <input type="hidden" name="recorridoId" value={recorrido.id} />
+              <input type="hidden" name="publicar" value="si" />
+              <button
+                type="submit"
+                className="rounded-full bg-hp-400 px-4 py-1 text-sm font-bold text-white transition-colors hover:bg-hp-500"
+              >
+                Publicar
+              </button>
+            </form>
+          )}
+        </div>
+      )}
 
       {sePuedeBorrar && aviso && (
         <form action={borrarRecorrido} className="mt-4">

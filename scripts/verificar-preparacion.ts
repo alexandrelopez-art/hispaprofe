@@ -25,6 +25,7 @@ import {
   examenPedido,
 } from "@/lib/preparacion";
 import { prisma } from "@/lib/prisma";
+import { puedePublicarse } from "@/lib/recorridos";
 
 function afirmar(condicion: boolean, mensaje: string) {
   if (!condicion) throw new Error(`FALLO: ${mensaje}`);
@@ -572,6 +573,52 @@ async function main() {
     comoTarjeta("e", "Otra lectura", "CE"),
   ]);
   afirmar(sinParentesis.get("d") === "Lectura suelta", "sin par\u00e9ntesis se cae al t\u00edtulo entero");
+
+  // ─── El interruptor de publicar ────────────────────────────────────────
+  // Sin pasos no se publica: en el catálogo sería una tarjeta que no lleva a
+  // ninguna parte.
+  const vacia = await prisma.recorrido.create({
+    data: {
+      titulo: `${marca} · vacía`,
+      nivel: "B1",
+      tipo: "PREPARACION_DELE",
+      destreza: "CE",
+      orden: 2,
+      publicado: false,
+    },
+    select: { id: true },
+  });
+  creados.recorridos.push(vacia.id);
+
+  afirmar(
+    typeof (await puedePublicarse(vacia.id)) === "string",
+    "una secuencia sin pasos no se puede publicar",
+  );
+  afirmar(
+    (await puedePublicarse(publicado.id)) === null,
+    "una con pasos sí",
+  );
+  afirmar(
+    typeof (await puedePublicarse("no-existe")) === "string",
+    "una secuencia que no existe tampoco",
+  );
+
+  // Y que publicar y despublicar mueve de verdad lo que ve el alumno.
+  const borradorId = borrador.id;
+  afirmar(
+    !(await catalogoDeBloque(2, null)).some((t) => t.recorridoId === borradorId),
+    "en borrador no sale en el catálogo",
+  );
+  await prisma.recorrido.update({ where: { id: borradorId }, data: { publicado: true } });
+  afirmar(
+    (await catalogoDeBloque(2, null)).some((t) => t.recorridoId === borradorId),
+    "publicada sí sale",
+  );
+  await prisma.recorrido.update({ where: { id: borradorId }, data: { publicado: false } });
+  afirmar(
+    !(await catalogoDeBloque(2, null)).some((t) => t.recorridoId === borradorId),
+    "y despublicarla la retira",
+  );
 
   console.log("\nTodo en orden.");
 }
