@@ -78,3 +78,27 @@ export function bloquePorNombre(nombre: string): BloquePreparacion | null {
 export function bloquePorOrden(orden: number): BloquePreparacion | null {
   return BLOQUES.find((b) => b.orden === orden) ?? null;
 }
+
+/**
+ * El bloque que pide el formulario de secuencia nueva.
+ *
+ * Cae en la práctica (2) ante cualquier cosa rara —campo ausente, texto, un
+ * número que no es de ningún bloque— en vez de rechazar la ficha entera: es
+ * dónde aparece en una portada, no una regla de negocio, y el profesor lo
+ * cambia en dos clics si se equivoca.
+ */
+export function bloquePedido(valor: FormDataEntryValue | null): number {
+  const n = Number(valor);
+  return bloquePorOrden(n) ? n : 2;
+}
+
+/**
+ * El número de examen que pide el formulario. Nulo si no lo hay o no es un
+ * entero positivo: el catálogo agrupa por él, y un 0 o un -2 harían un grupo
+ * «Examen 0» que no existe en ningún cuadernillo.
+ */
+export function examenPedido(valor: FormDataEntryValue | null): number | null {
+  if (valor === null || valor === "") return null;
+  const n = Number(valor);
+  return Number.isInteger(n) && n > 0 ? n : null;
+}

@@ -13,6 +13,7 @@ import { estudianteAsignable } from "@/lib/estudiantes";
 import { corregir, analizar } from "@/lib/ejercicios/registro";
 import type { Respuestas } from "@/lib/ejercicios/tipos";
 import { motivoSiAudioDeDrive } from "@/lib/bloques";
+import { bloquePedido, examenPedido } from "@/lib/preparacion";
 import { Prisma } from "@/lib/generated/prisma/client";
 import type {
   Destreza,
@@ -392,10 +393,25 @@ export async function crearSecuencia(formData: FormData) {
       ? (destrezaBruta as Destreza)
       : null;
 
-  const ultimo = await prisma.recorrido.aggregate({
-    where: { tipo },
-    _max: { orden: true },
-  });
+  // En una secuencia de preparación, `orden` no es la posición en una lista:
+  // es el bloque de `/preparacion` al que pertenece, y lo elige el profesor.
+  // Autoincrementarlo aquí las hacía nacer en el 5, 6, 7… y no aparecían en
+  // ningún bloque de la portada. En las clases particulares sigue
+  // autoincrementándose, que es lo que siempre significó.
+  let orden: number;
+  if (tipo === "PREPARACION_DELE") {
+    orden = bloquePedido(formData.get("bloque"));
+  } else {
+    const ultimo = await prisma.recorrido.aggregate({
+      where: { tipo },
+      _max: { orden: true },
+    });
+    orden = (ultimo._max.orden ?? 0) + 1;
+  }
+
+  // El número de examen solo tiene sentido en una preparación.
+  const examen =
+    tipo === "PREPARACION_DELE" ? examenPedido(formData.get("examen")) : null;
 
   const conPlantilla = formData.get("plantilla") === "on";
 
@@ -406,7 +422,8 @@ export async function crearSecuencia(formData: FormData) {
       nivel,
       tipo,
       destreza,
-      orden: (ultimo._max.orden ?? 0) + 1,
+      examen,
+      orden,
       autorId: profesor.id,
     },
   });

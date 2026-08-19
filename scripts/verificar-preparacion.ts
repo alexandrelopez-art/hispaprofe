@@ -8,12 +8,24 @@
  * Ejecutar con:  npx tsx scripts/verificar-preparacion.ts
  */
 import "dotenv/config";
-import { BLOQUES, bloquePorNombre, bloquePorOrden } from "@/lib/preparacion";
+import {
+  BLOQUES,
+  bloquePedido,
+  bloquePorNombre,
+  bloquePorOrden,
+  examenPedido,
+} from "@/lib/preparacion";
+import { prisma } from "@/lib/prisma";
 
 function afirmar(condicion: boolean, mensaje: string) {
   if (!condicion) throw new Error(`FALLO: ${mensaje}`);
   console.log(`OK: ${mensaje}`);
 }
+
+// Una marca por proceso para reconocer lo que crea esta pasada y poder
+// limpiarlo desde el `.finally()` aunque una afirmación reviente a mitad.
+const marca = `verificar-preparacion-${process.pid}`;
+const creados = { recorridos: [] as string[], usuarios: [] as string[], grupos: [] as string[] };
 
 async function main() {
   // ─── La tabla de bloques ───────────────────────────────────────────────
@@ -45,7 +57,73 @@ async function main() {
     "el examen blanco es el único bloque que no es autoservicio",
   );
 
+  // ─── El bloque se elige, no se autoincrementa ──────────────────────────
+  afirmar(bloquePedido("2") === 2, "el bloque pedido se respeta");
+  afirmar(bloquePedido("3") === 3, "también el examen blanco, que lo crea el profe");
+  afirmar(bloquePedido("9") === 2, "un bloque que no existe cae en la práctica (2)");
+  afirmar(bloquePedido(null) === 2, "sin bloque, la práctica (2)");
+  afirmar(bloquePedido("dos") === 2, "un bloque que no es un número, la práctica (2)");
+
+  afirmar(examenPedido("3") === 3, "el número de examen se guarda");
+  afirmar(examenPedido("") === null, "sin número de examen, nulo");
+  afirmar(examenPedido(null) === null, "sin campo, nulo");
+  afirmar(examenPedido("0") === null, "el examen cero no existe: nulo");
+  afirmar(examenPedido("-2") === null, "un examen negativo: nulo");
+  afirmar(examenPedido("dos") === null, "un examen que no es un número: nulo");
+  afirmar(examenPedido("2.5") === null, "un examen con decimales: nulo");
+
+  // Y que la columna existe de verdad, que es lo que la migración añade.
+  const conExamen = await prisma.recorrido.create({
+    data: {
+      titulo: `${marca} · con examen`,
+      nivel: "B1",
+      tipo: "PREPARACION_DELE",
+      destreza: "CE",
+      orden: 2,
+      examen: 3,
+    },
+    select: { id: true, orden: true, examen: true },
+  });
+  creados.recorridos.push(conExamen.id);
+  afirmar(conExamen.examen === 3, `la columna examen guarda el 3 (es ${conExamen.examen})`);
+
   console.log("\nTodo en orden.");
 }
 
-main().then(() => process.exit(0));
+main()
+  .catch((e) => {
+    console.error(e instanceof Error ? e.message : e);
+    process.exitCode = 1;
+  })
+  .finally(async () => {
+    let fallos = 0;
+    async function intentar(que: string, tarea: () => Promise<unknown>) {
+      try {
+        await tarea();
+      } catch (e) {
+        fallos++;
+        console.error(`limpieza · ${que}: ${e instanceof Error ? e.message : e}`);
+      }
+    }
+
+    // El orden importa: primero lo que apunta al recorrido, luego el recorrido.
+    for (const id of creados.recorridos) {
+      await intentar("asignaciones", () => prisma.asignacion.deleteMany({ where: { recorridoId: id } }));
+      await intentar("pasos", () => prisma.paso.deleteMany({ where: { recorridoId: id } }));
+      await intentar("recorrido", () => prisma.recorrido.delete({ where: { id } }));
+    }
+    for (const id of creados.grupos) {
+      await intentar("miembros", () => prisma.miembroGrupo.deleteMany({ where: { grupoId: id } }));
+      await intentar("grupo", () => prisma.grupo.delete({ where: { id } }));
+    }
+    for (const id of creados.usuarios) {
+      await intentar("usuario", () => prisma.user.delete({ where: { id } }));
+    }
+
+    await intentar("desconectar", () => prisma.$disconnect());
+
+    if (fallos > 0) {
+      console.error(`\nLa limpieza falló en ${fallos} paso(s): puede haber quedado basura en la base.`);
+      process.exitCode = 1;
+    }
+  });

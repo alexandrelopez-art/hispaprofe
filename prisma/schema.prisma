@@ -110,6 +110,11 @@ model Recorrido {
   /// De qué prueba del DELE es esta secuencia. Null en clases particulares,
   /// y también en una de preparación que no quiera ceñirse a una prueba.
   destreza     Destreza?
+  /// Qué examen del Instituto Cervantes es (1-7). Nulo en las clases
+  /// particulares y en los bloques que no van por examen. Vive aquí y no en el
+  /// título porque el catálogo agrupa y ordena por él, y ordenar por título
+  /// pone el 10 antes que el 2.
+  examen       Int?
   tipo         TipoRecorrido @default(CLASES_PARTICULARES)
   orden        Int
   publicado    Boolean       @default(false)

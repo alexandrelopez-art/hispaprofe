@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { pruebasDe } from "@/lib/dele";
+import { BLOQUES } from "@/lib/preparacion";
 import type { Nivel } from "@/lib/generated/prisma/enums";
 
 const NIVELES: Nivel[] = ["A1", "A2", "B1", "B2", "C1", "A2_B1_ESCOLAR"];
@@ -157,6 +158,39 @@ export default function EleccionDele({
                 : "Elegir una hace que la ficha te proponga sus tareas. Puedes dejarlo sin elegir."}
           </span>
         </label>
+      )}
+
+      {tipo === "PREPARACION_DELE" && (
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          <label className="block text-sm font-semibold text-tinta">
+            Bloque de la preparación
+            <select name="bloque" defaultValue="2" className={campo}>
+              {BLOQUES.map((b) => (
+                <option key={b.orden} value={b.orden}>
+                  {b.orden} · {b.titulo}
+                </option>
+              ))}
+            </select>
+            <span className="mt-1 block text-xs font-normal text-tinta-suave">
+              Dónde aparece en la portada del alumno.
+            </span>
+          </label>
+
+          <label className="block text-sm font-semibold text-tinta">
+            Examen
+            <input
+              type="number"
+              name="examen"
+              min={1}
+              placeholder="1"
+              className={campo}
+            />
+            <span className="mt-1 block text-xs font-normal text-tinta-suave">
+              El número del examen del Cervantes. Déjalo vacío si esta
+              secuencia no es de un examen concreto.
+            </span>
+          </label>
+        </div>
       )}
 
       {children}
