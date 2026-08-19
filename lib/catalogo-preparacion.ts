@@ -1,3 +1,4 @@
+import { Prisma } from "@/lib/generated/prisma/client";
 import type { Destreza, Nivel } from "@/lib/generated/prisma/enums";
 import { bloquePorOrden } from "@/lib/preparacion";
 import { prisma } from "@/lib/prisma";
@@ -162,9 +163,27 @@ export async function abrirPractica(
     return { error: "Habla con tu profe para que te dé un grupo." };
   }
 
-  const nueva = await prisma.asignacion.create({
-    data: { estudianteId, recorridoId, profesorId },
-    select: { id: true },
-  });
-  return { asignacionId: nueva.id };
+  // El findUnique de arriba y este create son dos viajes sin transacción: un
+  // doble clic en el botón —el camino realista de esta puerta, no dos
+  // pestañas hipotéticas— manda las dos peticiones con `yaLaTiene === null`
+  // a la vez, y la segunda choca contra la unicidad (estudianteId,
+  // recorridoId) con P2002. Perder esa carrera tiene que llevar al alumno a
+  // su práctica, no a una pantalla de error: se relee y se devuelve la que
+  // ganó.
+  try {
+    const nueva = await prisma.asignacion.create({
+      data: { estudianteId, recorridoId, profesorId },
+      select: { id: true },
+    });
+    return { asignacionId: nueva.id };
+  } catch (e) {
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+      const ganadora = await prisma.asignacion.findUniqueOrThrow({
+        where: { estudianteId_recorridoId: { estudianteId, recorridoId } },
+        select: { id: true },
+      });
+      return { asignacionId: ganadora.id };
+    }
+    throw e;
+  }
 }

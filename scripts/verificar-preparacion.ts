@@ -200,11 +200,21 @@ async function main() {
   });
   creados.usuarios.push(huerfano.id);
 
+  // Aparte de `alumno`: la carrera se prueba con una pareja estudiante/
+  // recorrido sin asignación previa, para que las dos llamadas concurrentes
+  // lleguen de verdad al `create` y no se resuelvan antes en el `findUnique`
+  // de guardia.
+  const concurrente = await prisma.user.create({
+    data: { email: `${marca}-concurrente@ejemplo.test`, role: "STUDENT" },
+    select: { id: true },
+  });
+  creados.usuarios.push(concurrente.id);
+
   const grupo = await prisma.grupo.create({
     data: {
       nombre: `${marca} · grupo`,
       profesorId: profe.id,
-      miembros: { create: [{ estudianteId: alumno.id }] },
+      miembros: { create: [{ estudianteId: alumno.id }, { estudianteId: concurrente.id }] },
     },
     select: { id: true },
   });
@@ -259,6 +269,32 @@ async function main() {
   afirmar(
     asignacion.profesorId === profe.id,
     "la asignación nace con el profesor de su grupo",
+  );
+
+  // La carrera perdida: el caso realista es un doble clic, no dos pestañas
+  // pensadas a propósito, así que se provoca con dos llamadas concurrentes de
+  // verdad. Las dos pasan por el `findUnique` de guardia sin encontrar nada
+  // -`concurrente` no tiene asignación previa de `publicado`- y las dos llegan
+  // al `create`; una gana, la otra choca contra la unicidad. Sin el catch de
+  // P2002 en `abrirPractica`, el `Promise.all` revienta con el error crudo de
+  // Prisma y esta afirmación ni se alcanza.
+  const [primero, segundo] = await Promise.all([
+    abrirPractica(concurrente.id, publicado.id),
+    abrirPractica(concurrente.id, publicado.id),
+  ]);
+  afirmar(
+    "asignacionId" in primero && "asignacionId" in segundo,
+    `un doble clic no revienta: las dos llamadas concurrentes vuelven con éxito (dijeron: ${JSON.stringify(primero)}, ${JSON.stringify(segundo)})`,
+  );
+  if ("asignacionId" in primero && "asignacionId" in segundo) {
+    afirmar(
+      primero.asignacionId === segundo.asignacionId,
+      "y las dos apuntan a la misma asignación: la que ganó la carrera",
+    );
+  }
+  afirmar(
+    (await prisma.asignacion.count({ where: { estudianteId: concurrente.id, recorridoId: publicado.id } })) === 1,
+    "la carrera perdida no deja una segunda asignación",
   );
 
   // La otra mitad de `catalogoDeBloque`, la que cruza recorridos con
