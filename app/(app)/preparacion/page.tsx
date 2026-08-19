@@ -4,16 +4,11 @@ import { BLOQUES } from "@/lib/preparacion";
 
 export const dynamic = "force-dynamic";
 
-const nivelLabel: Record<string, string> = {
-  A2_B1_ESCOLAR: "A2/B1 escolar",
-  B2: "B2",
-};
-
 export default async function PreparacionPage() {
-  const disponibles = await prisma.recorrido.findMany({
-    where: { tipo: "PREPARACION_DELE" },
-    orderBy: [{ orden: "asc" }, { nivel: "asc" }],
-    select: { id: true, orden: true, nivel: true, titulo: true },
+  const disponibles = await prisma.recorrido.groupBy({
+    by: ["orden"],
+    where: { tipo: "PREPARACION_DELE", publicado: true },
+    _count: { _all: true },
   });
 
   return (
@@ -28,8 +23,9 @@ export default async function PreparacionPage() {
 
       <div className="mt-10 space-y-5">
         {BLOQUES.map((bloque) => {
-          const versiones = disponibles.filter((r) => r.orden === bloque.orden);
-          const activo = versiones.length > 0;
+          const cuantos =
+            disponibles.find((d) => d.orden === bloque.orden)?._count._all ?? 0;
+          const activo = cuantos > 0;
 
           return (
             <article
@@ -53,17 +49,12 @@ export default async function PreparacionPage() {
                 </p>
 
                 {activo ? (
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {versiones.map((version) => (
-                      <Link
-                        key={version.id}
-                        href={`/recorridos/${version.id}`}
-                        className="rounded-full bg-hp-400 px-4 py-2 text-xs font-bold text-white transition-colors hover:bg-hp-500"
-                      >
-                        Empezar · {nivelLabel[version.nivel] ?? version.nivel}
-                      </Link>
-                    ))}
-                  </div>
+                  <Link
+                    href={`/preparacion/${bloque.nombre}`}
+                    className="mt-4 inline-block rounded-full bg-hp-400 px-4 py-2 text-xs font-bold text-white transition-colors hover:bg-hp-500"
+                  >
+                    Ver los {cuantos}
+                  </Link>
                 ) : (
                   <p className="mt-4 inline-block rounded-full bg-fondo px-4 py-2 text-xs font-bold text-tinta-suave">
                     En preparación
