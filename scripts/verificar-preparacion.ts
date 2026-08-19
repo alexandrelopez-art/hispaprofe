@@ -8,6 +8,7 @@
  * Ejecutar con:  npx tsx scripts/verificar-preparacion.ts
  */
 import "dotenv/config";
+import { catalogoDeBloque, estadoDeAsignacion } from "@/lib/catalogo-preparacion";
 import {
   BLOQUES,
   bloquePedido,
@@ -86,6 +87,89 @@ async function main() {
   });
   creados.recorridos.push(conExamen.id);
   afirmar(conExamen.examen === 3, `la columna examen guarda el 3 (es ${conExamen.examen})`);
+
+  // ─── El resumen de estado, sin tocar la base ───────────────────────────
+  afirmar(
+    estadoDeAsignacion(4, []).clase === "SIN_EMPEZAR",
+    "sin pasos hechos, la tarjeta está sin empezar",
+  );
+  const aMedias = estadoDeAsignacion(4, [
+    { verificadoEl: null, puntos: null },
+    { verificadoEl: null, puntos: null },
+  ]);
+  afirmar(
+    aMedias.clase === "A_MEDIAS" && aMedias.hechos === 2 && aMedias.total === 4,
+    "dos pasos de cuatro son «a medias, 2 de 4»",
+  );
+  afirmar(
+    estadoDeAsignacion(2, [
+      { verificadoEl: null, puntos: null },
+      { verificadoEl: null, puntos: null },
+    ]).clase === "ENTREGADO",
+    "todos los pasos entregados y ninguno revisado es «entregado»",
+  );
+  const revisado = estadoDeAsignacion(2, [
+    { verificadoEl: new Date(), puntos: 12 },
+    { verificadoEl: new Date(), puntos: 9 },
+  ]);
+  afirmar(
+    revisado.clase === "REVISADO" && revisado.puntos === 21,
+    "con todo revisado se suman los puntos (son 21)",
+  );
+  // Un paso revisado y otro sin entregar sigue siendo «a medias»: enseñar
+  // «revisado» ahí le diría al alumno que ha terminado cuando no lo ha hecho.
+  afirmar(
+    estadoDeAsignacion(3, [{ verificadoEl: new Date(), puntos: 8 }]).clase === "A_MEDIAS",
+    "un paso revisado de tres sigue siendo «a medias»",
+  );
+
+  // ─── El catálogo ───────────────────────────────────────────────────────
+  const borrador = await prisma.recorrido.create({
+    data: {
+      titulo: `${marca} · borrador`,
+      nivel: "B1",
+      tipo: "PREPARACION_DELE",
+      destreza: "CO",
+      orden: 2,
+      examen: 1,
+      publicado: false,
+    },
+    select: { id: true },
+  });
+  creados.recorridos.push(borrador.id);
+
+  const publicado = await prisma.recorrido.create({
+    data: {
+      titulo: `${marca} · publicado`,
+      nivel: "B1",
+      tipo: "PREPARACION_DELE",
+      destreza: "CE",
+      orden: 2,
+      examen: 1,
+      publicado: true,
+      pasos: {
+        create: [
+          { orden: 1, ciclo: 1, tipo: "ACTIVIDAD", titulo: "Tarea 1" },
+          { orden: 2, ciclo: 1, tipo: "ACTIVIDAD", titulo: "Tarea 2" },
+        ],
+      },
+    },
+    select: { id: true },
+  });
+  creados.recorridos.push(publicado.id);
+
+  const catalogo = await catalogoDeBloque(2, null);
+  const mios = catalogo.filter((t) => t.titulo.startsWith(marca));
+  afirmar(mios.length === 1, `el catálogo trae solo lo publicado (trae ${mios.length})`);
+  afirmar(mios[0].recorridoId === publicado.id, "y es el publicado, no el borrador");
+  afirmar(mios[0].pasos === 2, "la tarjeta sabe cuántos pasos tiene");
+  afirmar(mios[0].estado.clase === "SIN_EMPEZAR", "sin alumno, la tarjeta está sin empezar");
+
+  const vacio = await catalogoDeBloque(3, null);
+  afirmar(
+    !vacio.some((t) => t.titulo.startsWith(marca)),
+    "lo del bloque 2 no sale en el bloque 3",
+  );
 
   console.log("\nTodo en orden.");
 }
