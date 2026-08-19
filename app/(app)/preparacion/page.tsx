@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
+import { BLOQUES } from "@/lib/preparacion";
 
 export const dynamic = "force-dynamic";
 
@@ -7,43 +8,6 @@ const nivelLabel: Record<string, string> = {
   A2_B1_ESCOLAR: "A2/B1 escolar",
   B2: "B2",
 };
-
-// Los cuatro bloques de preparación. `orden` enlaza con el campo `orden`
-// de los Recorrido de tipo PREPARACION_DELE.
-const BLOQUES = [
-  {
-    orden: 1,
-    titulo: "Estructura y estrategias",
-    descripcion:
-      "Cómo es el examen por dentro: cuántas pruebas, cuánto duran y qué busca el tribunal en cada una.",
-    acento: "bg-bloque1",
-    borde: "hover:border-bloque1",
-  },
-  {
-    orden: 2,
-    titulo: "Práctica por tarea",
-    descripcion:
-      "Propuestas reales de cada prueba, una por una, con corrección de tu profe.",
-    acento: "bg-bloque2",
-    borde: "hover:border-bloque2",
-  },
-  {
-    orden: 3,
-    titulo: "Examen blanco",
-    descripcion:
-      "Simulacro completo y cronometrado, seguido de una cita para repasar los resultados.",
-    acento: "bg-bloque3",
-    borde: "hover:border-bloque3",
-  },
-  {
-    orden: 4,
-    titulo: "Ejercicios temáticos",
-    descripcion:
-      "Biblioteca de ejercicios cortos clasificados por tema y categoría, para practicar suelto.",
-    acento: "bg-bloque4",
-    borde: "hover:border-bloque4",
-  },
-];
 
 export default async function PreparacionPage() {
   const disponibles = await prisma.recorrido.findMany({
