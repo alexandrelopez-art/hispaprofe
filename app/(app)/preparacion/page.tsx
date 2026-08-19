@@ -1,15 +1,13 @@
-import { prisma } from "@/lib/prisma";
 import Link from "next/link";
+import { cuantosPorBloque } from "@/lib/catalogo-preparacion";
 import { BLOQUES } from "@/lib/preparacion";
+import { getUsuarioActual } from "@/lib/usuario";
 
 export const dynamic = "force-dynamic";
 
 export default async function PreparacionPage() {
-  const disponibles = await prisma.recorrido.groupBy({
-    by: ["orden"],
-    where: { tipo: "PREPARACION_DELE", publicado: true },
-    _count: { _all: true },
-  });
+  const usuario = await getUsuarioActual();
+  const cuantosPor = await cuantosPorBloque(BLOQUES, usuario?.id ?? null);
 
   return (
     <div className="mx-auto max-w-3xl px-6 py-12">
@@ -23,8 +21,7 @@ export default async function PreparacionPage() {
 
       <div className="mt-10 space-y-5">
         {BLOQUES.map((bloque) => {
-          const cuantos =
-            disponibles.find((d) => d.orden === bloque.orden)?._count._all ?? 0;
+          const cuantos = cuantosPor.get(bloque.orden) ?? 0;
           const activo = cuantos > 0;
 
           return (
@@ -56,8 +53,11 @@ export default async function PreparacionPage() {
                     Ver los {cuantos}
                   </Link>
                 ) : (
+                  // Vacío no significa lo mismo en los dos sitios: en un bloque
+                  // autoservicio es que no hay material cargado, y en el examen
+                  // blanco es que su profe todavía no le ha abierto ninguno.
                   <p className="mt-4 inline-block rounded-full bg-fondo px-4 py-2 text-xs font-bold text-tinta-suave">
-                    En preparación
+                    {bloque.autoservicio ? "En preparación" : "Te lo abre tu profe"}
                   </p>
                 )}
               </div>

@@ -30,6 +30,16 @@ export default async function BloquePage({
         ? null
         : "Habla con tu profe para que te dé un grupo";
 
+  // El vacío también tiene que decir la verdad. En un bloque que no es
+  // autoservicio el catálogo ya solo trae lo que le abrieron, así que la lista
+  // vacía significa de verdad «no te han abierto ninguno»; lo que no puede es
+  // culpar al profe de quien ni siquiera ha entrado.
+  const vacio = bloque.autoservicio
+    ? "Todavía no hay nada publicado en este bloque."
+    : !usuario
+      ? "Entra para ver los exámenes blancos que te haya abierto tu profe."
+      : "Tu profe no te ha abierto ningún examen blanco todavía.";
+
   // Agrupadas por examen, en el orden en que vienen del catálogo. Las que no
   // son de un examen concreto caen juntas al final.
   const porExamen = new Map<number | null, typeof tarjetas>();
@@ -55,9 +65,7 @@ export default async function BloquePage({
 
       {tarjetas.length === 0 ? (
         <p className="mt-10 rounded-tarjeta border border-hp-100 bg-white p-6 text-sm text-tinta-suave shadow-suave">
-          {bloque.autoservicio
-            ? "Todavía no hay nada publicado en este bloque."
-            : "Tu profe no te ha abierto ningún examen blanco todavía."}
+          {vacio}
         </p>
       ) : (
         <div className="mt-10 space-y-8">
@@ -68,7 +76,12 @@ export default async function BloquePage({
               </h2>
               <div className="mt-3 space-y-3">
                 {lista.map((t) => (
-                  <TarjetaExamen key={t.recorridoId} tarjeta={t} motivo={motivo} />
+                  <TarjetaExamen
+                    key={t.recorridoId}
+                    tarjeta={t}
+                    motivo={motivo}
+                    bloque={bloque.nombre}
+                  />
                 ))}
               </div>
             </section>
