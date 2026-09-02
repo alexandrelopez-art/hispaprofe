@@ -33,6 +33,15 @@
   --color-bloque3: #ff9f87;
   --color-bloque4: #f5ce3d;
 
+  /* Error: lo único que la portada no necesitaba. Rojo de verdad, no coral. */
+  --color-error-100: #fde8e8;
+  --color-error-500: #d93a3a;
+  --color-error-600: #b42b2b;
+
+  /* Los dos colores que la portada llevaba fijos en hexadecimal. */
+  --color-lila-100: #ece5ff;
+  --color-lila-500: #6a5ad8;
+
   --shadow-suave: 0 4px 16px -4px rgba(4, 161, 241, 0.18);
   --shadow-tarjeta: 0 10px 30px -12px rgba(4, 161, 241, 0.25);
   --radius-tarjeta: 16px;
