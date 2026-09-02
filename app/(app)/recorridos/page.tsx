@@ -1,7 +1,9 @@
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import type { Prisma } from "@/lib/generated/prisma/client";
 import { servicioLabel } from "@/lib/servicios";
+import { getUsuarioActual } from "@/lib/usuario";
 
 export const dynamic = "force-dynamic";
 
@@ -45,6 +47,10 @@ export default async function RecorridosPage({
 }) {
   const { q = "", nivel = "", servicio = "" } = await searchParams;
 
+  const usuario = await getUsuarioActual();
+  if (!usuario) redirect("/entrar");
+  const esProfe = usuario.role === "PROFESOR" || usuario.role === "ADMIN";
+
   const where: Prisma.RecorridoWhereInput = {};
   if (servicio) where.tipo = servicio as Prisma.RecorridoWhereInput["tipo"];
   if (nivel) where.nivel = nivel as Prisma.RecorridoWhereInput["nivel"];
@@ -54,6 +60,7 @@ export default async function RecorridosPage({
       { descripcion: { contains: q, mode: "insensitive" } },
     ];
   }
+  if (!esProfe) where.publicado = true;
 
   const recorridos = await prisma.recorrido.findMany({
     where,

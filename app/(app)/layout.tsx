@@ -1,7 +1,9 @@
 import Link from "next/link";
-import { UserButton } from "@clerk/nextjs";
+import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import { bloqueoDelActual, getUsuarioActual } from "@/lib/usuario";
 import { esAdmin } from "@/lib/roles";
+import { salir } from "@/lib/acciones-entrada";
 
 export default async function AppLayout({
   children,
@@ -27,6 +29,16 @@ export default async function AppLayout({
         </p>
       </main>
     );
+  }
+
+  if (!usuario) redirect("/entrar");
+
+  // Una contraseña puesta por el profesor no se puede usar más de una vez:
+  // hasta que la cambie, la única página que existe es la del cambio. Se
+  // permite salir, para no atrapar a quien entró por error.
+  if (usuario.debeCambiarContrasena) {
+    const ruta = (await headers()).get("x-ruta-actual") ?? "";
+    if (ruta !== "/cuenta/contrasena") redirect("/cuenta/contrasena");
   }
 
   const esProfe = usuario?.role === "PROFESOR" || usuario?.role === "ADMIN";
@@ -57,6 +69,9 @@ export default async function AppLayout({
               className="hover:text-hp-500 transition-colors"
             >
               Secuencias
+            </Link>
+            <Link href="/preparacion" className="hover:text-hp-500 transition-colors">
+              Preparación
             </Link>
             {esProfe && (
               <Link
@@ -108,8 +123,18 @@ export default async function AppLayout({
             )}
           </nav>
 
-          <div className="ml-auto">
-            <UserButton />
+          <div className="ml-auto flex items-center gap-4 text-sm font-semibold">
+            <Link href="/cuenta" className="text-tinta-suave hover:text-hp-500 transition-colors">
+              Mi cuenta
+            </Link>
+            <form action={salir}>
+              <button
+                type="submit"
+                className="rounded-full border border-hp-200 px-4 h-9 text-tinta-suave hover:border-hp-400 hover:text-hp-500 transition-colors"
+              >
+                Salir
+              </button>
+            </form>
           </div>
         </div>
       </header>

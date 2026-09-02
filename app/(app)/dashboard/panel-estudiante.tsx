@@ -62,6 +62,19 @@ export default async function PanelEstudiante({
         {saludo}
       </h1>
 
+      <Link
+        href="/preparacion"
+        className="mt-8 block rounded-tarjeta border border-bloque2/60 bg-white p-6 shadow-suave transition-colors hover:border-bloque2"
+      >
+        <h2 className="text-xs font-bold uppercase tracking-wider text-verde-600">
+          Preparación DELE
+        </h2>
+        <p className="mt-2 text-lg font-bold text-tinta">
+          Cuatro bloques, en orden: estructura, práctica por tarea, examen blanco y temáticos.
+        </p>
+        <p className="mt-1 text-sm text-tinta-suave">Entra y elige por dónde seguir →</p>
+      </Link>
+
       {proxima && (
         <section className="mt-8 rounded-tarjeta border border-hp-200 bg-hp-50 p-6 shadow-suave">
           <h2 className="text-xs font-bold uppercase tracking-wider text-hp-700">
