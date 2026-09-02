@@ -63,7 +63,7 @@ export default async function PanelEstudiante({
       </h1>
 
       <Link
-        href="/preparacion"
+        href="/dele"
         className="mt-8 block rounded-tarjeta border border-bloque2/60 bg-white p-6 shadow-suave transition-colors hover:border-bloque2"
       >
         <h2 className="text-xs font-bold uppercase tracking-wider text-verde-600">

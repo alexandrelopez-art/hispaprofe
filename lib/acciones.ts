@@ -425,7 +425,7 @@ export async function crearSecuencia(formData: FormData) {
       : null;
 
   // En una secuencia de preparación, `orden` no es la posición en una lista:
-  // es el bloque de `/preparacion` al que pertenece, y lo elige el profesor.
+  // es el bloque de `/dele` al que pertenece, y lo elige el profesor.
   // Autoincrementarlo aquí las hacía nacer en el 5, 6, 7… y no aparecían en
   // ningún bloque de la portada. En las clases particulares sigue
   // autoincrementándose, que es lo que siempre significó.
@@ -1249,7 +1249,7 @@ export async function publicarRecorrido(formData: FormData) {
 
   revalidatePath(`/recorridos/${recorridoId}`);
   revalidatePath("/recorridos");
-  revalidatePath("/preparacion");
+  revalidatePath("/dele");
 }
 
 export async function borrarRecorrido(formData: FormData) {

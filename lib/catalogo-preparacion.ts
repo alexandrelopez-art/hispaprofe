@@ -4,7 +4,7 @@ import { bloquePorOrden } from "@/lib/preparacion";
 import { prisma } from "@/lib/prisma";
 
 /**
- * El catálogo de un bloque de `/preparacion` —qué exámenes ve el alumno y en
+ * El catálogo de un bloque de `/dele` —qué exámenes ve el alumno y en
  * qué punto está de cada uno— y `abrirPractica`, la única escritura de todo
  * esto: la puerta por la que el alumno se abre una práctica.
  *

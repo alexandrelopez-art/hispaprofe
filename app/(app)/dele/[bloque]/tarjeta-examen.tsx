@@ -1,4 +1,7 @@
-import Link from "next/link";
+import Boton from "@/components/ui/boton";
+import BotonEnviar from "@/components/ui/boton-enviar";
+import Etiqueta, { type TonoEtiqueta } from "@/components/ui/etiqueta";
+import TarjetaPieza from "@/components/ui/tarjeta";
 import { empezarPractica } from "@/lib/acciones-preparacion";
 import type { Tarjeta } from "@/lib/catalogo-preparacion";
 
@@ -33,6 +36,13 @@ function textoDelEstado(estado: Tarjeta["estado"]): string {
   return "Sin empezar";
 }
 
+function tonoDelEstado(estado: Tarjeta["estado"]): TonoEtiqueta {
+  if (estado.clase === "A_MEDIAS") return "sol";
+  if (estado.clase === "ENTREGADO") return "hp";
+  if (estado.clase === "REVISADO") return "verde";
+  return "neutro";
+}
+
 /**
  * Un examen del catálogo.
  *
@@ -64,7 +74,7 @@ export default function TarjetaExamen({
   const estado = tarjeta.estado.clase;
 
   return (
-    <article className="flex flex-wrap items-center justify-between gap-4 rounded-tarjeta border border-hp-100 bg-white p-5 shadow-suave">
+    <TarjetaPieza className="flex flex-wrap items-center justify-between gap-4">
       <div className="min-w-0">
         <h3 className="text-base font-bold text-tinta">
           {NOMBRE_NIVEL[tarjeta.nivel] ?? tarjeta.nivel} ·{" "}
@@ -77,9 +87,11 @@ export default function TarjetaExamen({
             </span>
           )}
         </h3>
-        <p className="mt-1 text-sm text-tinta-suave">
-          {tarjeta.pasos} {tarjeta.pasos === 1 ? "tarea" : "tareas"} ·{" "}
-          {textoDelEstado(tarjeta.estado)}
+        <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-tinta-suave">
+          {tarjeta.pasos} {tarjeta.pasos === 1 ? "tarea" : "tareas"}
+          <Etiqueta tono={tonoDelEstado(tarjeta.estado)}>
+            {textoDelEstado(tarjeta.estado)}
+          </Etiqueta>
         </p>
       </div>
 
@@ -88,35 +100,24 @@ export default function TarjetaExamen({
         // entregas y a contar escuchas sobre una asignación archivada, así que
         // el enlace no abre ninguna puerta. Sin él, el alumno pierde de vista
         // su propio trabajo, que es lo único que aquí estaba en juego.
-        <Link
-          href={`/recorridos/${tarjeta.recorridoId}`}
-          className="rounded-full border border-hp-200 px-4 py-2 text-xs font-bold text-tinta-suave transition-colors hover:border-hp-400 hover:text-tinta"
-        >
+        <Boton variante="sutil" tamano="pequeno" href={`/recorridos/${tarjeta.recorridoId}`}>
           Ver lo que hiciste
-        </Link>
+        </Boton>
       ) : estado !== "SIN_ASIGNAR" ? (
-        <Link
-          href={`/recorridos/${tarjeta.recorridoId}`}
-          className="rounded-full bg-hp-400 px-4 py-2 text-xs font-bold text-white transition-colors hover:bg-hp-500"
-        >
+        <Boton variante="sutil" tamano="pequeno" href={`/recorridos/${tarjeta.recorridoId}`}>
           {estado === "SIN_EMPEZAR" ? "Empezar" : "Seguir"}
-        </Link>
+        </Boton>
       ) : motivo ? (
-        <p className="rounded-full bg-fondo px-4 py-2 text-xs font-bold text-tinta-suave">
-          {motivo}
-        </p>
+        <Etiqueta tono="neutro">{motivo}</Etiqueta>
       ) : (
         <form action={empezarPractica}>
           <input type="hidden" name="recorridoId" value={tarjeta.recorridoId} />
           <input type="hidden" name="bloque" value={bloque} />
-          <button
-            type="submit"
-            className="rounded-full bg-hp-400 px-4 py-2 text-xs font-bold text-white transition-colors hover:bg-hp-500"
-          >
+          <BotonEnviar gerundio="Abriendo…" tamano="pequeno">
             Empezar
-          </button>
+          </BotonEnviar>
         </form>
       )}
-    </article>
+    </TarjetaPieza>
   );
 }

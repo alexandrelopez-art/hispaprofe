@@ -25,6 +25,15 @@ const nextConfig: NextConfig = {
   experimental: {
     proxyClientMaxBodySize: 100 * 1024 * 1024,
   },
+
+  // Preparación vivió en /preparacion hasta la carcasa (sept 2026). Los
+  // enlaces viejos siguen valiendo.
+  async redirects() {
+    return [
+      { source: "/preparacion", destination: "/dele", permanent: true },
+      { source: "/preparacion/:bloque", destination: "/dele/:bloque", permanent: true },
+    ];
+  },
 };
 
 export default nextConfig;

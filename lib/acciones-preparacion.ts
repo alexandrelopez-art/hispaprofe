@@ -30,7 +30,7 @@ export async function empezarPractica(formData: FormData) {
   // De dónde vino: se valida contra la tabla de bloques, así que un campo
   // manipulado solo puede apuntar a una de las cuatro páginas que existen.
   const bloque = bloquePorNombre(String(formData.get("bloque") ?? ""));
-  const vuelta = bloque ? `/preparacion/${bloque.nombre}` : "/preparacion";
+  const vuelta = bloque ? `/dele/${bloque.nombre}` : "/dele";
 
   const resultado = await abrirPractica(usuario.id, recorridoId);
 
@@ -50,7 +50,7 @@ export async function empezarPractica(formData: FormData) {
     redirect(vuelta);
   }
 
-  revalidatePath("/preparacion");
+  revalidatePath("/dele");
   revalidatePath("/dashboard");
   redirect(`/recorridos/${recorridoId}`);
 }

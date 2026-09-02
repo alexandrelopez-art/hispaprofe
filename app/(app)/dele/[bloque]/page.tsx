@@ -1,5 +1,6 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
+import Encabezado from "@/components/ui/encabezado";
+import Vacio from "@/components/ui/vacio";
 import {
   catalogoDeBloque,
   distintivos,
@@ -59,24 +60,16 @@ export default async function BloquePage({
 
   return (
     <div className="mx-auto max-w-3xl px-6 py-12">
-      <Link
-        href="/preparacion"
-        className="text-sm font-semibold text-tinta-suave hover:text-hp-500"
-      >
-        ← Preparación DELE
-      </Link>
-
-      <h1 className="mt-4 text-3xl font-extrabold tracking-tight text-tinta">
-        Bloque {bloque.orden} · {bloque.titulo}
-      </h1>
-      <p className="mt-2 text-tinta-suave">{bloque.descripcion}</p>
+      <Encabezado
+        volver={{ href: "/dele", texto: "DELE" }}
+        titulo={`Bloque ${bloque.orden} · ${bloque.titulo}`}
+        lede={bloque.descripcion}
+      />
 
       {tarjetas.length === 0 ? (
-        <p className="mt-10 rounded-tarjeta border border-hp-100 bg-white p-6 text-sm text-tinta-suave shadow-suave">
-          {vacio}
-        </p>
+        <Vacio>{vacio}</Vacio>
       ) : (
-        <div className="mt-10 space-y-8">
+        <div className="space-y-8">
           {[...porExamen.entries()].map(([examen, lista]) => (
             <section key={examen ?? "sueltos"}>
               <h2 className="text-sm font-extrabold uppercase tracking-wide text-tinta-suave">

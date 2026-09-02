@@ -186,7 +186,7 @@ export async function grabacionesBorrables(
  * Si esta secuencia se puede publicar, o el motivo del no.
  *
  * Publicar es lo que la hace aparecer en el catálogo del alumno
- * (`/preparacion`), así que la única regla es la que evita una tarjeta que no
+ * (`/dele`), así que la única regla es la que evita una tarjeta que no
  * lleva a ninguna parte: sin pasos, no se publica.
  *
  * Despublicar no pasa por aquí a propósito: retirar algo del escaparate

@@ -2,7 +2,7 @@
  * Los cuatro bloques de la preparación al DELE.
  *
  * Vive aquí y no dentro de la página porque lo necesitan las dos: la portada,
- * que pinta las cuatro tarjetas, y `/preparacion/[bloque]`, que resuelve el
+ * que pinta las cuatro tarjetas, y `/dele/[bloque]`, que resuelve el
  * nombre de la URL. Duplicarlo es garantizar que se separen.
  *
  * `orden` es el campo `Recorrido.orden`: en una secuencia de preparación no
@@ -13,7 +13,7 @@
  */
 export type BloquePreparacion = {
   orden: number;
-  /** El segmento de la URL: `/preparacion/practica`. */
+  /** El segmento de la URL: `/dele/practica`. */
   nombre: string;
   titulo: string;
   descripcion: string;
