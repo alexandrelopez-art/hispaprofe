@@ -84,6 +84,21 @@ model User {
   /// excluyentes: quien está suprimido está bloqueado por definición.
   suprimidoEl DateTime?
 
+  /// Contraseña cifrada (scrypt, ver lib/contrasena.ts). Null = nunca se le
+  /// ha puesto una: no puede entrar hasta que el profesor se la dé.
+  contrasenaHash String?
+
+  /// True tras una contraseña puesta desde fuera (profesor o script): al
+  /// entrar se le exige cambiarla antes de ver nada más.
+  debeCambiarContrasena Boolean @default(false)
+
+  /// Intentos fallidos seguidos. Se pone a cero al entrar bien.
+  intentosFallidos Int @default(0)
+
+  /// Hasta cuándo se rechaza cualquier intento por exceso de fallos. Null =
+  /// se puede intentar.
+  intentosBloqueadosHasta DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -100,6 +115,7 @@ model User {
   deberes               Deber[]        @relation("EstudianteDeber")
   convocatorias         Convocatoria[] @relation("ProfesorConvocatoria")
   turnosOrales          Turno[]        @relation("EstudianteTurno")
+  sesiones              Sesion[]
 }
 
 model Recorrido {
@@ -564,4 +580,19 @@ model TranscripcionOral {
   informe      Json?
   createdAt    DateTime       @default(now())
   updatedAt    DateTime       @updatedAt
+}
+
+/// Una sesión abierta en un navegador. La cookie lleva el token en claro;
+/// aquí se guarda su hash SHA-256, para que una copia de la base no sirva
+/// para entrar. Tabla y no cookie firmada porque hace falta revocar: al
+/// poner una contraseña nueva se cierran las sesiones viejas.
+model Sesion {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  usuario   User     @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  usuarioId String
+  caducaEl  DateTime
+  createdAt DateTime @default(now())
+
+  @@index([usuarioId])
 }
