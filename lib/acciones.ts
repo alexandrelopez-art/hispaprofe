@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getUsuarioActual } from "@/lib/usuario";
 import { exigirProfesor } from "@/lib/profesor";
+import { cifrarContrasena, generarContrasena } from "@/lib/contrasena";
 import {
   grabacionesBorrables,
   puedeBorrarRecorrido,
@@ -353,8 +354,19 @@ export async function desconectarGoogle() {
 
 // ─── Estudiantes ─────────────────────────────────────────────────────────
 
-/** Crea la ficha de un estudiante suelto, sin cuenta todavía. */
-export async function crearEstudiante(formData: FormData) {
+export type EstadoAlta = {
+  error?: string;
+  id?: string;
+  /** Solo la primera vez que existe esta ficha: la contraseña inicial, en claro. */
+  contrasena?: string;
+  yaExistia?: boolean;
+};
+
+/** Crea la ficha de un estudiante suelto, con su contraseña inicial. */
+export async function crearEstudiante(
+  _prev: EstadoAlta,
+  formData: FormData,
+): Promise<EstadoAlta> {
   await exigirProfesor();
   const email = String(formData.get("email") ?? "")
     .trim()
@@ -362,17 +374,32 @@ export async function crearEstudiante(formData: FormData) {
   const firstName = String(formData.get("firstName") ?? "").trim() || null;
   const lastName = String(formData.get("lastName") ?? "").trim() || null;
   const nivel = comoNivel(String(formData.get("nivel") ?? ""));
-  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return;
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+    return { error: "Ese correo no tiene buena pinta." };
+  }
 
-  const estudiante = await prisma.user.upsert({
-    where: { email },
-    update: {},
-    create: { email, firstName, lastName, nivel, role: "STUDENT" },
+  const existente = await prisma.user.findUnique({ where: { email } });
+  if (existente) {
+    revalidatePath("/profe/alumnos");
+    return { id: existente.id, yaExistia: true };
+  }
+
+  const contrasena = generarContrasena();
+  const estudiante = await prisma.user.create({
+    data: {
+      email,
+      firstName,
+      lastName,
+      nivel,
+      role: "STUDENT",
+      contrasenaHash: await cifrarContrasena(contrasena),
+      debeCambiarContrasena: true,
+    },
   });
 
   revalidatePath("/profe/alumnos");
   revalidatePath("/dashboard");
-  redirect(`/profe/alumnos/${estudiante.id}`);
+  return { id: estudiante.id, contrasena };
 }
 
 // ─── Editor de secuencias ────────────────────────────────────────────────
