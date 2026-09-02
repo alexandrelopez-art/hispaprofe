@@ -82,7 +82,9 @@ export async function abrirSesion(usuarioId: string): Promise<void> {
   tarro.set(NOMBRE_COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    // Segura en todo lo que no sea desarrollo: la spec lo dice así, y es la
+    // condición más estrecha.
+    secure: process.env.NODE_ENV !== "development",
     path: "/",
     expires: caducaEl,
   });
