@@ -67,9 +67,9 @@ function Ficha({ estudiante }: { estudiante: Estudiante }) {
           )}
         </div>
 
-        {!estudiante.clerkId && (
+        {!estudiante.contrasenaHash && (
           <span className="shrink-0 rounded-full bg-sol-200 px-2.5 py-0.5 text-[11px] font-bold text-tinta">
-            Sin cuenta
+            Sin contraseña
           </span>
         )}
 

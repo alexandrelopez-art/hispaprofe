@@ -57,7 +57,7 @@ export default async function GrupoPage({
               firstName: true,
               lastName: true,
               email: true,
-              clerkId: true,
+              contrasenaHash: true,
             },
           },
         },
@@ -95,7 +95,7 @@ export default async function GrupoPage({
     }
   }
 
-  const sinCuenta = grupo.miembros.filter((m) => !m.estudiante.clerkId).length;
+  const sinContrasena = grupo.miembros.filter((m) => !m.estudiante.contrasenaHash).length;
 
   return (
     <div className="mx-auto max-w-3xl px-6 py-12">
@@ -119,7 +119,7 @@ export default async function GrupoPage({
       <p className="mt-1 text-tinta-suave">
         {grupo.miembros.length} estudiante
         {grupo.miembros.length !== 1 ? "s" : ""}
-        {sinCuenta > 0 && ` · ${sinCuenta} sin cuenta todavía`}
+        {sinContrasena > 0 && ` · ${sinContrasena} sin contraseña`}
       </p>
 
       {grupo.miembros.length > 0 && (
@@ -143,9 +143,9 @@ export default async function GrupoPage({
                   </p>
                 </div>
 
-                {!miembro.estudiante.clerkId && (
+                {!miembro.estudiante.contrasenaHash && (
                   <span className="shrink-0 rounded-full bg-sol-200 px-2.5 py-0.5 text-[11px] font-bold text-tinta">
-                    Sin cuenta
+                    Sin contraseña
                   </span>
                 )}
 

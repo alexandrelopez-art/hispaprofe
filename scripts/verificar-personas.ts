@@ -231,6 +231,7 @@ async function main() {
   afirmar(lapida.suprimidoEl !== null, "suprimir pone la fecha");
   afirmar(lapida.firstName === null && lapida.lastName === null, "se va el nombre");
   afirmar(lapida.clerkId === null, "se va la cuenta de acceso");
+  afirmar(lapida.contrasenaHash === null, "se va la contraseña");
   afirmar(lapida.role === "STUDENT", "la lápida se queda sin poderes");
   afirmar(
     lapida.email === `suprimido-${bea.id}@hispaprofe.invalid`,

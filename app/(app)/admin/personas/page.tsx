@@ -61,7 +61,7 @@ export default async function AdminPersonasPage({
       lastName: true,
       role: true,
       nivel: true,
-      clerkId: true,
+      contrasenaHash: true,
       bloqueadoEl: true,
       suprimidoEl: true,
     },
@@ -146,7 +146,7 @@ export default async function AdminPersonasPage({
                 <p className="truncate text-xs text-tinta-suave">
                   {suprimido ? "sin datos" : p.email}
                   {p.nivel && ` · ${p.nivel}`}
-                  {!p.clerkId && " · ficha sin reclamar"}
+                  {!p.contrasenaHash && " · sin contraseña"}
                 </p>
               </div>
 

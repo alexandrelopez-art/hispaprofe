@@ -220,6 +220,9 @@ export async function suprimir(usuarioId: string): Promise<void> {
         // Sin clerkId, si esa persona vuelve a registrarse empieza de cero
         // en vez de reengancharse a esta ficha.
         clerkId: null,
+        // Y sin contrasenaHash: una ficha suprimida no puede seguir
+        // entrando con la contraseña que tenía antes de suprimirse.
+        contrasenaHash: null,
         firstName: null,
         lastName: null,
         nivel: null,
