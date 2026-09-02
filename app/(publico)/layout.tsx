@@ -4,7 +4,6 @@ import { usuarioDeLaSesion } from "@/lib/sesion";
 const enlacesNav = [
   { href: "/", label: "Inicio" },
   { href: "/#clases", label: "Clases" },
-  { href: "/#actividades", label: "Actividades" },
   { href: "/#dele", label: "DELE" },
   { href: "/#sobre-mi", label: "Sobre mí" },
   { href: "/#hablared", label: "HablaRed", destacado: true },
