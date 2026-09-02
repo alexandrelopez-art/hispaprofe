@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 export default function Encabezado({ titulo, lede, volver, acciones }: {
-  titulo: string; lede?: string; volver?: { href: string; texto: string }; acciones?: React.ReactNode;
+  titulo: string; lede?: React.ReactNode; volver?: { href: string; texto: string }; acciones?: React.ReactNode;
 }) {
   return (
     <div className="mb-8">

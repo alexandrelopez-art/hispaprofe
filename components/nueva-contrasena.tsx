@@ -1,6 +1,8 @@
 "use client";
 
 import { useActionState } from "react";
+import Aviso from "@/components/ui/aviso";
+import BotonEnviar from "@/components/ui/boton-enviar";
 import {
   ponerContrasenaAEstudiante,
   type EstadoNuevaContrasena,
@@ -17,38 +19,33 @@ export default function NuevaContrasena({
   usuarioId: string;
   compacto?: boolean;
 }) {
-  const [estado, accion, enviando] = useActionState<EstadoNuevaContrasena, FormData>(
+  const [estado, accion] = useActionState<EstadoNuevaContrasena, FormData>(
     ponerContrasenaAEstudiante,
     {},
   );
 
   if (estado.contrasena) {
     return (
-      <div className="rounded-xl bg-sol-100 px-4 py-3 text-sm">
-        <p className="font-bold text-tinta">
-          Contraseña nueva: <code className="rounded bg-white px-2 py-0.5 text-base">{estado.contrasena}</code>
-        </p>
-        <p className="mt-1 text-tinta-suave">
+      <Aviso tono="aviso">
+        Contraseña nueva: <code className="rounded bg-white px-2 py-0.5 text-base">{estado.contrasena}</code>
+        <br />
+        <span className="mt-1 block font-normal text-tinta-suave">
           Apúntala y dásela: no se vuelve a ver. Al entrar tendrá que cambiarla.
-        </p>
-      </div>
+        </span>
+      </Aviso>
     );
   }
 
   return (
     <form action={accion} className="inline">
       <input type="hidden" name="usuarioId" value={usuarioId} />
-      <button
-        type="submit"
-        disabled={enviando}
-        className={
-          compacto
-            ? "rounded-full border border-hp-200 px-3 py-1 text-xs font-semibold text-tinta-suave hover:border-hp-400 hover:text-hp-500 disabled:opacity-60"
-            : "h-9 rounded-full border border-hp-300 px-4 text-sm font-bold text-hp-600 hover:border-hp-400 disabled:opacity-60"
-        }
+      <BotonEnviar
+        gerundio="Generando…"
+        variante={compacto ? "sutil" : "secundario"}
+        tamano={compacto ? "pequeno" : "normal"}
       >
-        {enviando ? "Generando…" : "Nueva contraseña"}
-      </button>
+        Nueva contraseña
+      </BotonEnviar>
       {estado.error && (
         <span role="alert" className="ml-3 text-sm font-semibold text-coral-600">{estado.error}</span>
       )}
