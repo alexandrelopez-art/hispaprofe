@@ -81,7 +81,7 @@ export default async function ClasesProfesor({ usuario }: { usuario: Usuario }) 
         lede="Tus grupos de secundaria, tus estudiantes particulares y cómo van."
       />
 
-      <div className="grid gap-4 sm:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Tarjeta>
           <p className="text-3xl font-extrabold text-tinta">{misSecuencias}</p>
           <Rotulo className="mt-1">Secuencias tuyas</Rotulo>
@@ -125,11 +125,13 @@ export default async function ClasesProfesor({ usuario }: { usuario: Usuario }) 
           )}
         </Tarjeta>
 
-        <Tarjeta titulo="Particulares">
+        <Tarjeta>
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <Rotulo>Particulares</Rotulo>
+            <Boton variante="sutil" tamano="pequeno" href="/profe/alumnos/nuevo">Nuevo estudiante</Boton>
+          </div>
           {particulares.length === 0 ? (
-            <Vacio accion={<Boton tamano="pequeno" href="/profe/alumnos/nuevo">Nuevo estudiante</Boton>}>
-              Ningún estudiante particular todavía.
-            </Vacio>
+            <Vacio>Ningún estudiante particular todavía.</Vacio>
           ) : (
             <ul className="space-y-2">
               {particulares.map((e) => (

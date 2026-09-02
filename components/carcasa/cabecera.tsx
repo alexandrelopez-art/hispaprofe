@@ -31,8 +31,16 @@ export default function Cabecera({ usuario, reducida = false }: { usuario: Usuar
       <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-1 px-6 pt-3">
         <Logo enlaza={!reducida} />
         <div className="ml-auto flex items-center gap-3 text-sm font-semibold text-tinta-suave">
-          {!reducida && <span className="hidden sm:inline">{nombre}</span>}
+          {!reducida && (
+            <Link href="/cuenta" className="hidden sm:inline hover:text-hp-500">{nombre}</Link>
+          )}
+          {!reducida && (
+            <Link href="/cuenta" className="sm:hidden hover:text-hp-500">Mi cuenta</Link>
+          )}
           {!reducida && esProfe && <Etiqueta tono="sol">Profesor</Etiqueta>}
+          {!reducida && esProfe && (
+            <Link href="/muestrario" className="hover:text-hp-500">Piezas</Link>
+          )}
           {!reducida && esAdmin(usuario) && (
             <Link href="/admin" className="hover:text-hp-500">Administración</Link>
           )}

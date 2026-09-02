@@ -28,9 +28,12 @@ const campo =
  */
 export default function EleccionDele({
   tituloInicial,
+  tipoInicial,
   children,
 }: {
   tituloInicial: string;
+  /** El servicio con el que arranca el selector; lo decide `?servicio=` en la URL. */
+  tipoInicial: string;
   /**
    * Lo que va entre la prueba y la casilla de la plantilla —hoy, la
    * descripción—. Es una ranura para dejarlo en el servidor: la casilla
@@ -39,7 +42,7 @@ export default function EleccionDele({
    */
   children?: React.ReactNode;
 }) {
-  const [tipo, setTipo] = useState("CLASES_PARTICULARES");
+  const [tipo, setTipo] = useState(tipoInicial);
   const [nivel, setNivel] = useState<Nivel | "">("");
   const [destreza, setDestreza] = useState("");
   const [titulo, setTitulo] = useState(tituloInicial);

@@ -7,11 +7,22 @@ import EleccionDele from "./eleccion-dele";
 const campo =
   "mt-1 h-10 w-full rounded-full border border-hp-200 bg-white px-4 text-sm font-normal text-tinta outline-none focus:border-hp-400";
 
-export default async function NuevaSecuenciaPage() {
+export default async function NuevaSecuenciaPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ servicio?: string }>;
+}) {
   const usuario = await getUsuarioActual();
   if (!usuario || (usuario.role !== "PROFESOR" && usuario.role !== "ADMIN")) {
     redirect("/dashboard");
   }
+
+  // El `?servicio=` con el que llegan la banda y la puerta de DELE decide el
+  // selector inicial; cualquier otro valor cae en particulares, que es lo
+  // que había antes de que existiera la query.
+  const { servicio } = await searchParams;
+  const tipoInicial =
+    servicio === "PREPARACION_DELE" ? "PREPARACION_DELE" : "CLASES_PARTICULARES";
 
   return (
     <div className="mx-auto max-w-xl px-6 py-12">
@@ -40,7 +51,7 @@ export default async function NuevaSecuenciaPage() {
           elegida, que es estado del cliente. Así el campo se sigue
           renderizando en el servidor y el orden de la pantalla no cambia.
         */}
-        <EleccionDele tituloInicial="">
+        <EleccionDele tituloInicial="" tipoInicial={tipoInicial}>
           <label className="mt-4 block text-sm font-semibold text-tinta">
             Descripción
             <input

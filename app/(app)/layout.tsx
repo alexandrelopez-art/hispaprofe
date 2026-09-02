@@ -41,7 +41,7 @@ export default async function AppLayout({
 
     // Next no vuelve a ejecutar el layout en una navegación de cliente, así
     // que la única forma segura de que no haya salida es que no haya
-    // enlaces: sin <nav> ni «Mi cuenta», no hay a dónde navegar aunque la
+    // enlaces: la cabecera reducida no lleva ningún enlace, aunque la
     // redirección de arriba solo se ejecute en la carga de esta página.
   }
 
