@@ -19,6 +19,14 @@ import {
   intentarEntrar,
   ponerContrasenaNueva,
 } from "@/lib/entrada";
+import {
+  DIAS_DE_SESION,
+  borrarSesionPorToken,
+  cerrarSesionesDe,
+  crearSesion,
+  hashDeToken,
+  usuarioPorToken,
+} from "@/lib/sesion";
 
 // Marca única para no chocar con datos reales ni con otra ejecución.
 const marca = `verificar-entrada-${process.pid}`;
@@ -118,9 +126,52 @@ async function entrada() {
   }
 }
 
+async function sesiones() {
+  console.log("\n— Sesiones —");
+  const alumno = await prisma.user.create({
+    data: { email: `alumno-${marca}@ejemplo.test`, role: "STUDENT" },
+  });
+  const ahora = new Date("2026-09-02T10:00:00Z");
+  try {
+    const { token, caducaEl } = await crearSesion(alumno.id, ahora);
+    afirmar(token.length === 64, "el token son 32 bytes en hex");
+    afirmar(caducaEl.getTime() === ahora.getTime() + DIAS_DE_SESION * 86_400_000, "caduca a los 30 días");
+    const fila = await prisma.sesion.findUnique({ where: { tokenHash: hashDeToken(token) } });
+    afirmar(fila !== null, "la base guarda el hash del token");
+    afirmar((await prisma.sesion.findMany({ where: { usuarioId: alumno.id } })).every((s) => s.tokenHash !== token), "la base no guarda el token en claro");
+
+    afirmar((await usuarioPorToken(token, ahora))?.id === alumno.id, "el token encuentra al usuario");
+    afirmar((await usuarioPorToken("0".repeat(64), ahora)) === null, "otro token no encuentra a nadie");
+    afirmar((await usuarioPorToken("", ahora)) === null, "el token vacío no encuentra a nadie");
+
+    const pasado = new Date(caducaEl.getTime() + 1);
+    afirmar((await usuarioPorToken(token, pasado)) === null, "caducada no vale");
+    afirmar((await prisma.sesion.count({ where: { usuarioId: alumno.id } })) === 0, "la caducada se borra al encontrarla");
+
+    const a = await crearSesion(alumno.id, ahora);
+    const b = await crearSesion(alumno.id, ahora);
+    await borrarSesionPorToken(a.token);
+    afirmar((await usuarioPorToken(a.token, ahora)) === null, "borrar por token cierra esa sesión");
+    afirmar((await usuarioPorToken(b.token, ahora)) !== null, "y no la otra");
+
+    const c = await crearSesion(alumno.id, ahora);
+    const cerradas = await cerrarSesionesDe(alumno.id, c.token);
+    afirmar(cerradas === 1, "cerrar las demás conserva la indicada");
+    afirmar((await usuarioPorToken(c.token, ahora)) !== null, "la conservada sigue viva");
+    afirmar((await cerrarSesionesDe(alumno.id)) === 1, "cerrar todas cierra la que quedaba");
+
+    await crearSesion(alumno.id, ahora);
+    await ponerContrasenaNueva(alumno.id);
+    afirmar((await prisma.sesion.count({ where: { usuarioId: alumno.id } })) === 0, "una contraseña nueva desde fuera cierra las sesiones");
+  } finally {
+    await prisma.user.delete({ where: { id: alumno.id } });
+  }
+}
+
 async function main() {
   await contrasenas();
   await entrada();
+  await sesiones();
   await prisma.$disconnect();
   console.log("\nTodo en orden.");
 }

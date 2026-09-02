@@ -1,6 +1,6 @@
-import { auth, currentUser } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 import { esCorreoDeAdmin, estaBloqueado } from "@/lib/roles";
+import { usuarioDeLaSesion } from "@/lib/sesion";
 
 /**
  * Sube a ADMIN a quien esté en ADMIN_EMAILS. Se comprueba en cada entrada,
@@ -12,9 +12,7 @@ import { esCorreoDeAdmin, estaBloqueado } from "@/lib/roles";
  * propia aplicación.
  *
  * Exportada solo para que scripts/verificar-admin.ts pueda probarla contra
- * filas reales: una regla que toca la base de datos y que nada puede
- * ejercitar es una regla de la que nadie puede fiarse. No se usa fuera de
- * este archivo ni de ese script.
+ * filas reales.
  */
 export async function ascenderSiEsAdmin<
   T extends { id: string; email: string; role: string },
@@ -28,11 +26,8 @@ export async function ascenderSiEsAdmin<
 
 /**
  * El candado. A quien está bloqueado se le trata como si no hubiera sesión,
- * así que todos los `if (!usuario)` que ya existen —en cada página, en
- * `exigirProfesor`, en `exigirAdmin`— fallan cerrados sin una línea nueva.
- *
- * Va antes del ascenso por ADMIN_EMAILS a propósito: a un bloqueado no se le
- * sube el rol al entrar aunque su correo siga en la variable.
+ * así que todos los `if (!usuario)` que ya existen fallan cerrados.
+ * Va antes del ascenso por ADMIN_EMAILS a propósito.
  */
 async function dejarEntrar<
   T extends { id: string; email: string; role: string; bloqueadoEl: Date | null },
@@ -42,85 +37,22 @@ async function dejarEntrar<
 }
 
 /**
- * Devuelve la fila de User de la sesión actual.
- *
- * Tres casos, en este orden:
- *  1. Ya existe emparejada por clerkId. Se devuelve.
- *  2. Existe una fila con ese correo pero sin cuenta: la creó el profesor
- *     desde una lista. Se le engancha el clerkId y hereda sus asignaciones.
- *  3. No existe nada. Se crea.
- *
- * El paso 2 es seguro porque Clerk verifica la propiedad del correo antes
- * de emitir sesión, así que solo el dueño puede reclamar esa fila.
+ * La fila de User de la sesión actual, o null si no hay sesión, ha caducado,
+ * o la persona está bloqueada. Ya no hay que emparejar por correo: la ficha
+ * existe antes que la contraseña, porque la crea el profesor.
  */
 export async function getUsuarioActual() {
-  const { userId } = await auth();
-  if (!userId) return null;
-
-  const porClerk = await prisma.user.findUnique({ where: { clerkId: userId } });
-  if (porClerk) return dejarEntrar(porClerk);
-
-  const clerkUser = await currentUser();
-  if (!clerkUser) return null;
-
-  const bruto =
-    clerkUser.emailAddresses.find(
-      (e) => e.id === clerkUser.primaryEmailAddressId,
-    )?.emailAddress ?? clerkUser.emailAddresses[0]?.emailAddress;
-
-  if (!bruto) return null;
-  const email = bruto.trim().toLowerCase();
-
-  const porCorreo = await prisma.user.findUnique({ where: { email } });
-  if (porCorreo) {
-    // El bloqueo se lee antes de escribir: si no, un intento que va a acabar
-    // rechazado deja el nombre y el apellido de Clerk escritos en una ficha
-    // bloqueada, que en algo que va de privacidad es lo contrario de lo que
-    // se busca.
-    if (estaBloqueado(porCorreo)) return null;
-
-    return dejarEntrar(
-      await prisma.user.update({
-        where: { id: porCorreo.id },
-        data: {
-          clerkId: userId,
-          firstName: porCorreo.firstName ?? clerkUser.firstName,
-          lastName: porCorreo.lastName ?? clerkUser.lastName,
-        },
-      }),
-    );
-  }
-
-  return dejarEntrar(
-    await prisma.user.create({
-      data: {
-        clerkId: userId,
-        email,
-        firstName: clerkUser.firstName,
-        lastName: clerkUser.lastName,
-      },
-    }),
-  );
+  const usuario = await usuarioDeLaSesion();
+  if (!usuario) return null;
+  return dejarEntrar(usuario);
 }
 
 /**
- * La fecha de bloqueo de quien tiene la sesión abierta, o null.
- *
- * Existe solo para el cartel: como `getUsuarioActual` ya devolvió null, el
- * layout no puede distinguir «bloqueado» de «sin sesión». Se llama únicamente
- * cuando el usuario ha salido nulo, así que es una consulta de más solo en el
- * caso raro.
+ * La fecha de bloqueo de quien tiene la sesión abierta, o null. Existe solo
+ * para el cartel: `getUsuarioActual` devolvió null y el layout no puede
+ * distinguir «bloqueado» de «sin sesión».
  */
 export async function bloqueoDelActual(): Promise<Date | null> {
-  const { userId } = await auth();
-  if (!userId) return null;
-
-  const fila = await prisma.user.findUnique({
-    where: { clerkId: userId },
-    select: { bloqueadoEl: true },
-  });
-  return fila?.bloqueadoEl ?? null;
+  const usuario = await usuarioDeLaSesion();
+  return usuario?.bloqueadoEl ?? null;
 }
-
-/** Alias del nombre antiguo. Quitar cuando no queden llamadas a syncUser. */
-export const syncUser = getUsuarioActual;
