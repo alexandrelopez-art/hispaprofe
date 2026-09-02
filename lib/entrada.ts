@@ -53,23 +53,24 @@ export async function intentarEntrar(
   if (!usuario.contrasenaHash) return { ok: false, motivo: "credenciales" };
 
   if (!(await comprobarContrasena(contrasena, usuario.contrasenaHash))) {
-    const fallos = usuario.intentosFallidos + 1;
-    if (fallos >= MAX_INTENTOS) {
+    // El incremento lo hace la base, no este proceso: dos intentos a la vez
+    // no pueden pisarse el contador. Si los dos llegan a MAX_INTENTOS, los
+    // dos castigan; es inofensivo.
+    const tras = await prisma.user.update({
+      where: { id: usuario.id },
+      data: { intentosFallidos: { increment: 1 } },
+      select: { intentosFallidos: true },
+    });
+    if (tras.intentosFallidos >= MAX_INTENTOS) {
       await prisma.user.update({
         where: { id: usuario.id },
         data: {
           intentosFallidos: 0,
-          intentosBloqueadosHasta: new Date(
-            ahora.getTime() + MINUTOS_DE_CASTIGO * 60_000,
-          ),
+          intentosBloqueadosHasta: new Date(ahora.getTime() + MINUTOS_DE_CASTIGO * 60_000),
         },
       });
       return { ok: false, motivo: "demasiados-intentos" };
     }
-    await prisma.user.update({
-      where: { id: usuario.id },
-      data: { intentosFallidos: fallos },
-    });
     return { ok: false, motivo: "credenciales" };
   }
 
