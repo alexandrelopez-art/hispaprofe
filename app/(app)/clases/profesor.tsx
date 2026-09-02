@@ -51,7 +51,8 @@ export default async function ClasesProfesor({ usuario }: { usuario: Usuario }) 
         lastName: true,
         email: true,
         nivel: true,
-        membresias: { select: { grupoId: true } },
+        // Un grupo archivado no cuenta: quien solo estaba en uno, vuelve a ser particular.
+        membresias: { where: { grupo: { archivado: false } }, select: { grupoId: true } },
       },
     }),
   ]);
