@@ -37,7 +37,7 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/bui
 
 ## Configuración inicial
 
-Además de las variables de Clerk y Postgres, la aplicación necesita una clave de cifrado para los tokens de Google Classroom en reposo:
+Además de la variable de Postgres, la aplicación necesita una clave de cifrado para los tokens de Google Classroom en reposo:
 
 ```bash
 node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
@@ -61,3 +61,12 @@ npx tsx scripts/migrar-cifrado-tokens.ts
 # Ojo: solo sube. Quitar el rol desde el panel no sirve si el correo sigue aquí.
 ADMIN_EMAILS=tu-correo@ejemplo.com
 ```
+
+## La primera contraseña
+
+No hay registro público: las cuentas las crea el profesor. La primera contraseña
+de un profesor o administrador se pone por script, que la imprime una sola vez:
+
+    npx tsx scripts/poner-contrasena.ts correo@ejemplo.com
+
+Las de los estudiantes se ponen desde su ficha en Estudiantes.
