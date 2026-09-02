@@ -141,7 +141,7 @@ Los prefijos que hacen que una pantalla existente «viva» en una puerta:
 |---|---|---|---|
 | Inicio | `/dashboard` | `/dashboard`, `/cuenta` | — |
 | DELE | `/dele` | `/dele`, `/preparacion` | Exámenes → `/recorridos?servicio=PREPARACION_DELE` · Nuevo examen → `/profe/secuencias/nueva?servicio=PREPARACION_DELE` · Taller (pronto) · Recursos → `/profe/recursos` |
-| Mis clases | `/clases` | `/clases`, `/profe/alumnos`, `/profe/grupos`, `/profe/clases`, `/profe/importar`, `/profe/entregas`, `/profe/orales`, `/recorridos`, `/pasos` | Estudiantes → `/profe/alumnos` · Grupos → `/profe/grupos` · Diario y deberes → `/profe/clases` · Secuencias → `/recorridos?servicio=CLASES_PARTICULARES` · Correcciones → `/profe/entregas` · Orales → `/profe/orales` |
+| Mis clases | `/clases` | `/clases`, `/profe/alumnos`, `/profe/grupos`, `/profe/clases`, `/profe/importar`, `/profe/entregas`, `/profe/orales`, `/profe/secuencias`, `/recorridos`, `/pasos` | Estudiantes → `/profe/alumnos` · Grupos → `/profe/grupos` · Diario y deberes → `/profe/clases` · Secuencias → `/recorridos?servicio=CLASES_PARTICULARES` · Nueva secuencia → `/profe/secuencias/nueva?servicio=CLASES_PARTICULARES` · Correcciones → `/profe/entregas` · Orales → `/profe/orales` · Importar → `/profe/importar` |
 | Actividades | `/actividades` | `/actividades` | Publicar (pronto) |
 | Artículos | `/articulos` | `/articulos` | Escribir (pronto) |
 | Biblioteca | `/biblioteca` | `/biblioteca`, `/profe/recursos` | Ejercicios → `/profe/recursos` · Nuevo ejercicio → `/profe/recursos/nuevo` |
@@ -157,8 +157,10 @@ para ADMIN.
 Barra pegajosa blanca translúcida como la de la portada. Izquierda, el logo
 de la portada (`ñ` en cuadrado azul + «Hispa**profe**» con «profe» en coral)
 enlazando a `/dashboard`. Centro, las seis puertas; la activa en `text-hp-500`
-con una línea debajo. Derecha: el nombre de pila (o el correo), la etiqueta
-«Profesor» si lo es, «Administración» si es ADMIN, y el botón «Salir».
+con una línea debajo. Derecha: el nombre de pila (o el correo) **enlazando a `/cuenta`** (en
+móvil, un «Mi cuenta»), la etiqueta «Profesor» si lo es, «Piezas» (el
+muestrario) si es profesor o administrador, «Administración» si es ADMIN, y el
+botón «Salir».
 
 `nav-puertas.tsx` es cliente solo para `usePathname()` y marcar la activa; no
 tiene estado. En pantallas estrechas las puertas pasan a una segunda fila
@@ -169,8 +171,11 @@ Con `debeCambiarContrasena` la cabecera sigue reducida (solo logo de texto y
 
 ### `components/carcasa/banda.tsx` (servidor)
 
-Solo para PROFESOR/ADMIN y solo si la puerta activa tiene herramientas: una
-franja bajo la cabecera, `bg-white/70` con borde inferior, «Tus herramientas»
+Solo para PROFESOR/ADMIN y solo si la puerta activa tiene herramientas.
+**Es un componente cliente** (como `NavPuertas`) que lee `usePathname()`: un
+layout no se vuelve a ejecutar en una navegación de cliente, así que una
+banda de servidor se quedaría clavada en la primera puerta cargada (lo cazó la
+revisión final). Una franja bajo la cabecera, `bg-white/70` con borde inferior, «Tus herramientas»
 en rótulo y los enlaces; la activa (por prefijo) en `text-hp-500`; las
 `pronto` en gris con «· pronto» y sin enlace.
 
@@ -191,15 +196,15 @@ en rejilla de dos columnas, cada una con su dato vivo:
 
 | Puerta | Estudiante | Profesor |
 |---|---|---|
-| DELE | «N exámenes por empezar · M a medias» (de `cuantosPorBloque` y el estado de sus asignaciones) | «N exámenes publicados» |
-| Mis clases | «Próxima clase: jueves 16:00» o «Sin clase programada»; «N deberes pendientes» | «N estudiantes · próxima clase …» |
+| DELE | «N exámenes disponibles» o «Todavía sin exámenes» (de `cuantosPorBloque`) | «N exámenes publicados» |
+| Mis clases | «Próxima clase: jueves 16:00» o «Sin clase programada», y « · N deberes» si hay | «N estudiantes» |
 | Actividades / Artículos / Biblioteca | «Pronto» | «Pronto» |
 
 Debajo, para el estudiante, la hucha de puntos que ya existe
-(`resumenEstudiante`), solo si tiene algo. Para el profesor, la lista de
-«Todavía no han empezado» que ya existe, como `Vacio` cuando está vacía. Las
-dos bandejas de pasos (entregados, revisados) del estudiante se mudan a Mis
-clases.
+(`resumenEstudiante`), solo si tiene algo. Para el profesor, nada más: la
+lista de «Todavía no han empezado» vive solo en Mis clases (una vez, no dos).
+Las dos bandejas de pasos (entregados, revisados) del estudiante se mudan a
+Mis clases.
 
 ### DELE · `/dele` y `/dele/<bloque>`
 
@@ -213,9 +218,10 @@ bloque con sus tarjetas de examen. El profesor ve lo mismo más la banda.
 ### Mis clases · `/clases`
 
 Estudiante: tres bloques en este orden: **Tu próxima clase** (la tarjeta azul
-de hoy), **Deberes pendientes** (la amarilla), y **Tus secuencias** (las
-asignaciones de tipo clases particulares, con los pasos entregados y
-revisados que hoy están en el panel). Sin nada asignado, un `Vacio`: «Tu
+de hoy), **Deberes pendientes** (la amarilla), y **Tus secuencias** (todas
+sus asignaciones vivas, con su etiqueta de servicio: una prueba DELE asignada
+también sale aquí, porque es trabajo pendiente; nada se oculta) y los pasos
+entregados y revisados que hoy están en el panel. Sin nada asignado, un `Vacio`: «Tu
 profe todavía no te ha asignado nada».
 
 Profesor: el resumen de hoy (los cuatro números: secuencias, estudiantes,
