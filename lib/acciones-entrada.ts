@@ -4,12 +4,14 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getUsuarioActual } from "@/lib/usuario";
 import { exigirProfesor } from "@/lib/profesor";
-import { esAdmin } from "@/lib/roles";
 import { comprobarContrasena, validarContrasena } from "@/lib/contrasena";
 import {
+  destinoSeguro,
   guardarContrasena,
   intentarEntrar,
+  motivoParaNoPonerContrasena,
   ponerContrasenaNueva,
+  type MotivoNoPuede,
   type MotivoRechazo,
 } from "@/lib/entrada";
 import {
@@ -25,11 +27,12 @@ const TEXTO_DEL_MOTIVO: Record<MotivoRechazo, string> = {
   "sin-acceso": "Tu acceso está cerrado. Habla con tu profe si crees que es un error.",
 };
 
-/** Solo rutas de esta casa: nada que empiece por `//` o por otro dominio. */
-function destinoSeguro(volver: string | null): string {
-  if (!volver || !volver.startsWith("/") || volver.startsWith("//")) return "/dashboard";
-  return volver;
-}
+const TEXTO_DEL_MOTIVO_NO_PUEDE: Record<MotivoNoPuede, string> = {
+  "no-existe": "Esa ficha no existe.",
+  "uno-mismo": "La tuya la cambias desde Mi cuenta.",
+  "solo-admin": "Solo un administrador puede poner contraseña a un profesor.",
+  suprimido: "Esta ficha está suprimida.",
+};
 
 export type EstadoEntrada = { error?: string };
 
@@ -103,13 +106,10 @@ export async function ponerContrasenaAEstudiante(
   const yo = await exigirProfesor();
   const usuarioId = String(formData.get("usuarioId") ?? "");
   const objetivo = await prisma.user.findUnique({ where: { id: usuarioId } });
-  if (!objetivo) return { error: "Esa ficha no existe." };
-  if (objetivo.id === yo.id) return { error: "La tuya la cambias desde Mi cuenta." };
-  if (objetivo.role !== "STUDENT" && !esAdmin(yo)) {
-    return { error: "Solo un administrador puede poner contraseña a un profesor." };
-  }
-  if (objetivo.suprimidoEl) return { error: "Esta ficha está suprimida." };
 
-  const contrasena = await ponerContrasenaNueva(objetivo.id);
+  const motivo = motivoParaNoPonerContrasena(yo, objetivo);
+  if (motivo) return { error: TEXTO_DEL_MOTIVO_NO_PUEDE[motivo] };
+
+  const contrasena = await ponerContrasenaNueva(objetivo!.id);
   return { contrasena };
 }

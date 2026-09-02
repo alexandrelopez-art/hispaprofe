@@ -15,8 +15,10 @@ import { prisma } from "@/lib/prisma";
 import {
   MAX_INTENTOS,
   MINUTOS_DE_CASTIGO,
+  destinoSeguro,
   guardarContrasena,
   intentarEntrar,
+  motivoParaNoPonerContrasena,
   ponerContrasenaNueva,
 } from "@/lib/entrada";
 import {
@@ -34,6 +36,66 @@ const marca = `verificar-entrada-${process.pid}`;
 function afirmar(condicion: boolean, mensaje: string) {
   if (!condicion) throw new Error(`FALLO: ${mensaje}`);
   console.log(`OK: ${mensaje}`);
+}
+
+// Reglas puras: nada toca la base, así que van antes y sin await.
+function reglasPuras() {
+  console.log("\n— Reglas puras —");
+
+  afirmar(destinoSeguro(null) === "/dashboard", "sin volver → /dashboard");
+  afirmar(destinoSeguro("") === "/dashboard", "volver vacío → /dashboard");
+  afirmar(
+    destinoSeguro("/recorridos?x=1") === "/recorridos?x=1",
+    "una ruta propia con query se conserva tal cual",
+  );
+  afirmar(destinoSeguro("//evil.com") === "/dashboard", "// es un cambio de dominio, no una ruta");
+  afirmar(
+    destinoSeguro("/\\evil.com") === "/dashboard",
+    "el navegador lee \\ como //, así que es igual de peligroso",
+  );
+  afirmar(
+    destinoSeguro("https://evil.com/a") === "/dashboard",
+    "un esquema completo tampoco es de esta casa",
+  );
+  afirmar(destinoSeguro("recorridos") === "/dashboard", "sin barra inicial no es una ruta");
+  afirmar(destinoSeguro("/entrar") === "/entrar", "una ruta propia normal se conserva");
+
+  const profesor = { id: "profe-1", role: "PROFESOR" };
+  const admin = { id: "admin-1", role: "ADMIN" };
+  const estudiante = { id: "est-1", role: "STUDENT", suprimidoEl: null };
+  const otroProfesor = { id: "profe-2", role: "PROFESOR", suprimidoEl: null };
+  const suprimidoObjetivo = { id: "sup-1", role: "STUDENT", suprimidoEl: new Date() };
+
+  afirmar(
+    motivoParaNoPonerContrasena(profesor, estudiante) === null,
+    "un profesor sí puede a un estudiante",
+  );
+  afirmar(
+    motivoParaNoPonerContrasena(profesor, otroProfesor) === "solo-admin",
+    "un profesor no puede a otro profesor",
+  );
+  afirmar(
+    motivoParaNoPonerContrasena(admin, otroProfesor) === null,
+    "un administrador sí puede a un profesor",
+  );
+  afirmar(
+    motivoParaNoPonerContrasena(profesor, { id: profesor.id, role: "PROFESOR", suprimidoEl: null }) ===
+      "uno-mismo",
+    "a uno mismo, nadie",
+  );
+  afirmar(
+    motivoParaNoPonerContrasena(profesor, null) === "no-existe",
+    "sin ficha, no existe",
+  );
+  afirmar(
+    motivoParaNoPonerContrasena(profesor, suprimidoObjetivo) === "suprimido",
+    "una ficha suprimida no admite contraseña nueva",
+  );
+  afirmar(
+    motivoParaNoPonerContrasena(admin, { id: admin.id, role: "ADMIN", suprimidoEl: null }) ===
+      "uno-mismo",
+    "uno-mismo gana a solo-admin cuando un administrador se apunta a sí mismo",
+  );
 }
 
 async function contrasenas() {
@@ -169,6 +231,7 @@ async function sesiones() {
 }
 
 async function main() {
+  reglasPuras();
   await contrasenas();
   await entrada();
   await sesiones();

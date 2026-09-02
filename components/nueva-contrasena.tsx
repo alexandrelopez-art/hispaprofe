@@ -50,7 +50,7 @@ export default function NuevaContrasena({
         {enviando ? "Generando…" : "Nueva contraseña"}
       </button>
       {estado.error && (
-        <span className="ml-3 text-sm font-semibold text-coral-600">{estado.error}</span>
+        <span role="alert" className="ml-3 text-sm font-semibold text-coral-600">{estado.error}</span>
       )}
     </form>
   );

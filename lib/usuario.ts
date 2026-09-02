@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { esCorreoDeAdmin, estaBloqueado } from "@/lib/roles";
+import { esCorreoDeAdmin, estaBloqueado, estaSuprimido } from "@/lib/roles";
 import { usuarioDeLaSesion } from "@/lib/sesion";
 
 /**
@@ -25,14 +25,20 @@ export async function ascenderSiEsAdmin<
 }
 
 /**
- * El candado. A quien está bloqueado se le trata como si no hubiera sesión,
- * así que todos los `if (!usuario)` que ya existen fallan cerrados.
- * Va antes del ascenso por ADMIN_EMAILS a propósito.
+ * El candado. A quien está bloqueado o suprimido se le trata como si no
+ * hubiera sesión, así que todos los `if (!usuario)` que ya existen fallan
+ * cerrados. Va antes del ascenso por ADMIN_EMAILS a propósito.
  */
 async function dejarEntrar<
-  T extends { id: string; email: string; role: string; bloqueadoEl: Date | null },
+  T extends {
+    id: string;
+    email: string;
+    role: string;
+    bloqueadoEl: Date | null;
+    suprimidoEl: Date | null;
+  },
 >(usuario: T): Promise<T | null> {
-  if (estaBloqueado(usuario)) return null;
+  if (estaBloqueado(usuario) || estaSuprimido(usuario)) return null;
   return ascenderSiEsAdmin(usuario);
 }
 

@@ -160,8 +160,8 @@ export async function archivarAsignacion(formData: FormData) {
 
 /**
  * Crea las fichas que falten a partir de una lista de correos y las mete
- * en el grupo. Las fichas nacen sin clerkId: la cuenta se engancha sola
- * cuando esa persona entra por primera vez.
+ * en el grupo. Las fichas nacen sin contraseña: el profesor se la pone
+ * desde su ficha, y hasta entonces no pueden entrar.
  */
 async function meterCorreosEnGrupo(
   grupoId: string,

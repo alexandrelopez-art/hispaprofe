@@ -15,7 +15,7 @@ import { getUsuarioActual } from "@/lib/usuario";
  * `puedeOirse`.
  *
  * Los dos «No encontrado» tardan distinto —el de un id inexistente contesta
- * sin pasar por Clerk— y se queda así a sabiendas: taparlo obligaría a pedir
+ * sin mirar la sesión— y se queda así a sabiendas: taparlo obligaría a pedir
  * la sesión en cada imagen pública, y para aprovecharlo hay que tener ya el
  * id, que es justo lo que antes bastaba para llevarse el archivo entero.
  *
@@ -43,11 +43,8 @@ export async function GET(
     return new Response("No encontrado", { status: 404 });
   }
 
-  // La sesión solo se pide si hay algo que proteger. `puedeOirse` ya deja
-  // pasar lo no privado sin mirar quién pregunta, pero para preguntárselo
-  // habría que llamar antes a `getUsuarioActual`, y esa no solo lee: crea la
-  // fila de `User` la primera vez y le engancha el clerkId. Pedir la foto de
-  // un ejercicio no puede escribir en la base ni pagar una llamada a Clerk.
+  // `getUsuarioActual` solo lee la sesión; se pide únicamente si el archivo
+  // es privado, para no pagar la consulta en los públicos.
   if (cabecera.privado) {
     const usuario = await getUsuarioActual();
     if (!(await puedeOirse(id, usuario))) {

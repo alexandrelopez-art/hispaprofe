@@ -213,7 +213,7 @@ export default async function AdminPersonasPage({
                     </button>
                   </form>
                 )}
-                {p.id !== yo?.id && <NuevaContrasena usuarioId={p.id} compacto />}
+                {p.id !== yo?.id && !suprimido && <NuevaContrasena usuarioId={p.id} compacto />}
               </div>
 
               {bloqueado && !suprimido && (

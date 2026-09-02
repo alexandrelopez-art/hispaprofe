@@ -231,5 +231,9 @@ export async function suprimir(usuarioId: string): Promise<void> {
         suprimidoEl: ahora,
       },
     }),
+    // Y sus sesiones abiertas: una ficha suprimida no puede seguir usando la
+    // cookie que ya tenía en el navegador, igual que ya no puede usar la
+    // contraseña que tenía.
+    prisma.sesion.deleteMany({ where: { usuarioId } }),
   ]);
 }

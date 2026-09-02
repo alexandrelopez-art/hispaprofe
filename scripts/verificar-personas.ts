@@ -19,6 +19,7 @@ import {
   listarEstudiantesElegibles,
 } from "@/lib/estudiantes";
 import { prisma } from "@/lib/prisma";
+import { crearSesion } from "@/lib/sesion";
 
 function afirmar(condicion: boolean, mensaje: string) {
   if (!condicion) throw new Error(`FALLO: ${mensaje}`);
@@ -225,6 +226,9 @@ async function main() {
     "nadie se suprime a sí mismo",
   );
 
+  // Una sesión abierta, para comprobar que suprimir se la lleva por delante.
+  await crearSesion(bea.id);
+
   await suprimir(bea.id);
   const lapida = await prisma.user.findUniqueOrThrow({ where: { id: bea.id } });
 
@@ -232,6 +236,10 @@ async function main() {
   afirmar(lapida.firstName === null && lapida.lastName === null, "se va el nombre");
   afirmar(lapida.clerkId === null, "se va la cuenta de acceso");
   afirmar(lapida.contrasenaHash === null, "se va la contraseña");
+  afirmar(
+    (await prisma.sesion.count({ where: { usuarioId: bea.id } })) === 0,
+    "suprimir cierra sus sesiones",
+  );
   afirmar(lapida.role === "STUDENT", "la lápida se queda sin poderes");
   afirmar(
     lapida.email === `suprimido-${bea.id}@hispaprofe.invalid`,
