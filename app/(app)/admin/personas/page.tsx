@@ -9,6 +9,7 @@ import {
   suprimirPersona,
 } from "@/lib/acciones-admin";
 import type { Prisma } from "@/lib/generated/prisma/client";
+import NuevaContrasena from "@/components/nueva-contrasena";
 
 export const dynamic = "force-dynamic";
 
@@ -212,6 +213,7 @@ export default async function AdminPersonasPage({
                     </button>
                   </form>
                 )}
+                {p.id !== yo?.id && <NuevaContrasena usuarioId={p.id} compacto />}
               </div>
 
               {bloqueado && !suprimido && (

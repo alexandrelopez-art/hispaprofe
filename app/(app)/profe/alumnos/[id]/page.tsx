@@ -12,8 +12,10 @@ import { horas, totalesDeClases } from "@/lib/clases";
 import { servicioLabel } from "@/lib/servicios";
 import { analizarExpresion, esGrabada } from "@/lib/expresion";
 import { clasesParaCitar } from "@/lib/citas";
+import { fechaHora } from "@/lib/fechas";
 import Rubrica from "@/components/expresion/rubrica";
 import CitarOral from "./citar-oral";
+import NuevaContrasena from "@/components/nueva-contrasena";
 
 export const dynamic = "force-dynamic";
 
@@ -150,6 +152,25 @@ export default async function AlumnoPage({
           </span>
         )}
       </div>
+
+      {!suprimido && (
+        <section className="mt-6 rounded-tarjeta border border-hp-100 bg-white p-5 shadow-suave">
+          <h2 className="text-xs font-bold uppercase tracking-wider text-tinta-suave">Acceso</h2>
+          <p className="mt-2 text-sm text-tinta">
+            {!estudiante.contrasenaHash
+              ? "Todavía no tiene contraseña: no puede entrar."
+              : estudiante.intentosBloqueadosHasta && estudiante.intentosBloqueadosHasta > new Date()
+                ? `Bloqueado por intentos fallidos hasta las ${fechaHora(estudiante.intentosBloqueadosHasta)}.`
+                : estudiante.debeCambiarContrasena
+                  ? "Tiene una contraseña dada por ti; al entrar tendrá que cambiarla."
+                  : "Tiene su propia contraseña."}
+          </p>
+          <div className="mt-3">
+            <NuevaContrasena usuarioId={estudiante.id} />
+          </div>
+        </section>
+      )}
+
       <p className="mt-1 text-tinta-suave">
         {suprimido ? "sin datos" : estudiante.email}
       </p>
