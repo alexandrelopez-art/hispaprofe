@@ -22,6 +22,12 @@ export default function proxy(request: NextRequest) {
     return NextResponse.next({ request: { headers: cabeceras } });
   }
 
+  // Una llamada de programa (fetch) sin sesión recibe un 401 en JSON, no una
+  // redirección a una página: quien la hace es código, y espera JSON.
+  if (pathname.startsWith("/api/")) {
+    return NextResponse.json({ error: "Sin sesión." }, { status: 401 });
+  }
+
   const destino = new URL("/entrar", request.url);
   destino.searchParams.set("volver", pathname + search);
   return NextResponse.redirect(destino);

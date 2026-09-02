@@ -41,7 +41,7 @@ export default async function AppLayout({
     if (ruta !== "/cuenta/contrasena") redirect("/cuenta/contrasena");
   }
 
-  const esProfe = usuario?.role === "PROFESOR" || usuario?.role === "ADMIN";
+  const esProfe = usuario.role === "PROFESOR" || usuario.role === "ADMIN";
   const esAdministrador = esAdmin(usuario);
 
   return (
