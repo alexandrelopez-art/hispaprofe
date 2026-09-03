@@ -1,11 +1,11 @@
 import { getUsuarioActual } from "@/lib/usuario";
 import { crearSecuencia } from "@/lib/acciones";
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import EleccionDele from "./eleccion-dele";
-
-const campo =
-  "mt-1 h-10 w-full rounded-full border border-hp-200 bg-white px-4 text-sm font-normal text-tinta outline-none focus:border-hp-400";
+import BotonEnviar from "@/components/ui/boton-enviar";
+import Campo from "@/components/ui/campo";
+import Encabezado from "@/components/ui/encabezado";
+import Tarjeta from "@/components/ui/tarjeta";
 
 export default async function NuevaSecuenciaPage({
   searchParams,
@@ -26,49 +26,34 @@ export default async function NuevaSecuenciaPage({
 
   return (
     <div className="mx-auto max-w-xl px-6 py-12">
-      <Link
-        href="/recorridos"
-        className="text-sm font-semibold text-tinta-suave hover:text-hp-500"
-      >
-        ← Secuencias
-      </Link>
+      <Encabezado
+        titulo="Nueva secuencia"
+        lede="Aquí van los datos generales. Los pasos se añaden después, desde la ficha de la secuencia."
+        volver={{ href: "/recorridos", texto: "Secuencias" }}
+      />
 
-      <h1 className="mt-4 text-3xl font-extrabold tracking-tight text-tinta">
-        Nueva secuencia
-      </h1>
-      <p className="mt-2 text-tinta-suave">
-        Aquí van los datos generales. Los pasos se añaden después, desde la
-        ficha de la secuencia.
-      </p>
-
-      <form
-        action={crearSecuencia}
-        className="mt-8 rounded-tarjeta border border-hp-100 bg-white p-5 shadow-suave"
-      >
-        {/*
-          La descripción va dentro de `EleccionDele` como ranura: la casilla
-          de la plantilla tiene que estar debajo y depende de la prueba
-          elegida, que es estado del cliente. Así el campo se sigue
-          renderizando en el servidor y el orden de la pantalla no cambia.
-        */}
-        <EleccionDele tituloInicial="" tipoInicial={tipoInicial}>
-          <label className="mt-4 block text-sm font-semibold text-tinta">
-            Descripción
-            <input
-              type="text"
+      <form action={crearSecuencia}>
+        <Tarjeta>
+          {/*
+            La descripción va dentro de `EleccionDele` como ranura: la casilla
+            de la plantilla tiene que estar debajo y depende de la prueba
+            elegida, que es estado del cliente. Así el campo se sigue
+            renderizando en el servidor y el orden de la pantalla no cambia.
+          */}
+          <EleccionDele tituloInicial="" tipoInicial={tipoInicial}>
+            <Campo
+              etiqueta="Descripción"
               name="descripcion"
+              tipo="area"
               placeholder="Una línea sobre qué trabaja"
-              className={campo}
+              className="mt-4"
             />
-          </label>
-        </EleccionDele>
+          </EleccionDele>
 
-        <button
-          type="submit"
-          className="mt-5 h-10 rounded-full bg-hp-400 px-5 text-sm font-bold text-white transition-colors hover:bg-hp-500"
-        >
-          Crear y añadir pasos
-        </button>
+          <BotonEnviar gerundio="Creando…" className="mt-5">
+            Crear y añadir pasos
+          </BotonEnviar>
+        </Tarjeta>
       </form>
     </div>
   );

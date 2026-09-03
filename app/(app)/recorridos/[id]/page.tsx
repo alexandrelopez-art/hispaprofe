@@ -24,18 +24,18 @@ import BotonConfirmar from "@/components/boton-confirmar";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { servicioLabel } from "@/lib/servicios";
+import { nombreNivel } from "@/lib/niveles";
+import { clasesDeBoton } from "@/components/ui/boton";
+import BotonEnviar from "@/components/ui/boton-enviar";
+import Campo from "@/components/ui/campo";
+import Encabezado from "@/components/ui/encabezado";
+import Etiqueta, { type TonoEtiqueta } from "@/components/ui/etiqueta";
+import Rotulo from "@/components/ui/rotulo";
+import Tarjeta from "@/components/ui/tarjeta";
+import Aviso from "@/components/ui/aviso";
 import TareasSugeridas from "./tareas-sugeridas";
 
 export const dynamic = "force-dynamic";
-
-const nivelLabel: Record<string, string> = {
-  A1: "A1",
-  A2: "A2",
-  B1: "B1",
-  B2: "B2",
-  C1: "C1",
-  A2_B1_ESCOLAR: "A2/B1 escolar",
-};
 
 const tipoLabel: Record<string, string> = {
   ACTIVACION: "Activación",
@@ -45,12 +45,13 @@ const tipoLabel: Record<string, string> = {
   MACRO_TAREA: "Macro tarea",
 };
 
-const tipoStyle: Record<string, string> = {
-  ACTIVACION: "bg-bloque2/25 text-tinta ring-bloque2/50",
-  ACTIVIDAD: "bg-hp-100 text-hp-700 ring-hp-200",
-  ANDAMIAJE: "bg-bloque1/25 text-tinta ring-bloque1/50",
-  MICRO_TAREA: "bg-sol-200/70 text-tinta ring-sol-400/60",
-  MACRO_TAREA: "bg-bloque3/25 text-tinta ring-bloque3/50",
+// El color más cercano de la identidad para cada tipo de paso.
+const tipoTono: Record<string, TonoEtiqueta> = {
+  ACTIVACION: "bloque2",
+  ACTIVIDAD: "hp",
+  ANDAMIAJE: "bloque1",
+  MICRO_TAREA: "sol",
+  MACRO_TAREA: "bloque3",
 };
 
 function nombreDe(u: {
@@ -175,93 +176,68 @@ export default async function RecorridoDetallePage({
 
   return (
     <div className="mx-auto max-w-3xl px-6 py-12">
-      <Link
-        href="/recorridos"
-        className="text-sm font-semibold text-tinta-suave hover:text-hp-500"
-      >
-        ← Secuencias
-      </Link>
+      <Encabezado
+        titulo={recorrido.titulo}
+        lede={recorrido.descripcion}
+        volver={{ href: "/recorridos", texto: "Secuencias" }}
+        acciones={
+          sePuedeBorrar && (
+            <>
+              <Etiqueta tono={recorrido.publicado ? "verde" : "neutro"}>
+                {recorrido.publicado ? "Publicada" : "Borrador"}
+              </Etiqueta>
 
-      <div className="mt-6 flex items-start justify-between gap-4">
-        <div>
-          <p className="text-[11px] font-bold uppercase tracking-wider text-tinta-suave">
-            {servicioLabel[recorrido.tipo] ?? recorrido.tipo}
-          </p>
-          <h1 className="mt-1 text-3xl font-extrabold tracking-tight text-tinta">
-            {recorrido.titulo}
-          </h1>
-          {recorrido.descripcion && (
-            <p className="mt-2 text-tinta-suave">{recorrido.descripcion}</p>
-          )}
-        </div>
-        <span className="shrink-0 rounded-full bg-hp-400 px-3 py-1 text-xs font-bold text-white">
-          {nivelLabel[recorrido.nivel] ?? recorrido.nivel}
-        </span>
+              {recorrido.publicado ? (
+                <form action={publicarRecorrido}>
+                  <input type="hidden" name="recorridoId" value={recorrido.id} />
+                  <input type="hidden" name="publicar" value="no" />
+                  <BotonConfirmar
+                    aviso={`«${recorrido.titulo}» dejará de aparecer en la preparación del alumno. Quien ya la tenga asignada la sigue teniendo, pero nadie nuevo podrá empezarla.`}
+                    title="Retirarla del catálogo del alumno"
+                    className={clasesDeBoton("sutil", "pequeno")}
+                  >
+                    Despublicar
+                  </BotonConfirmar>
+                </form>
+              ) : motivoDePublicar ? (
+                <Aviso tono="info">{motivoDePublicar}</Aviso>
+              ) : (
+                <form action={publicarRecorrido}>
+                  <input type="hidden" name="recorridoId" value={recorrido.id} />
+                  <input type="hidden" name="publicar" value="si" />
+                  <BotonEnviar gerundio="Publicando…" tamano="pequeno">
+                    Publicar
+                  </BotonEnviar>
+                </form>
+              )}
+
+              {aviso && (
+                <form action={borrarRecorrido}>
+                  <input type="hidden" name="recorridoId" value={recorrido.id} />
+                  <BotonConfirmar
+                    aviso={aviso}
+                    title="Borrar la secuencia entera"
+                    className={clasesDeBoton("peligro", "pequeno")}
+                  >
+                    Borrar la secuencia
+                  </BotonConfirmar>
+                </form>
+              )}
+            </>
+          )
+        }
+      />
+
+      <div className="-mt-6 mb-6 flex items-center gap-2">
+        <Rotulo>{servicioLabel[recorrido.tipo] ?? recorrido.tipo}</Rotulo>
+        <Etiqueta tono="hp">{nombreNivel(recorrido.nivel) || recorrido.nivel}</Etiqueta>
       </div>
 
-      {sePuedeBorrar && (
-        <div className="mt-4 flex flex-wrap items-center gap-3">
-          <span
-            className={`rounded-full px-3 py-1 text-xs font-bold ${
-              recorrido.publicado
-                ? "bg-bloque2/40 text-tinta"
-                : "bg-fondo text-tinta-suave"
-            }`}
-          >
-            {recorrido.publicado ? "Publicada" : "Borrador"}
-          </span>
-
-          {recorrido.publicado ? (
-            <form action={publicarRecorrido}>
-              <input type="hidden" name="recorridoId" value={recorrido.id} />
-              <input type="hidden" name="publicar" value="no" />
-              <BotonConfirmar
-                aviso={`«${recorrido.titulo}» dejará de aparecer en la preparación del alumno. Quien ya la tenga asignada la sigue teniendo, pero nadie nuevo podrá empezarla.`}
-                title="Retirarla del catálogo del alumno"
-                className="rounded-full border border-hp-200 px-4 py-1 text-sm font-bold text-tinta-suave transition-colors hover:border-bloque3 hover:text-tinta"
-              >
-                Despublicar
-              </BotonConfirmar>
-            </form>
-          ) : motivoDePublicar ? (
-            <p className="text-sm text-tinta-suave">{motivoDePublicar}</p>
-          ) : (
-            <form action={publicarRecorrido}>
-              <input type="hidden" name="recorridoId" value={recorrido.id} />
-              <input type="hidden" name="publicar" value="si" />
-              <button
-                type="submit"
-                className="rounded-full bg-hp-400 px-4 py-1 text-sm font-bold text-white transition-colors hover:bg-hp-500"
-              >
-                Publicar
-              </button>
-            </form>
-          )}
-        </div>
-      )}
-
-      {sePuedeBorrar && aviso && (
-        <form action={borrarRecorrido} className="mt-4">
-          <input type="hidden" name="recorridoId" value={recorrido.id} />
-          <BotonConfirmar
-            aviso={aviso}
-            title="Borrar la secuencia entera"
-            className="rounded-full border border-hp-200 px-4 py-1 text-sm font-bold text-tinta-suave transition-colors hover:border-bloque3 hover:text-tinta"
-          >
-            Borrar la secuencia
-          </BotonConfirmar>
-        </form>
-      )}
-
       {esProfe && (
-        <section className="mt-8 rounded-tarjeta border border-hp-100 bg-white p-5 shadow-suave">
-          <h2 className="text-lg font-bold text-tinta">Asignar esta secuencia</h2>
-
+        <Tarjeta titulo="Asignar esta secuencia" className="mt-8">
           {asignaciones.length > 0 && (
             <div className="mt-3">
-              <p className="text-xs font-bold uppercase tracking-wider text-tinta-suave">
-                Ya asignada a {asignaciones.length}
-              </p>
+              <Rotulo>Ya asignada a {asignaciones.length}</Rotulo>
               <ul className="mt-2 flex flex-wrap gap-2">
                 {asignaciones.map((asignacion) => (
                   <li key={asignacion.id}>
@@ -309,7 +285,7 @@ export default async function RecorridoDetallePage({
                       <span className="truncate">{nombreDe(estudiante)}</span>
                       {estudiante.nivel && (
                         <span className="ml-auto shrink-0 text-[11px] font-bold text-tinta-suave">
-                          {nivelLabel[estudiante.nivel] ?? estudiante.nivel}
+                          {nombreNivel(estudiante.nivel)}
                         </span>
                       )}
                     </label>
@@ -317,22 +293,20 @@ export default async function RecorridoDetallePage({
                 </div>
               </fieldset>
 
-              <input
-                type="text"
+              <Campo
+                etiqueta="Nota"
                 name="nota"
+                tipo="texto"
                 placeholder="Nota para el estudiante (opcional)"
-                className="mt-4 h-10 w-full rounded-full border border-hp-200 bg-white px-4 text-sm text-tinta outline-none focus:border-hp-400"
+                className="mt-4"
               />
 
-              <button
-                type="submit"
-                className="mt-4 h-10 rounded-full bg-hp-400 px-5 text-sm font-bold text-white transition-colors hover:bg-hp-500"
-              >
+              <BotonEnviar gerundio="Asignando…" className="mt-4">
                 Asignar a los seleccionados
-              </button>
+              </BotonEnviar>
             </form>
           )}
-        </section>
+        </Tarjeta>
       )}
 
       <div className="mt-10">
@@ -340,9 +314,7 @@ export default async function RecorridoDetallePage({
           const pasos = recorrido.pasos.filter((p) => p.ciclo === ciclo);
           return (
             <section key={ciclo} className="mb-8">
-              <h2 className="mb-4 text-xs font-bold uppercase tracking-wider text-tinta-suave">
-                Ciclo {ciclo}
-              </h2>
+              <Rotulo className="mb-4">Ciclo {ciclo}</Rotulo>
               <ol className="relative border-l-2 border-hp-100 pl-8">
                 {pasos.map((paso) => {
                   const marca = estados.get(paso.id);
@@ -362,23 +334,13 @@ export default async function RecorridoDetallePage({
                     >
                       {marca ? "✓" : paso.orden}
                     </span>
-                    <Link
-                      href={`/pasos/${paso.id}`}
-                      className="block rounded-xl border border-hp-100 bg-white p-4 shadow-suave transition hover:border-hp-300 hover:shadow-tarjeta"
-                    >
+                    <Tarjeta href={`/pasos/${paso.id}`}>
                       <div className="flex items-center gap-2">
-                        <span
-                          className={`rounded-md px-2 py-0.5 text-xs font-semibold ring-1 ring-inset ${
-                            tipoStyle[paso.tipo] ??
-                            "bg-hp-50 text-tinta ring-hp-200"
-                          }`}
-                        >
+                        <Etiqueta tono={tipoTono[paso.tipo] ?? "hp"}>
                           {tipoLabel[paso.tipo] ?? paso.tipo}
-                        </span>
+                        </Etiqueta>
                         {paso.destreza && (
-                          <span className="rounded bg-hp-100 px-1.5 py-0.5 text-[10px] font-bold text-hp-700">
-                            {paso.destreza}
-                          </span>
+                          <Etiqueta tono="hp">{paso.destreza}</Etiqueta>
                         )}
                       </div>
                       <div className="mt-2 flex items-center gap-2">
@@ -390,17 +352,20 @@ export default async function RecorridoDetallePage({
                           // ejercicio: un «12» suelto no dice si es sobre doce
                           // o sobre veinticinco. Los pasos que corrige el profe
                           // a mano no tienen máximo, y esos se quedan en «pts».
-                          <span className="shrink-0 rounded-full bg-sol-300 px-2 py-0.5 text-[11px] font-extrabold text-tinta">
+                          <Etiqueta tono="sol" className="shrink-0">
                             {sobre.get(paso.id)
                               ? `${marca.puntos ?? 0}/${sobre.get(paso.id)}`
                               : `${marca.puntos ?? 0} pts`}
-                          </span>
+                          </Etiqueta>
                         )}
                       </div>
-                    </Link>
+                    </Tarjeta>
 
                     {esProfe && (
                       <div className="mt-1.5 flex items-center gap-1.5">
+                        {/* ↑ y ↓ se quedan con su <button> nativo: necesitan
+                            `disabled` según la posición del paso, y BotonEnviar
+                            solo sabe apagarse mientras el envío está en vuelo. */}
                         <form action={moverPaso}>
                           <input type="hidden" name="pasoId" value={paso.id} />
                           <input
@@ -412,7 +377,7 @@ export default async function RecorridoDetallePage({
                             type="submit"
                             disabled={paso.orden === 1}
                             title="Subir"
-                            className="rounded-lg border border-hp-200 px-2 py-0.5 text-xs font-bold text-tinta-suave transition-colors hover:border-hp-400 hover:text-hp-600 disabled:opacity-30"
+                            className={clasesDeBoton("sutil", "pequeno")}
                           >
                             ↑
                           </button>
@@ -429,7 +394,7 @@ export default async function RecorridoDetallePage({
                             type="submit"
                             disabled={paso.orden === recorrido.pasos.length}
                             title="Bajar"
-                            className="rounded-lg border border-hp-200 px-2 py-0.5 text-xs font-bold text-tinta-suave transition-colors hover:border-hp-400 hover:text-hp-600 disabled:opacity-30"
+                            className={clasesDeBoton("sutil", "pequeno")}
                           >
                             ↓
                           </button>
@@ -440,7 +405,7 @@ export default async function RecorridoDetallePage({
                           <BotonConfirmar
                             aviso={`¿Borrar el paso "${paso.titulo}"? Se borra también su contenido, el registro de quién lo había completado y las grabaciones que hayan entregado los alumnos, sin vuelta atrás.`}
                             title="Borrar paso"
-                            className="rounded-lg border border-hp-200 px-2 py-0.5 text-xs font-bold text-tinta-suave transition-colors hover:border-bloque3 hover:text-tinta"
+                            className={clasesDeBoton("peligro", "pequeno")}
                           >
                             Borrar
                           </BotonConfirmar>
@@ -456,10 +421,12 @@ export default async function RecorridoDetallePage({
         })}
 
         {totalSobre > 0 && (
-          <p className="mb-8 rounded-tarjeta border border-hp-100 bg-white px-5 py-4 text-sm font-bold text-tinta shadow-suave">
-            Llevas {totalSacado} de {totalSobre} en {conNota.length}{" "}
-            {conNota.length === 1 ? "tarea corregida" : "tareas corregidas"}.
-          </p>
+          <Tarjeta className="mb-8">
+            <p className="text-sm font-bold text-tinta">
+              Llevas {totalSacado} de {totalSobre} en {conNota.length}{" "}
+              {conNota.length === 1 ? "tarea corregida" : "tareas corregidas"}.
+            </p>
+          </Tarjeta>
         )}
 
         {esProfe && recorrido.tipo === "PREPARACION_DELE" && recorrido.destreza && (
@@ -472,9 +439,8 @@ export default async function RecorridoDetallePage({
         )}
 
         {esProfe && (
-          <section className="mt-4 rounded-tarjeta border border-hp-100 bg-white p-5 shadow-suave">
-            <h2 className="text-lg font-bold text-tinta">Añadir un paso</h2>
-            <p className="mt-1 text-sm text-tinta-suave">
+          <Tarjeta titulo="Añadir un paso" className="mt-4">
+            <p className="text-sm text-tinta-suave">
               Aquí se define el esqueleto. El contenido (texto, vídeo, audio,
               Genially, enlaces) se añade dentro de cada paso: pulsa uno de la
               lista de arriba y busca «Añadir contenido» al final.
@@ -482,74 +448,63 @@ export default async function RecorridoDetallePage({
             <form action={crearPaso} className="mt-3">
               <input type="hidden" name="recorridoId" value={recorrido.id} />
 
-              <label className="block text-sm font-semibold text-tinta">
-                Título
-                <input
-                  type="text"
-                  name="titulo"
-                  required
-                  placeholder="Vocabulario del barrio"
-                  className="mt-1 h-10 w-full rounded-full border border-hp-200 bg-white px-4 text-sm font-normal text-tinta outline-none focus:border-hp-400"
-                />
-              </label>
+              <Campo
+                etiqueta="Título"
+                name="titulo"
+                required
+                placeholder="Vocabulario del barrio"
+              />
 
               <div className="mt-3 flex flex-wrap gap-3">
-                <label className="flex-1 text-sm font-semibold text-tinta">
-                  Tipo
-                  <select
-                    name="tipo"
-                    required
-                    defaultValue=""
-                    className="mt-1 h-10 w-full rounded-full border border-hp-200 bg-white px-4 text-sm font-normal text-tinta outline-none focus:border-hp-400"
-                  >
-                    <option value="" disabled>
-                      Elige
-                    </option>
-                    <option value="ACTIVACION">Activación</option>
-                    <option value="ACTIVIDAD">Actividad</option>
-                    <option value="ANDAMIAJE">Andamiaje</option>
-                    <option value="MICRO_TAREA">Micro tarea</option>
-                    <option value="MACRO_TAREA">Macro tarea</option>
-                  </select>
-                </label>
+                <Campo
+                  etiqueta="Tipo"
+                  name="tipo"
+                  tipo="elegir"
+                  required
+                  defaultValue=""
+                  className="flex-1"
+                  opciones={[
+                    { valor: "", nombre: "Elige" },
+                    { valor: "ACTIVACION", nombre: "Activación" },
+                    { valor: "ACTIVIDAD", nombre: "Actividad" },
+                    { valor: "ANDAMIAJE", nombre: "Andamiaje" },
+                    { valor: "MICRO_TAREA", nombre: "Micro tarea" },
+                    { valor: "MACRO_TAREA", nombre: "Macro tarea" },
+                  ]}
+                />
 
-                <label className="w-24 text-sm font-semibold text-tinta">
-                  Ciclo
-                  <input
-                    type="number"
-                    name="ciclo"
-                    min={1}
-                    defaultValue={1}
-                    className="mt-1 h-10 w-full rounded-full border border-hp-200 bg-white px-4 text-sm font-normal text-tinta outline-none focus:border-hp-400"
-                  />
-                </label>
+                <Campo
+                  etiqueta="Ciclo"
+                  name="ciclo"
+                  tipo="numero"
+                  min={1}
+                  defaultValue={1}
+                  className="w-24"
+                />
 
-                <label className="flex-1 text-sm font-semibold text-tinta">
-                  Destreza
-                  <select
-                    name="destreza"
-                    defaultValue=""
-                    className="mt-1 h-10 w-full rounded-full border border-hp-200 bg-white px-4 text-sm font-normal text-tinta outline-none focus:border-hp-400"
-                  >
-                    <option value="">Ninguna</option>
-                    <option value="CO">CO · comprensión oral</option>
-                    <option value="CE">CE · comprensión escrita</option>
-                    <option value="EO">EO · expresión oral</option>
-                    <option value="EE">EE · expresión escrita</option>
-                    <option value="EOI">EOI · interacción oral</option>
-                    <option value="EEI">EEI · interacción escrita</option>
-                  </select>
-                </label>
+                <Campo
+                  etiqueta="Destreza"
+                  name="destreza"
+                  tipo="elegir"
+                  defaultValue=""
+                  className="flex-1"
+                  opciones={[
+                    { valor: "", nombre: "Ninguna" },
+                    { valor: "CO", nombre: "CO · comprensión oral" },
+                    { valor: "CE", nombre: "CE · comprensión escrita" },
+                    { valor: "EO", nombre: "EO · expresión oral" },
+                    { valor: "EE", nombre: "EE · expresión escrita" },
+                    { valor: "EOI", nombre: "EOI · interacción oral" },
+                    { valor: "EEI", nombre: "EEI · interacción escrita" },
+                  ]}
+                />
               </div>
 
-              <button
-                type="submit"
-                className="mt-4 h-10 rounded-full bg-hp-400 px-5 text-sm font-bold text-white transition-colors hover:bg-hp-500"
-              >
+              <BotonEnviar gerundio="Añadiendo…" className="mt-4">
                 Añadir paso
-              </button>
+              </BotonEnviar>
             </form>
-          </section>
+          </Tarjeta>
         )}
       </div>
     </div>

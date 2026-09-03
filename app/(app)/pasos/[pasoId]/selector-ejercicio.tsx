@@ -7,13 +7,14 @@ import {
   engancharEjercicio,
   type EstadoRecurso,
 } from "@/lib/acciones-recursos";
+import { nombreNivel } from "@/lib/niveles";
+import Aviso from "@/components/ui/aviso";
+import BotonEnviar from "@/components/ui/boton-enviar";
+import Campo from "@/components/ui/campo";
+import Etiqueta from "@/components/ui/etiqueta";
+import Tarjeta from "@/components/ui/tarjeta";
 
 export type Candidato = { id: string; titulo: string; tipo: string; nivel: string };
-
-/** El nombre del nivel tal y como se escribe en pantalla. */
-function nombreNivel(nivel: string): string {
-  return nivel === "A2_B1_ESCOLAR" ? "A2/B1 escolar" : nivel;
-}
 
 export default function SelectorEjercicio({
   pasoId,
@@ -42,7 +43,7 @@ export default function SelectorEjercicio({
     filtrado: boolean;
   } | null;
 }) {
-  const [estadoEnganchar, enganchar, enganchando] = useActionState<EstadoRecurso, FormData>(
+  const [estadoEnganchar, enganchar] = useActionState<EstadoRecurso, FormData>(
     engancharEjercicio,
     {},
   );
@@ -88,13 +89,9 @@ export default function SelectorEjercicio({
       : "/profe/recursos/nuevo";
 
   return (
-    <section className="mt-8 rounded-tarjeta border border-hp-100 bg-white p-5 shadow-suave">
-      <p className="text-xs font-bold uppercase tracking-wider text-tinta-suave">
-        Ejercicio del paso
-      </p>
-
+    <Tarjeta titulo="Ejercicio del paso" className="mt-8">
       {error && (
-        <p className="mt-3 rounded-tarjeta bg-sol-100 px-4 py-3 text-sm text-tinta">{error}</p>
+        <Aviso tono="error" className="mt-3">{error}</Aviso>
       )}
 
       {/*
@@ -108,9 +105,9 @@ export default function SelectorEjercicio({
           <p className="text-sm font-bold text-tinta">
             Tarea {tarea.numero}
             {!tarea.verificado && (
-              <span className="ml-2 rounded-full bg-sol-100 px-2 py-0.5 text-xs font-bold">
+              <Etiqueta tono="sol" className="ml-2">
                 sin confirmar
-              </span>
+              </Etiqueta>
             )}
           </p>
           <p className="mt-1 text-sm text-tinta-suave">{tarea.pide}</p>
@@ -141,12 +138,9 @@ export default function SelectorEjercicio({
           </Link>
           <form action={quitar}>
             <input type="hidden" name="pasoId" value={pasoId} />
-            <button
-              type="submit"
-              className="h-9 rounded-full border border-hp-200 px-4 text-sm font-bold text-tinta hover:border-hp-400"
-            >
+            <BotonEnviar gerundio="Quitando…" variante="sutil">
               Quitar
-            </button>
+            </BotonEnviar>
           </form>
         </div>
       ) : candidatos.length === 0 ? (
@@ -167,28 +161,22 @@ export default function SelectorEjercicio({
         <>
           <form action={enganchar} className="mt-3 flex flex-wrap items-center gap-3">
             <input type="hidden" name="pasoId" value={pasoId} />
-            <select
+            <Campo
+              etiqueta="Ejercicio"
               name="ejercicioId"
+              tipo="elegir"
               required
               defaultValue=""
-              className="h-10 flex-1 rounded-full border border-hp-200 px-4 text-sm text-tinta outline-none focus:border-hp-400"
-            >
-              <option value="" disabled>
-                Elige un ejercicio
-              </option>
-              {candidatos.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.titulo} · {nombreNivel(c.nivel)}
-                </option>
-              ))}
-            </select>
-            <button
-              type="submit"
-              disabled={enganchando}
-              className="h-10 rounded-full bg-hp-400 px-5 text-sm font-extrabold text-white hover:bg-hp-500 disabled:opacity-40"
-            >
-              Enganchar
-            </button>
+              className="flex-1"
+              opciones={[
+                { valor: "", nombre: "Elige un ejercicio" },
+                ...candidatos.map((c) => ({
+                  valor: c.id,
+                  nombre: `${c.titulo} · ${nombreNivel(c.nivel)}`,
+                })),
+              ]}
+            />
+            <BotonEnviar gerundio="Enganchando…">Enganchar</BotonEnviar>
           </form>
           {/*
             «Crear uno» estaba solo en la rama de lista vacía: en cuanto
@@ -209,6 +197,6 @@ export default function SelectorEjercicio({
         Un paso admite un solo ejercicio: la corrección escribe los puntos del
         paso entero, así que dos se pisarían.
       </p>
-    </section>
+    </Tarjeta>
   );
 }

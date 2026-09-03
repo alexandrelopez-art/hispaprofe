@@ -6,6 +6,11 @@ import EditorTexto from "@/components/editor-texto";
 import SubirImagen from "@/components/subir-imagen";
 import SubirAudio from "@/components/recursos/subir-audio";
 import { idDrive } from "@/lib/bloques";
+import Aviso from "@/components/ui/aviso";
+import Boton from "@/components/ui/boton";
+import Campo from "@/components/ui/campo";
+import Rotulo from "@/components/ui/rotulo";
+import Tarjeta from "@/components/ui/tarjeta";
 
 type Tipo = "TEXTO" | "EMBED" | "AUDIO" | "IMAGEN" | "ENLACE";
 
@@ -98,9 +103,6 @@ function origenDe(src: string): string {
   if (src.includes("learningapps")) return "LearningApps";
   return "";
 }
-
-const campo =
-  "w-full rounded-full border border-hp-200 bg-white px-4 py-2 text-sm text-tinta outline-none focus:border-hp-400";
 
 export default function EditorBloques({ pasoId }: { pasoId: string }) {
   const [tipo, setTipo] = useState<Tipo>("TEXTO");
@@ -214,10 +216,8 @@ export default function EditorBloques({ pasoId }: { pasoId: string }) {
   }
 
   return (
-    <section className="mt-6 rounded-tarjeta border border-hp-100 bg-white p-5 shadow-suave">
-      <h2 className="text-lg font-bold text-tinta">Añadir contenido</h2>
-
-      <div className="mt-3 flex flex-wrap gap-2">
+    <Tarjeta titulo="Añadir contenido" className="mt-6">
+      <div className="flex flex-wrap gap-2">
         {TIPOS.map((t) => (
           <button
             key={t.id}
@@ -296,13 +296,14 @@ export default function EditorBloques({ pasoId }: { pasoId: string }) {
             escuchas</strong>: en una prueba del examen, el estudiante podrá
             oírlo tantas veces como quiera.
           </p>
-          <button
-            type="button"
+          <Boton
+            variante="sutil"
+            tamano="pequeno"
             onClick={() => setIncrustarDrive(true)}
-            className="mt-2 h-9 rounded-full border border-hp-200 bg-white px-4 text-sm font-bold text-tinta transition-colors hover:border-hp-400"
+            className="mt-2"
           >
             Ponerlo como reproductor de Drive
-          </button>
+          </Boton>
         </div>
       )}
 
@@ -313,14 +314,15 @@ export default function EditorBloques({ pasoId }: { pasoId: string }) {
       )}
 
       {aviso && (
-        <p className="mt-2 rounded-xl bg-sol-100 px-3 py-2 text-xs text-tinta">
+        <Aviso tono="aviso" className="mt-2">
           {aviso}
-        </p>
+        </Aviso>
       )}
 
       {tipo !== "TEXTO" && (
-        <input
-          type="text"
+        <Campo
+          etiqueta="Etiqueta"
+          name="etiqueta"
           value={etiqueta}
           onChange={(e) => setEtiqueta(e.target.value)}
           placeholder={
@@ -328,7 +330,7 @@ export default function EditorBloques({ pasoId }: { pasoId: string }) {
               ? "Título del enlace"
               : "Etiqueta o descripción (opcional)"
           }
-          className={`mt-3 ${campo}`}
+          className="mt-3"
         />
       )}
 
@@ -341,12 +343,13 @@ export default function EditorBloques({ pasoId }: { pasoId: string }) {
             placeholder="Descripción (opcional)"
             className="mt-3 w-full rounded-2xl border border-hp-200 bg-white px-4 py-3 text-sm text-tinta outline-none focus:border-hp-400"
           />
-          <input
-            type="text"
+          <Campo
+            etiqueta="Imagen"
+            name="imagen"
             value={imagen}
             onChange={(e) => setImagen(e.target.value)}
             placeholder="Imagen de la tarjeta (se rellena sola)"
-            className={`mt-3 ${campo} font-mono text-xs`}
+            className="mt-3"
           />
           <div className="mt-2">
             <SubirImagen alSubir={setImagen} etiqueta="Usar otra imagen" />
@@ -356,9 +359,9 @@ export default function EditorBloques({ pasoId }: { pasoId: string }) {
 
       {src && (
         <div className="mt-4 rounded-2xl border border-dashed border-hp-200 bg-fondo p-4">
-          <p className="mb-3 text-xs font-bold uppercase tracking-wider text-tinta-suave">
+          <Rotulo className="mb-3">
             Vista previa{origen && ` · ${origen}`}
-          </p>
+          </Rotulo>
 
           {tipo === "EMBED" && (
             <div className="aspect-video w-full overflow-hidden rounded-xl border border-hp-100 bg-white">
@@ -373,11 +376,11 @@ export default function EditorBloques({ pasoId }: { pasoId: string }) {
 
           {tipo === "IMAGEN" &&
             (falloImagen ? (
-              <p className="rounded-xl bg-bloque3/20 px-3 py-2 text-xs text-tinta">
+              <Aviso tono="error">
                 Esa dirección no muestra ninguna imagen. Suele pasar cuando el
                 enlace es el de una página, no el del archivo: abre la imagen
                 sola, haz clic derecho y elige «Copiar dirección de la imagen».
-              </p>
+              </Aviso>
             ) : (
               /* eslint-disable-next-line @next/next/no-img-element */
               <img
@@ -404,7 +407,7 @@ export default function EditorBloques({ pasoId }: { pasoId: string }) {
                 </p>
               </div>
             ) : falloImagen ? (
-              <p className="rounded-xl bg-bloque3/20 px-3 py-2 text-xs text-tinta">
+              <Aviso tono="error">
                 Esa dirección no reproduce ningún audio aquí. Si es un enlace
                 de Drive, el navegador no puede tocar el archivo directamente
                 desde él: no lo pegues en este cuadro, usa el campo de más
@@ -413,7 +416,7 @@ export default function EditorBloques({ pasoId }: { pasoId: string }) {
                 en SoundCloud, Ivoox o Spotify —que no se pueden descargar—,
                 usa «Genially, vídeo o actividad» y pega su código de
                 inserción.
-              </p>
+              </Aviso>
             ) : (
               <audio
                 controls
@@ -463,19 +466,18 @@ export default function EditorBloques({ pasoId }: { pasoId: string }) {
       )}
 
       {motivo && (
-        <p className="mt-3 rounded-xl bg-bloque3/20 px-4 py-2 text-sm text-tinta">
+        <Aviso tono="error" className="mt-3">
           {motivo}
-        </p>
+        </Aviso>
       )}
 
-      <button
-        type="button"
+      <Boton
         onClick={() => void enviar()}
         disabled={!listo || enviando}
-        className="mt-4 h-10 rounded-full bg-hp-400 px-5 text-sm font-bold text-white transition-colors hover:bg-hp-500 disabled:opacity-50"
+        className="mt-4"
       >
         {enviando ? "Añadiendo…" : "Añadir bloque"}
-      </button>
+      </Boton>
 
       {tipo === "EMBED" && (
         <p className="mt-3 text-xs text-tinta-suave">
@@ -491,6 +493,6 @@ export default function EditorBloques({ pasoId }: { pasoId: string }) {
           desde otra web.
         </p>
       )}
-    </section>
+    </Tarjeta>
   );
 }

@@ -4,18 +4,15 @@ import { useState } from "react";
 import { pruebasDe } from "@/lib/dele";
 import { BLOQUES } from "@/lib/preparacion";
 import type { Nivel } from "@/lib/generated/prisma/enums";
+import { nombreNivel } from "@/lib/niveles";
+import Campo from "@/components/ui/campo";
 
 const NIVELES: Nivel[] = ["A1", "A2", "B1", "B2", "C1", "A2_B1_ESCOLAR"];
-
-const nombreNivel = (n: string) => (n === "A2_B1_ESCOLAR" ? "A2/B1 escolar" : n);
 
 const NOMBRE_PRUEBA: Record<string, string> = {
   CE: "Comprensión de lectura",
   CO: "Comprensión auditiva",
 };
-
-const campo =
-  "mt-1 h-10 w-full rounded-full border border-hp-200 bg-white px-4 text-sm font-normal text-tinta outline-none focus:border-hp-400";
 
 /**
  * El servicio, el nivel y —si es preparación— la prueba, más el título que
@@ -78,121 +75,101 @@ export default function EleccionDele({
 
   return (
     <>
-      <label className="block text-sm font-semibold text-tinta">
-        Título
-        <input
-          type="text"
-          name="titulo"
-          required
-          value={titulo}
-          onChange={(e) => {
-            setTitulo(e.target.value);
-            setTituloTocado(true);
-          }}
-          placeholder="El barrio: describir dónde vivo"
-          className={campo}
-        />
-      </label>
+      <Campo
+        etiqueta="Título"
+        name="titulo"
+        required
+        value={titulo}
+        onChange={(e) => {
+          setTitulo(e.target.value);
+          setTituloTocado(true);
+        }}
+        placeholder="El barrio: describir dónde vivo"
+      />
 
       <div className="mt-4 flex flex-wrap gap-3">
-        <label className="flex-1 text-sm font-semibold text-tinta">
-          Servicio
-          <select
-            name="tipo"
-            value={tipo}
-            onChange={(e) => setTipo(e.target.value)}
-            className={campo}
-          >
-            <option value="CLASES_PARTICULARES">Clases particulares</option>
-            <option value="PREPARACION_DELE">Preparación DELE</option>
-          </select>
-        </label>
+        <Campo
+          etiqueta="Servicio"
+          name="tipo"
+          tipo="elegir"
+          value={tipo}
+          onChange={(e) => setTipo(e.target.value)}
+          className="flex-1"
+          opciones={[
+            { valor: "CLASES_PARTICULARES", nombre: "Clases particulares" },
+            { valor: "PREPARACION_DELE", nombre: "Preparación DELE" },
+          ]}
+        />
 
-        <label className="flex-1 text-sm font-semibold text-tinta">
-          Nivel
-          <select
-            name="nivel"
-            required
-            value={nivel}
-            onChange={(e) => {
-              const n = e.target.value as Nivel;
-              setNivel(n);
-              proponerTitulo(n, destreza);
-            }}
-            className={campo}
-          >
-            <option value="" disabled>
-              Elige
-            </option>
-            {NIVELES.map((n) => (
-              <option key={n} value={n}>
-                {nombreNivel(n)}
-              </option>
-            ))}
-          </select>
-        </label>
+        <Campo
+          etiqueta="Nivel"
+          name="nivel"
+          tipo="elegir"
+          required
+          value={nivel}
+          onChange={(e) => {
+            const n = e.target.value as Nivel;
+            setNivel(n);
+            proponerTitulo(n, destreza);
+          }}
+          className="flex-1"
+          opciones={[
+            { valor: "", nombre: "Elige" },
+            ...NIVELES.map((n) => ({ valor: n, nombre: nombreNivel(n) })),
+          ]}
+        />
       </div>
 
       {tipo === "PREPARACION_DELE" && (
-        <label className="mt-4 block text-sm font-semibold text-tinta">
-          Prueba
-          <select
-            name="destreza"
-            value={destreza}
-            onChange={(e) => {
-              setDestreza(e.target.value);
-              proponerTitulo(nivel, e.target.value);
-            }}
-            className={campo}
-          >
-            <option value="">Ninguna en concreto</option>
-            {pruebas.map((p) => (
-              <option key={p.prueba} value={p.prueba}>
-                {NOMBRE_PRUEBA[p.prueba] ?? p.prueba} · {p.tareas.length} tareas ·{" "}
-                {p.duracionMinutos} min
-              </option>
-            ))}
-          </select>
-          <span className="mt-1 block text-xs font-normal text-tinta-suave">
-            {nivel === ""
+        <Campo
+          etiqueta="Prueba"
+          name="destreza"
+          tipo="elegir"
+          value={destreza}
+          onChange={(e) => {
+            setDestreza(e.target.value);
+            proponerTitulo(nivel, e.target.value);
+          }}
+          className="mt-4"
+          ayuda={
+            nivel === ""
               ? "Elige antes el nivel."
               : pruebas.length === 0
                 ? "Este nivel todavía no tiene pruebas en el mapa."
-                : "Elegir una hace que la ficha te proponga sus tareas. Puedes dejarlo sin elegir."}
-          </span>
-        </label>
+                : "Elegir una hace que la ficha te proponga sus tareas. Puedes dejarlo sin elegir."
+          }
+          opciones={[
+            { valor: "", nombre: "Ninguna en concreto" },
+            ...pruebas.map((p) => ({
+              valor: p.prueba,
+              nombre: `${NOMBRE_PRUEBA[p.prueba] ?? p.prueba} · ${p.tareas.length} tareas · ${p.duracionMinutos} min`,
+            })),
+          ]}
+        />
       )}
 
       {tipo === "PREPARACION_DELE" && (
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
-          <label className="block text-sm font-semibold text-tinta">
-            Bloque de la preparación
-            <select name="bloque" defaultValue="2" className={campo}>
-              {BLOQUES.map((b) => (
-                <option key={b.orden} value={b.orden}>
-                  {b.orden} · {b.titulo}
-                </option>
-              ))}
-            </select>
-            <span className="mt-1 block text-xs font-normal text-tinta-suave">
-              Dónde aparece en la portada del alumno.
-            </span>
-          </label>
+          <Campo
+            etiqueta="Bloque de la preparación"
+            name="bloque"
+            tipo="elegir"
+            defaultValue="2"
+            ayuda="Dónde aparece en la portada del alumno."
+            opciones={BLOQUES.map((b) => ({
+              valor: String(b.orden),
+              nombre: `${b.orden} · ${b.titulo}`,
+            }))}
+          />
 
-          <label className="block text-sm font-semibold text-tinta">
-            Examen
-            <input
-              type="number"
-              name="examen"
-              min={1}
-              placeholder="1"
-              className={campo}
-            />
-            <span className="mt-1 block text-xs font-normal text-tinta-suave">
-              El número del examen del Cervantes. Déjalo vacío si esta
-              secuencia no es de un examen concreto.
-            </span>
-          </label>
+          <Campo
+            etiqueta="Examen"
+            name="examen"
+            tipo="numero"
+            min={1}
+            placeholder="1"
+            ayuda="El número del examen del Cervantes. Déjalo vacío si esta secuencia no es de un examen concreto."
+          />
         </div>
       )}
 

@@ -1,6 +1,10 @@
 import { crearPaso } from "@/lib/acciones";
 import { numeroDeTarea, pruebaDe, type PasoSituable, type TareaDele } from "@/lib/dele";
 import type { Destreza, Nivel } from "@/lib/generated/prisma/enums";
+import Aviso from "@/components/ui/aviso";
+import BotonEnviar from "@/components/ui/boton-enviar";
+import Etiqueta from "@/components/ui/etiqueta";
+import Tarjeta from "@/components/ui/tarjeta";
 
 /**
  * Las tareas que le faltan a esta prueba, con un botón que crea el paso ya
@@ -33,10 +37,7 @@ export default function TareasSugeridas({
   if (faltan.length === 0) return null;
 
   return (
-    <section className="mt-8 rounded-tarjeta border border-hp-100 bg-white p-5 shadow-suave">
-      <p className="text-xs font-bold uppercase tracking-wider text-tinta-suave">
-        Tareas de esta prueba
-      </p>
+    <Tarjeta titulo="Tareas de esta prueba" className="mt-8">
       <p className="mt-1 text-sm text-tinta-suave">
         {prueba.duracionMinutos} minutos · {prueba.tareas.length} tareas. Faltan{" "}
         {faltan.length}.
@@ -56,33 +57,30 @@ export default function TareasSugeridas({
                 <p className="font-semibold text-tinta">
                   Tarea {tarea.numero}
                   {!tarea.verificado && (
-                    <span className="ml-2 rounded-full bg-sol-100 px-2 py-0.5 text-xs font-bold text-tinta">
+                    <Etiqueta tono="sol" className="ml-2">
                       sin confirmar
-                    </span>
+                    </Etiqueta>
                   )}
                 </p>
                 <p className="text-sm text-tinta-suave">{tarea.pide}</p>
               </div>
 
-              <button
-                type="submit"
-                className="h-9 shrink-0 rounded-full border border-hp-200 px-4 text-sm font-bold text-tinta transition-colors hover:border-hp-400"
-              >
+              <BotonEnviar gerundio="Añadiendo…" variante="sutil" tamano="pequeno" className="shrink-0">
                 Añadir
-              </button>
+              </BotonEnviar>
             </form>
           </li>
         ))}
       </ul>
 
       {faltan.some((t: TareaDele) => !t.verificado) && (
-        <p className="mt-4 rounded-tarjeta bg-sol-100 px-4 py-3 text-sm text-tinta">
+        <Aviso tono="aviso" className="mt-4">
           Las tareas marcadas «sin confirmar» están deducidas, no verificadas
           contra las especificaciones oficiales. Puedes usarlas igual; si
           compruebas alguna, corrígela en <code>lib/dele/mapa.ts</code> y el
           aviso desaparece.
-        </p>
+        </Aviso>
       )}
-    </section>
+    </Tarjeta>
   );
 }

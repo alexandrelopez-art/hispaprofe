@@ -4,13 +4,16 @@ import { redirect } from "next/navigation";
 import type { Prisma } from "@/lib/generated/prisma/client";
 import { servicioLabel } from "@/lib/servicios";
 import { getUsuarioActual } from "@/lib/usuario";
+import { NIVELES, nombreNivel } from "@/lib/niveles";
+import BotonEnviar from "@/components/ui/boton-enviar";
+import Campo from "@/components/ui/campo";
+import Encabezado from "@/components/ui/encabezado";
+import Etiqueta, { type TonoEtiqueta } from "@/components/ui/etiqueta";
+import Rotulo from "@/components/ui/rotulo";
+import Tarjeta from "@/components/ui/tarjeta";
+import Vacio from "@/components/ui/vacio";
 
 export const dynamic = "force-dynamic";
-
-const nivelLabel: Record<string, string> = {
-  A2_B1_ESCOLAR: "A2/B1 escolar",
-  B2: "B2",
-};
 
 // Orden fijo para que la composición se lea siempre igual.
 const TIPOS = [
@@ -29,16 +32,14 @@ const tipoLabel: Record<string, string> = {
   MACRO_TAREA: "Macro tarea",
 };
 
-const tipoStyle: Record<string, string> = {
-  ACTIVACION: "bg-bloque2/25 text-tinta ring-bloque2/50",
-  ACTIVIDAD: "bg-hp-100 text-hp-700 ring-hp-200",
-  ANDAMIAJE: "bg-bloque1/25 text-tinta ring-bloque1/50",
-  MICRO_TAREA: "bg-sol-200/70 text-tinta ring-sol-400/60",
-  MACRO_TAREA: "bg-bloque3/25 text-tinta ring-bloque3/50",
+// El color más cercano de la identidad para cada tipo de paso.
+const tipoTono: Record<string, TonoEtiqueta> = {
+  ACTIVACION: "bloque2",
+  ACTIVIDAD: "hp",
+  ANDAMIAJE: "bloque1",
+  MICRO_TAREA: "sol",
+  MACRO_TAREA: "bloque3",
 };
-
-const campoBase =
-  "h-10 rounded-full border border-hp-200 bg-white px-4 text-sm text-tinta outline-none focus:border-hp-400";
 
 export default async function RecorridosPage({
   searchParams,
@@ -72,41 +73,38 @@ export default async function RecorridosPage({
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-12">
-      <h1 className="text-3xl font-extrabold tracking-tight text-tinta">
-        Secuencias
-      </h1>
-      <p className="mt-2 text-tinta-suave">
-        Busca una secuencia lista y ábrela para ver sus pasos.
-      </p>
+      <Encabezado
+        titulo="Secuencias"
+        lede="Busca una secuencia lista y ábrela para ver sus pasos."
+      />
 
-      <form className="mt-8 flex flex-wrap items-center gap-3">
-        <input
-          type="search"
+      <form className="mt-8 flex flex-wrap items-end gap-4">
+        <Campo
+          etiqueta="Buscar"
           name="q"
           defaultValue={q}
           placeholder="Buscar por título o tema"
-          className={`${campoBase} min-w-56 flex-1`}
+          className="min-w-56 flex-1"
         />
-        <select name="servicio" defaultValue={servicio} className={campoBase}>
-          <option value="">Todos los servicios</option>
-          <option value="CLASES_PARTICULARES">
-            {servicioLabel.CLASES_PARTICULARES}
-          </option>
-          <option value="PREPARACION_DELE">
-            {servicioLabel.PREPARACION_DELE}
-          </option>
-        </select>
-        <select name="nivel" defaultValue={nivel} className={campoBase}>
-          <option value="">Todos los niveles</option>
-          <option value="A2_B1_ESCOLAR">A2/B1 escolar</option>
-          <option value="B2">B2</option>
-        </select>
-        <button
-          type="submit"
-          className="h-10 rounded-full bg-hp-400 px-5 text-sm font-bold text-white transition-colors hover:bg-hp-500"
-        >
-          Buscar
-        </button>
+        <Campo
+          etiqueta="Servicio"
+          name="servicio"
+          tipo="elegir"
+          defaultValue={servicio}
+          opciones={[
+            { valor: "", nombre: "Todos los servicios" },
+            { valor: "CLASES_PARTICULARES", nombre: servicioLabel.CLASES_PARTICULARES },
+            { valor: "PREPARACION_DELE", nombre: servicioLabel.PREPARACION_DELE },
+          ]}
+        />
+        <Campo
+          etiqueta="Nivel"
+          name="nivel"
+          tipo="elegir"
+          defaultValue={nivel}
+          opciones={[{ valor: "", nombre: "Todos los niveles" }, ...NIVELES]}
+        />
+        <BotonEnviar gerundio="Buscando…">Buscar</BotonEnviar>
         {hayFiltro && (
           <Link
             href="/recorridos"
@@ -124,9 +122,7 @@ export default async function RecorridosPage({
       </p>
 
       {recorridos.length === 0 ? (
-        <p className="mt-6 rounded-tarjeta border border-dashed border-hp-200 p-10 text-center text-tinta-suave">
-          Ninguna secuencia coincide con la búsqueda.
-        </p>
+        <Vacio>Ninguna secuencia coincide con la búsqueda.</Vacio>
       ) : (
         <div className="mt-4 grid gap-5 md:grid-cols-2">
           {recorridos.map((recorrido) => {
@@ -138,18 +134,16 @@ export default async function RecorridosPage({
             })).filter((c) => c.n > 0);
 
             return (
-              <Link
+              <Tarjeta
                 key={recorrido.id}
                 href={`/recorridos/${recorrido.id}`}
-                className="flex flex-col rounded-tarjeta border border-hp-100 bg-white p-5 shadow-suave transition hover:border-hp-300 hover:shadow-tarjeta"
+                className="flex flex-col"
               >
                 <div className="flex items-center justify-between gap-3">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-tinta-suave">
-                    {servicioLabel[recorrido.tipo] ?? recorrido.tipo}
-                  </span>
-                  <span className="shrink-0 rounded-full bg-hp-400 px-2.5 py-0.5 text-[11px] font-bold text-white">
-                    {nivelLabel[recorrido.nivel] ?? recorrido.nivel}
-                  </span>
+                  <Rotulo>{servicioLabel[recorrido.tipo] ?? recorrido.tipo}</Rotulo>
+                  <Etiqueta tono="hp" className="shrink-0">
+                    {nombreNivel(recorrido.nivel) || recorrido.nivel}
+                  </Etiqueta>
                 </div>
 
                 <h2 className="mt-2 line-clamp-2 text-lg font-bold text-tinta">
@@ -168,18 +162,13 @@ export default async function RecorridosPage({
                   </p>
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     {composicion.map(({ tipo, n }) => (
-                      <span
-                        key={tipo}
-                        className={`rounded-md px-2 py-0.5 text-[11px] font-semibold ring-1 ring-inset ${
-                          tipoStyle[tipo] ?? "bg-hp-50 text-tinta ring-hp-200"
-                        }`}
-                      >
+                      <Etiqueta key={tipo} tono={tipoTono[tipo] ?? "hp"}>
                         {n} {tipoLabel[tipo]}
-                      </span>
+                      </Etiqueta>
                     ))}
                   </div>
                 </div>
-              </Link>
+              </Tarjeta>
             );
           })}
         </div>

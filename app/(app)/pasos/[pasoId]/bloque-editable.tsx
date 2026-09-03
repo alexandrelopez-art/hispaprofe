@@ -11,6 +11,10 @@ import EditorTexto from "@/components/editor-texto";
 import SubirImagen from "@/components/subir-imagen";
 import SubirAudio from "@/components/recursos/subir-audio";
 import { esAudioDeDrive } from "@/lib/bloques";
+import Aviso from "@/components/ui/aviso";
+import Boton, { clasesDeBoton } from "@/components/ui/boton";
+import Campo from "@/components/ui/campo";
+import Rotulo from "@/components/ui/rotulo";
 
 const etiquetaTipo: Record<string, string> = {
   TEXTO: "Texto",
@@ -20,11 +24,10 @@ const etiquetaTipo: Record<string, string> = {
   ENLACE: "Enlace",
 };
 
+// ↑ y ↓ se quedan con su propia clase: necesitan `disabled` según la
+// posición del bloque, y BotonEnviar solo sabe apagarse en vuelo.
 const botonChico =
   "rounded-lg border border-hp-200 px-2 py-0.5 text-xs font-bold text-tinta-suave transition-colors hover:border-hp-400 hover:text-hp-600 disabled:opacity-30";
-
-const campo =
-  "w-full rounded-full border border-hp-200 bg-white px-4 py-2 text-sm text-tinta outline-none focus:border-hp-400";
 
 type Bloque = {
   id: string;
@@ -100,17 +103,16 @@ export default function BloqueEditable({
   return (
     <div>
       <div className="mb-2 flex items-center gap-1.5">
-        <span className="text-[11px] font-bold uppercase tracking-wider text-tinta-suave">
-          {etiquetaTipo[bloque.tipo] ?? bloque.tipo}
-        </span>
+        <Rotulo>{etiquetaTipo[bloque.tipo] ?? bloque.tipo}</Rotulo>
 
-        <button
-          type="button"
+        <Boton
+          variante="sutil"
+          tamano="pequeno"
           onClick={() => (editando ? cancelar() : setEditando(true))}
-          className={`${botonChico} ml-auto`}
+          className="ml-auto"
         >
           {editando ? "Cancelar" : "Editar"}
-        </button>
+        </Boton>
 
         <form action={moverBloque}>
           <input type="hidden" name="bloqueId" value={bloque.id} />
@@ -143,7 +145,7 @@ export default function BloqueEditable({
           <BotonConfirmar
             aviso="¿Borrar este bloque de contenido?"
             title="Borrar"
-            className="rounded-lg border border-hp-200 px-2 py-0.5 text-xs font-bold text-tinta-suave transition-colors hover:border-bloque3 hover:text-tinta"
+            className={clasesDeBoton("peligro", "pequeno")}
           >
             Borrar
           </BotonConfirmar>
@@ -156,11 +158,11 @@ export default function BloqueEditable({
           mueve a `BloqueContenido` —que sí lo ve el estudiante— la marca
           empieza a delatar al examen que el audio no cuenta las escuchas. */}
       {racionado && esAudioDeDrive(bloque.url) && (
-        <p className="mt-2 rounded-xl bg-sol-100 px-3 py-2 text-xs text-tinta">
+        <Aviso tono="aviso" className="mt-2">
           Este contenido va incrustado de Drive: la aplicación no puede contar
           cuántas veces se abre. En una prueba, el estudiante puede oírlo sin
           límite.
-        </p>
+        </Aviso>
       )}
 
       {editando ? (
@@ -169,15 +171,13 @@ export default function BloqueEditable({
             <EditorTexto valor={texto} alCambiar={setTexto} filas={10} />
           ) : (
             <>
-              <label className="block text-sm font-semibold text-tinta">
-                Dirección
-                <input
-                  type="text"
-                  value={url}
-                  onChange={(e) => setUrl(e.target.value)}
-                  className={`mt-1 ${campo} font-mono text-xs`}
-                />
-              </label>
+              <Campo
+                etiqueta="Dirección"
+                name="url"
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                className="mt-1"
+              />
 
               {bloque.tipo === "IMAGEN" && (
                 <div className="mt-2">
@@ -194,36 +194,32 @@ export default function BloqueEditable({
                 </div>
               )}
 
-              <label className="mt-3 block text-sm font-semibold text-tinta">
-                {bloque.tipo === "ENLACE" ? "Título" : "Etiqueta"}
-                <input
-                  type="text"
-                  value={etiqueta}
-                  onChange={(e) => setEtiqueta(e.target.value)}
-                  className={`mt-1 ${campo}`}
-                />
-              </label>
+              <Campo
+                etiqueta={bloque.tipo === "ENLACE" ? "Título" : "Etiqueta"}
+                name="etiqueta"
+                value={etiqueta}
+                onChange={(e) => setEtiqueta(e.target.value)}
+                className="mt-3"
+              />
 
               {bloque.tipo === "ENLACE" && (
                 <>
-                  <label className="mt-3 block text-sm font-semibold text-tinta">
-                    Descripción
-                    <textarea
-                      value={texto}
-                      onChange={(e) => setTexto(e.target.value)}
-                      rows={2}
-                      className="mt-1 w-full rounded-2xl border border-hp-200 bg-white px-4 py-3 text-sm text-tinta outline-none focus:border-hp-400"
-                    />
-                  </label>
-                  <label className="mt-3 block text-sm font-semibold text-tinta">
-                    Imagen de la tarjeta
-                    <input
-                      type="text"
-                      value={imagen}
-                      onChange={(e) => setImagen(e.target.value)}
-                      className={`mt-1 ${campo} font-mono text-xs`}
-                    />
-                  </label>
+                  <Campo
+                    etiqueta="Descripción"
+                    name="texto"
+                    tipo="area"
+                    value={texto}
+                    onChange={(e) => setTexto(e.target.value)}
+                    rows={2}
+                    className="mt-3"
+                  />
+                  <Campo
+                    etiqueta="Imagen de la tarjeta"
+                    name="imagen"
+                    value={imagen}
+                    onChange={(e) => setImagen(e.target.value)}
+                    className="mt-3"
+                  />
                   <div className="mt-2">
                     <SubirImagen alSubir={setImagen} etiqueta="Usar otra imagen" />
                   </div>
@@ -233,27 +229,22 @@ export default function BloqueEditable({
           )}
 
           {motivo && (
-            <p className="mt-3 rounded-xl bg-bloque3/20 px-4 py-2 text-sm text-tinta">
+            <Aviso tono="error" className="mt-3">
               {motivo}
-            </p>
+            </Aviso>
           )}
 
           <div className="mt-4 flex gap-2">
-            <button
-              type="button"
+            <Boton
+              tamano="pequeno"
               onClick={() => void guardar()}
               disabled={!listo || guardando}
-              className="h-9 rounded-full bg-hp-400 px-4 text-sm font-bold text-white transition-colors hover:bg-hp-500 disabled:opacity-50"
             >
               {guardando ? "Guardando…" : "Guardar cambios"}
-            </button>
-            <button
-              type="button"
-              onClick={cancelar}
-              className="h-9 rounded-full border-2 border-hp-200 px-4 text-sm font-bold text-tinta-suave transition-colors hover:border-hp-400"
-            >
+            </Boton>
+            <Boton variante="sutil" tamano="pequeno" onClick={cancelar}>
               Cancelar
-            </button>
+            </Boton>
           </div>
         </div>
       ) : (

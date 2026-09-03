@@ -19,6 +19,13 @@ import { TIPO_DE_EJERCICIO } from "@/lib/recursos";
 import { analizarExpresion, versionPublicaExpresion } from "@/lib/expresion";
 import Entrega from "@/components/expresion/entrega";
 import { esAudioDeDrive } from "@/lib/bloques";
+import Aviso from "@/components/ui/aviso";
+import BotonEnviar from "@/components/ui/boton-enviar";
+import Campo from "@/components/ui/campo";
+import Encabezado from "@/components/ui/encabezado";
+import Etiqueta, { type TonoEtiqueta } from "@/components/ui/etiqueta";
+import Tarjeta from "@/components/ui/tarjeta";
+import Vacio from "@/components/ui/vacio";
 
 // Fuerza render dinámico: lee de la base en cada visita.
 export const dynamic = "force-dynamic";
@@ -31,12 +38,13 @@ const tipoLabel: Record<string, string> = {
   MACRO_TAREA: "Macro tarea",
 };
 
-const tipoStyle: Record<string, string> = {
-  ACTIVACION: "bg-bloque2/25 text-tinta ring-bloque2/50",
-  ACTIVIDAD: "bg-hp-100 text-hp-700 ring-hp-200",
-  ANDAMIAJE: "bg-bloque1/25 text-tinta ring-bloque1/50",
-  MICRO_TAREA: "bg-sol-200/70 text-tinta ring-sol-400/60",
-  MACRO_TAREA: "bg-bloque3/25 text-tinta ring-bloque3/50",
+// El color más cercano de la identidad para cada tipo de paso.
+const tipoTono: Record<string, TonoEtiqueta> = {
+  ACTIVACION: "bloque2",
+  ACTIVIDAD: "hp",
+  ANDAMIAJE: "bloque1",
+  MICRO_TAREA: "sol",
+  MACRO_TAREA: "bloque3",
 };
 
 const tipoDescripcion: Record<string, string> = {
@@ -173,6 +181,8 @@ function BloqueContenido({
       );
 
     case "ENLACE":
+      // Se queda como <a> nativa, no Tarjeta: Tarjeta no acepta `target` ni
+      // `rel`, y un enlace externo sin `noopener` es un agujero de verdad.
       return (
         <a
           href={bloque.url ?? "#"}
@@ -404,43 +414,21 @@ export default async function PasoPage({
 
   return (
     <div className="mx-auto max-w-4xl px-6 py-12">
-      <Link
-        href={`/recorridos/${paso.recorridoId}`}
-        className="text-sm font-semibold text-tinta-suave hover:text-hp-500"
-      >
-        ← {paso.recorrido.titulo}
-      </Link>
+      <Encabezado
+        titulo={paso.titulo}
+        lede={tipoDescripcion[paso.tipo] ?? ""}
+        volver={{ href: `/recorridos/${paso.recorridoId}`, texto: paso.recorrido.titulo }}
+      />
 
-      <div className="mt-6 flex items-center gap-2 text-xs font-bold text-tinta-suave">
-        <span>
-          Paso {paso.orden} de {hermanos.length}
+      <div className="-mt-6 mb-8 flex flex-wrap items-center gap-2">
+        <span className="text-xs font-bold text-tinta-suave">
+          Paso {paso.orden} de {hermanos.length} · Ciclo {paso.ciclo}
         </span>
-        <span>·</span>
-        <span>Ciclo {paso.ciclo}</span>
-      </div>
-
-      <div className="mt-2 flex items-center gap-2">
-        <span
-          className={`rounded-md px-2 py-0.5 text-xs font-semibold ring-1 ring-inset ${
-            tipoStyle[paso.tipo] ?? "bg-hp-50 text-tinta ring-hp-200"
-          }`}
-        >
+        <Etiqueta tono={tipoTono[paso.tipo] ?? "hp"}>
           {tipoLabel[paso.tipo] ?? paso.tipo}
-        </span>
-        {paso.destreza && (
-          <span className="rounded bg-hp-100 px-1.5 py-0.5 text-[10px] font-bold text-hp-700">
-            {paso.destreza}
-          </span>
-        )}
+        </Etiqueta>
+        {paso.destreza && <Etiqueta tono="hp">{paso.destreza}</Etiqueta>}
       </div>
-
-      <h1 className="mt-3 text-2xl font-extrabold tracking-tight text-tinta">
-        {paso.titulo}
-      </h1>
-
-      <p className="mt-2 text-sm text-tinta-suave">
-        {tipoDescripcion[paso.tipo] ?? ""}
-      </p>
 
       {/* Contenido: bloques ordenados, o área reservada si aún no hay ni
           bloques ni ejercicio. La Tarea 4 del examen no lleva bloque —su
@@ -478,35 +466,28 @@ export default async function PasoPage({
           )}
         </div>
       ) : (
-        <div className="mt-8 rounded-tarjeta border border-dashed border-hp-200 bg-white p-10 text-center">
-          <p className="text-sm text-tinta-suave">
-            Este paso todavía no tiene contenido.
-          </p>
+        <div className="mt-8">
+          <Vacio>Este paso todavía no tiene contenido.</Vacio>
         </div>
       )}
 
       {/* Editor: añadir bloque de contenido (solo profes). */}
       {esProfe && (
-        <section className="mt-8 rounded-tarjeta border border-hp-100 bg-white p-5 shadow-suave">
-          <h2 className="text-lg font-bold text-tinta">Editar este paso</h2>
-          <form action={renombrarPaso} className="mt-3 flex gap-2">
+        <Tarjeta titulo="Editar este paso" className="mt-8">
+          <form action={renombrarPaso} className="flex items-end gap-2">
             <input type="hidden" name="pasoId" value={paso.id} />
-            <input
-              type="text"
+            <Campo
+              etiqueta="Título"
               name="titulo"
               required
               defaultValue={paso.titulo}
-              className="h-10 min-w-0 flex-1 rounded-full border border-hp-200 bg-white px-4 text-sm text-tinta outline-none focus:border-hp-400"
+              className="min-w-0 flex-1"
             />
-            <button
-              type="submit"
-              className="h-10 shrink-0 rounded-full border-2 border-hp-200 px-4 text-sm font-bold text-hp-600 transition-colors hover:border-hp-400"
-            >
+            <BotonEnviar gerundio="Renombrando…" variante="sutil" className="shrink-0">
               Renombrar
-            </button>
+            </BotonEnviar>
           </form>
-
-        </section>
+        </Tarjeta>
       )}
 
       {esProfe && <EditorBloques pasoId={paso.id} />}
@@ -594,14 +575,11 @@ export default async function PasoPage({
       )}
 
       {analizado && esProfe && !asignacion && (
-        <section className="mt-8 rounded-tarjeta border border-hp-100 bg-white p-6 shadow-suave">
-          <p className="text-xs font-bold uppercase tracking-wider text-tinta-suave">
-            Ejercicio autocorregible · tipo {analizado.tipo}
-          </p>
-          <pre className="mt-3 overflow-x-auto rounded-xl bg-fondo p-4 text-xs text-tinta">
+        <Tarjeta titulo={`Ejercicio autocorregible · tipo ${analizado.tipo}`} className="mt-8">
+          <pre className="overflow-x-auto rounded-xl bg-fondo p-4 text-xs text-tinta">
             {JSON.stringify(analizado.datos, null, 2)}
           </pre>
-        </section>
+        </Tarjeta>
       )}
 
       {/*
@@ -615,14 +593,17 @@ export default async function PasoPage({
       {(registro || marcable) && (
         <div className="mt-10 flex flex-col items-center gap-3">
           {registro && !(hayEjercicio && revisado) && (
-            <p className="text-sm text-tinta-suave">
+            <Aviso tono={revisado ? "ok" : "info"}>
               {revisado
                 ? `Tu profe lo revisó: ${registro.puntos ?? 0} puntos.`
                 : `Entregado el ${formatoFecha.format(registro.completadoEl)}. Esperando a tu profe.`}
-            </p>
+            </Aviso>
           )}
 
           {revisado ? (
+            // Insignia de «revisado», no una `Etiqueta`: es el aviso grande y
+            // dorado de fin de tarea, no una pill de listado — encogerla a
+            // tamaño de pill sería una regresión visual, no solo de marcado.
             <span className="rounded-full bg-sol-300 px-6 py-3 text-sm font-extrabold text-tinta">
               Revisado ✓
             </span>
@@ -630,6 +611,9 @@ export default async function PasoPage({
             hecho ? (
               <form action={desmarcarPasoHecho}>
                 <input type="hidden" name="pasoId" value={paso.id} />
+                {/* Mismo motivo: el dorado de "ya está hecho, toca para
+                    desmarcar" no tiene equivalente en las cuatro variantes
+                    de Boton (todas leen como llamada a la acción o borrado). */}
                 <button
                   type="submit"
                   className="rounded-full bg-bloque2 px-6 py-3 text-sm font-extrabold text-tinta transition hover:opacity-80"
@@ -641,12 +625,7 @@ export default async function PasoPage({
             ) : (
               <form action={marcarPasoHecho}>
                 <input type="hidden" name="pasoId" value={paso.id} />
-                <button
-                  type="submit"
-                  className="rounded-full bg-hp-400 px-6 py-3 text-sm font-extrabold text-white transition-colors hover:bg-hp-500"
-                >
-                  Marcar como hecho
-                </button>
+                <BotonEnviar gerundio="Marcando…">Marcar como hecho</BotonEnviar>
               </form>
             )
           ) : null}

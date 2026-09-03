@@ -8,6 +8,10 @@ import {
 } from "@/lib/acciones-recursos";
 import type { Encargo } from "@/lib/pegado/encargo";
 import Previsualizacion from "@/components/recursos/previsualizacion";
+import Aviso from "@/components/ui/aviso";
+import Boton, { clasesDeBoton } from "@/components/ui/boton";
+import Campo from "@/components/ui/campo";
+import Tarjeta from "@/components/ui/tarjeta";
 
 /**
  * Cuál de las dos acciones fue la última en dispararse.
@@ -116,18 +120,14 @@ export default function PegarCodigo({
 
   if (!abierto) {
     return (
-      <button
-        type="button"
-        onClick={() => setAbierto(true)}
-        className="mt-4 rounded-full border-2 border-hp-200 px-4 py-1.5 text-sm font-bold text-hp-600 transition-colors hover:border-hp-400"
-      >
+      <Boton variante="sutil" tamano="pequeno" onClick={() => setAbierto(true)} className="mt-4">
         Pegar por código
-      </button>
+      </Boton>
     );
   }
 
   return (
-    <section className="mt-6 rounded-tarjeta border border-hp-100 bg-white p-5 shadow-suave">
+    <Tarjeta className="mt-6">
       <div className="flex items-start justify-between gap-4">
         <h2 className="text-lg font-extrabold text-tinta">Pegar por código</h2>
         <button
@@ -142,36 +142,23 @@ export default function PegarCodigo({
       {/* ① El encargo */}
       <p className="mt-4 text-sm font-bold text-tinta">1. El encargo para la IA</p>
       {encargos.length > 1 && (
-        <label className="mt-2 block text-sm text-tinta-suave">
-          Este paso no es una tarea del examen, así que elige el tipo:{" "}
-          <select
-            value={cual}
-            onChange={(e) => setCual(Number(e.target.value))}
-            className="mt-1 block rounded-xl border-2 border-hp-200 px-3 py-1.5 text-sm font-semibold text-tinta"
-          >
-            {encargos.map((e, i) => (
-              <option key={e.motor} value={i}>
-                {e.etiqueta}
-              </option>
-            ))}
-          </select>
-        </label>
+        <Campo
+          etiqueta="Este paso no es una tarea del examen, así que elige el tipo:"
+          name="cual"
+          tipo="elegir"
+          value={cual}
+          onChange={(e) => setCual(Number(e.target.value))}
+          opciones={encargos.map((e, i) => ({ valor: String(i), nombre: e.etiqueta }))}
+          className="mt-2"
+        />
       )}
       <div className="mt-2 flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={descargar}
-          className="rounded-full bg-hp-500 px-4 py-1.5 text-sm font-bold text-white transition-colors hover:bg-hp-600"
-        >
+        <Boton tamano="pequeno" onClick={descargar}>
           Descargar encargo.md
-        </button>
-        <button
-          type="button"
-          onClick={copiar}
-          className="rounded-full border-2 border-hp-200 px-4 py-1.5 text-sm font-bold text-hp-600 transition-colors hover:border-hp-400"
-        >
+        </Boton>
+        <Boton variante="sutil" tamano="pequeno" onClick={copiar}>
           {copiado ? "Copiado" : "Copiar"}
-        </button>
+        </Boton>
       </div>
       <p className="mt-2 text-xs text-tinta-suave">
         Dáselo a la IA junto al PDF del examen. El audio no va aquí: va en un
@@ -182,56 +169,47 @@ export default function PegarCodigo({
       <form action={comprobar} className="mt-6">
         <input type="hidden" name="pasoId" value={pasoId} />
         {/*
-          El nombre del campo va en un `<label>` que lo envuelve, que es como
-          etiqueta el proyecto —`components/recursos/campos.tsx` mete cada
-          campo dentro del suyo—. Antes era un `<p>` suelto: se veía, pero un
-          lector de pantalla no tenía ningún nombre que decir al llegar aquí.
-          `font-normal` en el campo deshace la negrita que hereda de la
-          etiqueta, igual que en `campos.tsx`.
+          Sigue controlado (`value` + `onChange`): `Campo` reenvía las dos
+          props tal cual al <textarea> de siempre, que es lo único que hace
+          falta para que el `reset()` de la transición de la acción —ver el
+          comentario de `pegado` más arriba— devuelva el texto en vez de
+          vaciarlo.
         */}
-        <label className="block text-sm font-bold text-tinta">
-          2. Lo que te devuelva, pégalo aquí
-          <textarea
-            name="pegado"
-            value={pegado}
-            onChange={(e) => setPegado(e.target.value)}
-            rows={10}
-            spellCheck={false}
-            placeholder='{ "bloque": "…", "ejercicio": { … } }'
-            className="mt-2 w-full rounded-xl border-2 border-hp-200 p-3 font-mono text-xs font-normal text-tinta"
-          />
-        </label>
+        <Campo
+          etiqueta="2. Lo que te devuelva, pégalo aquí"
+          name="pegado"
+          tipo="area"
+          value={pegado}
+          onChange={(e) => setPegado(e.target.value)}
+          rows={10}
+          spellCheck={false}
+          placeholder='{ "bloque": "…", "ejercicio": { … } }'
+          className="font-mono"
+        />
+        {/* Se queda con su <button> nativo, no BotonEnviar: el `onClick` que
+            marca `ultima` tiene que correr antes de que el formulario se
+            envíe, y BotonEnviar no acepta onClick. */}
         <button
           type="submit"
           onClick={() => setUltima("comprobar")}
           disabled={comprobando}
-          className="mt-2 rounded-full border-2 border-hp-200 px-4 py-1.5 text-sm font-bold text-hp-600 transition-colors hover:border-hp-400 disabled:opacity-50"
+          className={`mt-2 ${clasesDeBoton("sutil", "pequeno")}`}
         >
           {comprobando ? "Comprobando…" : "Comprobar"}
         </button>
       </form>
 
-      {/* `bg-sol-100` y no un rojo: es el color que el editor de Recursos ya
-          usa tanto para el aviso como para el motivo del rechazo, y aquí no
-          se inventa una convención nueva. No hay ningún `rojo-*` en el
-          sistema de color del proyecto. */}
-      {error && (
-        <p className="mt-3 rounded-tarjeta bg-sol-100 px-4 py-3 text-sm text-tinta">{error}</p>
-      )}
+      {error && <Aviso tono="error" className="mt-3">{error}</Aviso>}
 
-      {ok && (
-        <p className="mt-3 rounded-tarjeta bg-hp-100 px-4 py-3 text-sm font-semibold text-tinta">
-          {ok}
-        </p>
-      )}
+      {ok && <Aviso tono="ok" className="mt-3">{ok}</Aviso>}
 
       {entendido && (
         <div className="mt-4 border-t border-hp-100 pt-4">
           <p className="text-sm font-bold text-tinta">{entendido.resumen}</p>
           {entendido.aviso && (
-            <p className="mt-2 rounded-tarjeta bg-sol-100 px-4 py-3 text-sm text-tinta">
+            <Aviso tono="aviso" className="mt-2">
               {entendido.aviso}
-            </p>
+            </Aviso>
           )}
           {entendido.bloque && (
             <p className="mt-2 text-xs text-tinta-suave">
@@ -257,17 +235,19 @@ export default function PegarCodigo({
                 ejercicio: entendido.datos,
               })}
             />
+            {/* Mismo motivo que «Comprobar»: el onClick que marca `ultima`
+                tiene que correr antes del envío, y BotonEnviar no lo admite. */}
             <button
               type="submit"
               onClick={() => setUltima("guardar")}
               disabled={guardando}
-              className="rounded-full bg-hp-500 px-5 py-2 text-sm font-bold text-white transition-colors hover:bg-hp-600 disabled:opacity-50"
+              className={clasesDeBoton("primario", "normal")}
             >
               {guardando ? "Guardando…" : "Guardar en este paso"}
             </button>
           </form>
         </div>
       )}
-    </section>
+    </Tarjeta>
   );
 }
