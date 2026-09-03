@@ -1,15 +1,11 @@
 "use client";
 
-import {
-  area,
-  botonSecundario,
-  BotonQuitar,
-  campo,
-  CampoEscuchas,
-  CampoTexto,
-} from "./campos";
+import { area, campo, CampoEscuchas, CampoTexto } from "./campos";
 import SubirAudio from "./subir-audio";
 import { marcasCuadran } from "@/lib/ejercicios/tipos";
+import Aviso from "@/components/ui/aviso";
+import Boton from "@/components/ui/boton";
+import Campo from "@/components/ui/campo";
 
 type Pregunta = {
   id: string;
@@ -109,15 +105,14 @@ export default function EditorOpcion({
 
   return (
     <div className="space-y-6">
-      <label className="block text-sm font-semibold text-tinta">
-        Consigna
-        <textarea
-          rows={2}
-          value={d.consigna}
-          onChange={(e) => cambiar({ consigna: e.target.value })}
-          className={area}
-        />
-      </label>
+      <Campo
+        etiqueta="Consigna"
+        name="consigna"
+        tipo="area"
+        rows={2}
+        value={d.consigna}
+        onChange={(e) => cambiar({ consigna: e.target.value })}
+      />
 
       <div className="flex flex-wrap gap-6">
         <label className="flex items-center gap-2 text-sm font-semibold text-tinta">
@@ -186,50 +181,45 @@ export default function EditorOpcion({
         de tres opciones son catorce filas de botones—, así que ahí dentro el
         control no existía para quien más lo necesitaba.
       */}
-      <label className="block w-56 text-sm font-semibold text-tinta">
-        Cómo se enseña
-        <select
-          value={d.presentacion}
-          onChange={(e) =>
-            cambiar({ presentacion: e.target.value as "botones" | "desplegable" })
-          }
-          className={campo}
-        >
-          <option value="botones">Botones</option>
-          <option value="desplegable">Desplegable</option>
-        </select>
-        <span className="mt-1 block text-xs font-normal text-tinta-suave">
-          Con muchas preguntas, «desplegable» evita un muro de botones.
-        </span>
-      </label>
+      <Campo
+        etiqueta="Cómo se enseña"
+        name="presentacion"
+        tipo="elegir"
+        value={d.presentacion}
+        onChange={(e) =>
+          cambiar({ presentacion: e.target.value as "botones" | "desplegable" })
+        }
+        opciones={[
+          { valor: "botones", nombre: "Botones" },
+          { valor: "desplegable", nombre: "Desplegable" },
+        ]}
+        ayuda="Con muchas preguntas, «desplegable» evita un muro de botones."
+        className="w-56"
+      />
 
       {/*
         El pasaje va después de «Cómo se enseña» porque lo anula: con texto,
         el control es siempre el desplegable. No se esconde el selector para
         no hacer aparecer y desaparecer campos mientras se escribe.
       */}
-      <label className="block text-sm font-semibold text-tinta">
-        Pasaje con huecos (opcional)
-        <textarea
-          rows={6}
-          value={d.texto ?? ""}
-          // Vacío es no tener pasaje, no tener uno en blanco: una cadena
-          // vacía pasaría el `.optional()` del esquema y la cara intentaría
-          // pintar un cloze sin texto.
-          onChange={(e) => cambiar({ texto: e.target.value || undefined })}
-          className={area}
-        />
-        <span className="mt-1 block text-xs font-normal text-tinta-suave">
-          Escribe {"{{"}id{"}}"} donde vaya cada hueco, con el id de su pregunta. Con pasaje,
-          las opciones se pintan dentro del texto y siempre en desplegable.
-        </span>
-      </label>
+      <Campo
+        etiqueta="Pasaje con huecos (opcional)"
+        name="texto"
+        tipo="area"
+        rows={6}
+        value={d.texto ?? ""}
+        // Vacío es no tener pasaje, no tener uno en blanco: una cadena
+        // vacía pasaría el `.optional()` del esquema y la cara intentaría
+        // pintar un cloze sin texto.
+        onChange={(e) => cambiar({ texto: e.target.value || undefined })}
+        ayuda={`Escribe {{id}} donde vaya cada hueco, con el id de su pregunta. Con pasaje, las opciones se pintan dentro del texto y siempre en desplegable.`}
+      />
 
       {d.texto && !marcasCuadran(d.texto, d.preguntas.map((p) => p.id)) && (
-        <p className="rounded-tarjeta bg-sol-100 px-4 py-3 text-sm text-tinta">
+        <Aviso tono="aviso">
           Las marcas del pasaje no coinciden con los ids de las preguntas. Así no se
           puede guardar: cada hueco necesita su pregunta y cada pregunta su hueco.
-        </p>
+        </Aviso>
       )}
 
       {d.preguntas.some((p) => p.audio) && (
@@ -261,7 +251,9 @@ export default function EditorOpcion({
                   />
                 </div>
                 {(d.opcionesComunes ?? []).length > 2 && (
-                  <BotonQuitar
+                  <Boton
+                    variante="peligro"
+                    tamano="pequeno"
                     onClick={() =>
                       cambiar({
                         opcionesComunes: (d.opcionesComunes ?? []).filter((_, j) => j !== i),
@@ -277,19 +269,19 @@ export default function EditorOpcion({
                     }
                   >
                     Quitar
-                  </BotonQuitar>
+                  </Boton>
                 )}
               </div>
             ))}
           </div>
 
-          <button
-            type="button"
+          <Boton
+            variante="sutil"
             onClick={() => cambiar({ opcionesComunes: [...(d.opcionesComunes ?? []), ""] })}
-            className={`${botonSecundario} mt-3`}
+            className="mt-3"
           >
             Añadir opción
-          </button>
+          </Boton>
         </fieldset>
       )}
 
@@ -351,7 +343,9 @@ export default function EditorOpcion({
                   />
                 )}
                 {!usaComunes && (p.opciones ?? []).length > 2 && (
-                  <BotonQuitar
+                  <Boton
+                    variante="peligro"
+                    tamano="pequeno"
                     onClick={() =>
                       cambiarPregunta(i, {
                         opciones: (p.opciones ?? []).filter((_, k) => k !== j),
@@ -360,7 +354,7 @@ export default function EditorOpcion({
                     }
                   >
                     Quitar
-                  </BotonQuitar>
+                  </Boton>
                 )}
               </div>
             ))}
@@ -368,27 +362,28 @@ export default function EditorOpcion({
 
           <div className="mt-4 flex flex-wrap gap-3">
             {!usaComunes && (
-              <button
-                type="button"
+              <Boton
+                variante="sutil"
                 onClick={() => cambiarPregunta(i, { opciones: [...(p.opciones ?? []), ""] })}
-                className={botonSecundario}
               >
                 Añadir opción
-              </button>
+              </Boton>
             )}
             {d.preguntas.length > 1 && (
-              <BotonQuitar
+              <Boton
+                variante="peligro"
+                tamano="pequeno"
                 onClick={() => cambiar({ preguntas: d.preguntas.filter((_, j) => j !== i) })}
               >
                 Quitar la pregunta
-              </BotonQuitar>
+              </Boton>
             )}
           </div>
         </fieldset>
       ))}
 
-      <button
-        type="button"
+      <Boton
+        variante="sutil"
         onClick={() =>
           cambiar({
             preguntas: [
@@ -402,10 +397,9 @@ export default function EditorOpcion({
             ],
           })
         }
-        className={botonSecundario}
       >
         Añadir pregunta
-      </button>
+      </Boton>
     </div>
   );
 }

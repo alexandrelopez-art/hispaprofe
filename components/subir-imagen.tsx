@@ -1,6 +1,8 @@
 "use client";
 
 import { useRef, useState } from "react";
+import Aviso from "@/components/ui/aviso";
+import Boton from "@/components/ui/boton";
 
 /**
  * Reduce la imagen en el navegador antes de subirla. Una foto de móvil de
@@ -91,14 +93,9 @@ export default function SubirImagen({
 
   return (
     <div>
-      <button
-        type="button"
-        onClick={() => entrada.current?.click()}
-        disabled={subiendo}
-        className="h-9 rounded-full border-2 border-hp-200 px-4 text-sm font-bold text-hp-600 transition-colors hover:border-hp-400 disabled:opacity-50"
-      >
+      <Boton variante="sutil" onClick={() => entrada.current?.click()} disabled={subiendo}>
         {subiendo ? "Subiendo…" : etiqueta}
-      </button>
+      </Boton>
 
       <input
         ref={entrada}
@@ -112,12 +109,15 @@ export default function SubirImagen({
       />
 
       {nota && (
-        <p className="mt-2 text-xs font-semibold text-tinta-suave">{nota}</p>
+        <Aviso tono="ok" className="mt-2">
+          {nota}
+        </Aviso>
       )}
+      {/* Error amarillo → rojo: el cambio visual deliberado de esta sesión. */}
       {error && (
-        <p className="mt-2 rounded-xl bg-bloque3/20 px-3 py-2 text-xs text-tinta">
+        <Aviso tono="error" className="mt-2">
           {error}
-        </p>
+        </Aviso>
       )}
     </div>
   );

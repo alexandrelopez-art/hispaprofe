@@ -1,9 +1,12 @@
 import { getUsuarioActual } from "@/lib/usuario";
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import Editor, { type MarcaRecurso } from "@/components/recursos/editor";
 import { sobrantesDe, tareaDe, type TareaDele } from "@/lib/dele";
 import type { Destreza, Nivel } from "@/lib/generated/prisma/enums";
+import { nombreNivel } from "@/lib/niveles";
+import Encabezado from "@/components/ui/encabezado";
+import Etiqueta from "@/components/ui/etiqueta";
+import Tarjeta from "@/components/ui/tarjeta";
 
 /**
  * Los tipos que se ofrecen, escritos a mano.
@@ -24,11 +27,6 @@ const TIPOS: { marca: MarcaRecurso; nombre: string; explica: string }[] = [
   { marca: "ordenar", nombre: "Ordenar", explica: "Piezas desordenadas que hay que poner en su sitio." },
   { marca: "expresion", nombre: "Expresión", explica: "Una redacción o una tarea oral, que corriges tú con una rúbrica." },
 ];
-
-/** El nombre del nivel tal y como se escribe en pantalla. */
-function nombreNivel(nivel: string): string {
-  return nivel === "A2_B1_ESCOLAR" ? "A2/B1 escolar" : nivel;
-}
 
 /**
  * El punto de partida de un ejercicio para esta tarea: tantos ítems y tantas
@@ -150,22 +148,19 @@ export default async function NuevoRecursoPage({
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-12">
-      <Link href="/profe/recursos" className="text-sm font-semibold text-tinta-suave hover:text-hp-500">
-        ← Recursos
-      </Link>
-
-      <h1 className="mt-4 text-3xl font-extrabold tracking-tight text-tinta">
-        {motor ? `Nuevo ejercicio · ${motor.nombre}` : "Nuevo ejercicio"}
-      </h1>
+      <Encabezado
+        titulo={motor ? `Nuevo ejercicio · ${motor.nombre}` : "Nuevo ejercicio"}
+        volver={{ href: "/profe/recursos", texto: "Recursos" }}
+      />
 
       {tareaDele && (
         <div className="mt-4 rounded-tarjeta border border-hp-100 bg-fondo p-4">
           <p className="text-sm font-bold text-tinta">
             Tarea {tareaDele.numero}
             {!tareaDele.verificado && (
-              <span className="ml-2 rounded-full bg-sol-100 px-2 py-0.5 text-xs font-bold">
+              <Etiqueta tono="sol" className="ml-2">
                 sin confirmar
-              </span>
+              </Etiqueta>
             )}
           </p>
           <p className="mt-1 text-sm text-tinta-suave">{tareaDele.pide}</p>
@@ -205,13 +200,10 @@ export default async function NuevoRecursoPage({
         <ul className="mt-8 grid gap-3 sm:grid-cols-2">
           {TIPOS.map((t) => (
             <li key={t.marca}>
-              <Link
-                href={`/profe/recursos/nuevo?tipo=${t.marca}`}
-                className="block rounded-tarjeta border border-hp-100 bg-white p-5 shadow-suave transition hover:border-hp-300"
-              >
+              <Tarjeta href={`/profe/recursos/nuevo?tipo=${t.marca}`}>
                 <p className="font-bold text-tinta">{t.nombre}</p>
                 <p className="mt-1 text-sm text-tinta-suave">{t.explica}</p>
-              </Link>
+              </Tarjeta>
             </li>
           ))}
         </ul>

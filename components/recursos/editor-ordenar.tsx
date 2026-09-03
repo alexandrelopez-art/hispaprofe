@@ -1,6 +1,9 @@
 "use client";
 
-import { area, botonSecundario, BotonQuitar, campo } from "./campos";
+import { campo } from "./campos";
+import Aviso from "@/components/ui/aviso";
+import Boton from "@/components/ui/boton";
+import Campo from "@/components/ui/campo";
 
 type Pieza = { id: string; texto: string };
 
@@ -64,20 +67,19 @@ export default function EditorOrdenar({
 
   return (
     <div className="space-y-6">
-      <label className="block text-sm font-semibold text-tinta">
-        Consigna
-        <textarea
-          rows={2}
-          value={d.consigna}
-          onChange={(e) => alCambiar({ ...d, consigna: e.target.value })}
-          className={area}
-        />
-      </label>
+      <Campo
+        etiqueta="Consigna"
+        name="consigna"
+        tipo="area"
+        rows={2}
+        value={d.consigna}
+        onChange={(e) => alCambiar({ ...d, consigna: e.target.value })}
+      />
 
       {incompleta && (
-        <p className="rounded-tarjeta bg-sol-100 px-4 py-3 text-sm text-tinta">
+        <Aviso tono="aviso">
           Hay piezas sin texto: escríbelas o quítalas antes de guardar.
-        </p>
+        </Aviso>
       )}
 
       <p className="text-sm text-tinta-suave">
@@ -101,42 +103,45 @@ export default function EditorOrdenar({
               }
               className={`${campo} flex-1`}
             />
-            <button
-              type="button"
+            <Boton
+              variante="sutil"
+              tamano="pequeno"
               onClick={() => mover(i, -1)}
               disabled={i === 0}
-              className={`${botonSecundario} disabled:opacity-40`}
               aria-label="Subir"
             >
               ↑
-            </button>
-            <button
-              type="button"
+            </Boton>
+            <Boton
+              variante="sutil"
+              tamano="pequeno"
               onClick={() => mover(i, 1)}
               disabled={i === d.piezas.length - 1}
-              className={`${botonSecundario} disabled:opacity-40`}
               aria-label="Bajar"
             >
               ↓
-            </button>
+            </Boton>
             {d.piezas.length > 2 && (
-              <BotonQuitar onClick={() => alCambiar({ ...d, piezas: d.piezas.filter((_, j) => j !== i) })}>
+              <Boton
+                variante="peligro"
+                tamano="pequeno"
+                onClick={() => alCambiar({ ...d, piezas: d.piezas.filter((_, j) => j !== i) })}
+              >
                 Quitar
-              </BotonQuitar>
+              </Boton>
             )}
           </div>
         ))}
       </div>
 
-      <button
-        type="button"
+      <Boton
+        variante="sutil"
         onClick={() =>
           alCambiar({ ...d, piezas: [...d.piezas, { id: siguienteIdPieza(d.piezas), texto: "" }] })
         }
-        className={botonSecundario}
       >
         Añadir pieza
-      </button>
+      </Boton>
     </div>
   );
 }

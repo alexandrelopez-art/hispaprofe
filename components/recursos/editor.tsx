@@ -18,7 +18,11 @@ import EditorHuecos, { HUECOS_VACIO } from "./editor-huecos";
 import EditorRelacionar, { RELACIONAR_VACIO } from "./editor-relacionar";
 import EditorOrdenar, { ORDENAR_VACIO } from "./editor-ordenar";
 import EditorExpresion, { EXPRESION_VACIA } from "./editor-expresion";
-import { campo } from "./campos";
+import { NIVELES } from "@/lib/niveles";
+import Aviso from "@/components/ui/aviso";
+import Campo from "@/components/ui/campo";
+import { clasesDeBoton } from "@/components/ui/boton";
+import Vacio from "@/components/ui/vacio";
 
 /**
  * Lo que el editor de Recursos sabe editar: los cuatro tipos del motor más
@@ -28,7 +32,6 @@ import { campo } from "./campos";
  */
 export type MarcaRecurso = MarcaEjercicio | "expresion";
 
-const NIVELES = ["A1", "A2", "B1", "B2", "C1", "A2_B1_ESCOLAR"] as const;
 const DESTREZAS: Record<string, string> = {
   CE: "Comprensión escrita",
   CO: "Comprensión oral",
@@ -258,7 +261,7 @@ export default function Editor({
         <input type="hidden" name="etiquetas" value={etiquetas} />
 
         {bloqueado && (
-          <p className="rounded-tarjeta bg-sol-100 px-4 py-3 text-sm text-tinta">
+          <Aviso tono="aviso">
             {bloqueado}{" "}
             {/*
               Duplicar copia la fila guardada, no lo que hay en pantalla, así
@@ -273,7 +276,8 @@ export default function Editor({
               Sin `name`/`value`: el `id` ya viaja en el campo oculto de
               arriba, y React necesita el `name` del botón para codificar
               qué acción se invoca. Ponerlo lo sobrescribe y avisa por
-              consola.
+              consola. Se queda con su botón nativo (no Boton ni BotonEnviar):
+              es un enlace de texto dentro de una frase, sin aspecto de botón.
             */}
             <button
               formAction={duplicarAccion}
@@ -282,66 +286,53 @@ export default function Editor({
             >
               Duplicar y editar la copia
             </button>
-          </p>
+          </Aviso>
         )}
 
         <div className="flex flex-wrap gap-4">
-          <label className="block flex-1 text-sm font-semibold text-tinta">
-            Título
-            <input
-              type="text"
-              value={titulo}
-              onChange={(e) => setTitulo(e.target.value)}
-              className={campo}
-              disabled={Boolean(bloqueado)}
-            />
-          </label>
+          <Campo
+            etiqueta="Título"
+            name="titulo"
+            value={titulo}
+            onChange={(e) => setTitulo(e.target.value)}
+            disabled={Boolean(bloqueado)}
+            className="flex-1"
+          />
 
-          <label className="block w-44 text-sm font-semibold text-tinta">
-            Nivel
-            <select
-              value={nivel}
-              onChange={(e) => setNivel(e.target.value)}
-              className={campo}
-              disabled={Boolean(bloqueado)}
-            >
-              {NIVELES.map((n) => (
-                <option key={n} value={n}>
-                  {n === "A2_B1_ESCOLAR" ? "A2/B1 escolar" : n}
-                </option>
-              ))}
-            </select>
-          </label>
+          <Campo
+            etiqueta="Nivel"
+            name="nivel"
+            tipo="elegir"
+            value={nivel}
+            onChange={(e) => setNivel(e.target.value)}
+            disabled={Boolean(bloqueado)}
+            opciones={[...NIVELES]}
+            className="w-44"
+          />
 
-          <label className="block w-56 text-sm font-semibold text-tinta">
-            Destreza
-            <select
-              value={destreza}
-              onChange={(e) => setDestreza(e.target.value)}
-              className={campo}
-              disabled={Boolean(bloqueado)}
-            >
-              <option value="">Ninguna</option>
-              {Object.entries(DESTREZAS).map(([k, v]) => (
-                <option key={k} value={k}>
-                  {v}
-                </option>
-              ))}
-            </select>
-          </label>
+          <Campo
+            etiqueta="Destreza"
+            name="destreza"
+            tipo="elegir"
+            value={destreza}
+            onChange={(e) => setDestreza(e.target.value)}
+            disabled={Boolean(bloqueado)}
+            opciones={[
+              { valor: "", nombre: "Ninguna" },
+              ...Object.entries(DESTREZAS).map(([valor, nombre]) => ({ valor, nombre })),
+            ]}
+            className="w-56"
+          />
         </div>
 
-        <label className="block text-sm font-semibold text-tinta">
-          Etiquetas, separadas por comas
-          <input
-            type="text"
-            value={etiquetas}
-            onChange={(e) => setEtiquetas(e.target.value)}
-            placeholder="la casa, ser y estar"
-            className={campo}
-            disabled={Boolean(bloqueado)}
-          />
-        </label>
+        <Campo
+          etiqueta="Etiquetas, separadas por comas"
+          name="etiquetas"
+          value={etiquetas}
+          onChange={(e) => setEtiquetas(e.target.value)}
+          placeholder="la casa, ser y estar"
+          disabled={Boolean(bloqueado)}
+        />
 
         <fieldset disabled={Boolean(bloqueado)}>
           {marca === "opcion" && <EditorOpcion datos={datos} alCambiar={setDatos} />}
@@ -360,11 +351,11 @@ export default function Editor({
             de que su editor exista.
           */}
           {VACIO[marca] === undefined && (
-            <p className="rounded-tarjeta border border-dashed border-hp-200 p-6 text-center text-sm text-tinta-suave">
+            <Vacio>
               Este tipo de ejercicio todavía no tiene editor. Puedes cambiar
               el título, el nivel, la destreza y las etiquetas, pero no su
               contenido.
-            </p>
+            </Vacio>
           )}
         </fieldset>
 
@@ -375,23 +366,20 @@ export default function Editor({
           profesor. La cuenta vive en `lib/dele` porque no es la misma en
           cada motor: parejas en `relacionar`, preguntas en `opcion`.
         */}
-        {aviso && (
-          <p className="rounded-tarjeta bg-sol-100 px-4 py-3 text-sm text-tinta">{aviso}</p>
-        )}
+        {aviso && <Aviso tono="aviso">{aviso}</Aviso>}
 
-        {mensajeError && (
-          <p className="rounded-tarjeta bg-sol-100 px-4 py-3 text-sm text-tinta">{mensajeError}</p>
-        )}
-        {mensajeOk && (
-          <p className="rounded-tarjeta bg-hp-100 px-4 py-3 text-sm text-tinta">{mensajeOk}</p>
-        )}
+        {/* Error amarillo → rojo: el cambio visual deliberado de esta sesión. */}
+        {mensajeError && <Aviso tono="error">{mensajeError}</Aviso>}
+        {mensajeOk && <Aviso tono="ok">{mensajeOk}</Aviso>}
 
         <div className="flex flex-wrap items-center gap-3">
+          {/* Botón nativo, no BotonEnviar: el onClick que marca `ultima`
+              tiene que correr antes del envío, y BotonEnviar no lo admite. */}
           <button
             type="submit"
             onClick={() => setUltima("guardar")}
             disabled={guardando || Boolean(bloqueado)}
-            className="h-11 rounded-full bg-hp-400 px-6 text-sm font-extrabold text-white transition-colors hover:bg-hp-500 disabled:opacity-40"
+            className={clasesDeBoton("primario", "normal")}
           >
             {guardando ? "Guardando…" : "Guardar"}
           </button>
@@ -404,7 +392,7 @@ export default function Editor({
               // guardar no le hacen prometer nada falso: solo se apaga en el
               // sentido de publicar.
               disabled={!inicial.publicado && sinGuardar}
-              className="h-11 rounded-full border border-hp-200 px-6 text-sm font-bold text-tinta hover:border-hp-400 disabled:opacity-40 disabled:hover:border-hp-200"
+              className={clasesDeBoton("sutil", "normal")}
             >
               {inicial.publicado ? "Volver a borrador" : "Publicar"}
             </button>
@@ -415,13 +403,15 @@ export default function Editor({
           {/*
             Borrar solo tiene sentido para limpiar los borradores que uno
             deja por el camino. Si cuelga de algún paso, `puedeBorrarse` lo
-            niega y el motivo sale arriba.
+            niega y el motivo sale arriba. Mismo motivo que los de arriba
+            (formAction + onClick antes del envío): se queda nativo, con el
+            pill de «peligro» que ya usa «Borrar la clase».
           */}
           {inicial && (
             <button
               formAction={borrar}
               onClick={() => setUltima("borrar")}
-              className="text-sm font-semibold text-tinta-suave underline hover:text-hp-500"
+              className={clasesDeBoton("peligro", "pequeno")}
             >
               Borrar
             </button>

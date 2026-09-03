@@ -1,7 +1,11 @@
 "use client";
 
 import { trozos } from "@/lib/ejercicios/tipos";
-import { area, BotonQuitar, campo } from "./campos";
+import { area, campo } from "./campos";
+import Aviso from "@/components/ui/aviso";
+import Boton from "@/components/ui/boton";
+import Campo from "@/components/ui/campo";
+import Vacio from "@/components/ui/vacio";
 
 type Hueco = { id: string; acepta: string[] };
 
@@ -72,16 +76,18 @@ export default function EditorHuecos({
 
   return (
     <div className="space-y-6">
-      <label className="block text-sm font-semibold text-tinta">
-        Consigna
-        <textarea
-          rows={2}
-          value={d.consigna}
-          onChange={(e) => alCambiar({ ...d, consigna: e.target.value })}
-          className={area}
-        />
-      </label>
+      <Campo
+        etiqueta="Consigna"
+        name="consigna"
+        tipo="area"
+        rows={2}
+        value={d.consigna}
+        onChange={(e) => alCambiar({ ...d, consigna: e.target.value })}
+      />
 
+      {/* Campo no cubre una ayuda con marcado dentro (aquí, un <code>): se
+          deja el <textarea> nativo con las clases de Campo y el texto de
+          ayuda tal cual, con su <code>. */}
       <label className="block text-sm font-semibold text-tinta">
         Texto
         <textarea
@@ -98,16 +104,14 @@ export default function EditorHuecos({
       </label>
 
       {incompleta && (
-        <p className="rounded-tarjeta bg-sol-100 px-4 py-3 text-sm text-tinta">
+        <Aviso tono="aviso">
           Hay huecos sin respuesta: escribe al menos una forma válida en cada
           uno antes de guardar.
-        </p>
+        </Aviso>
       )}
 
       {marcas.length === 0 ? (
-        <p className="rounded-tarjeta border border-dashed border-hp-200 p-6 text-center text-sm text-tinta-suave">
-          Todavía no hay ningún hueco en el texto.
-        </p>
+        <Vacio>Todavía no hay ningún hueco en el texto.</Vacio>
       ) : (
         <div className="space-y-3">
           {d.huecos.map((h) => (
@@ -134,14 +138,19 @@ export default function EditorHuecos({
                       className={`${campo} mt-0`}
                     />
                     {h.acepta.length > 1 && (
-                      <BotonQuitar onClick={() => cambiarHueco(h.id, h.acepta.filter((_, j) => j !== i))}>
+                      <Boton
+                        variante="peligro"
+                        tamano="pequeno"
+                        onClick={() => cambiarHueco(h.id, h.acepta.filter((_, j) => j !== i))}
+                      >
                         Quitar
-                      </BotonQuitar>
+                      </Boton>
                     )}
                   </div>
                 ))}
               </div>
 
+              {/* Enlace de texto, sin aspecto de botón: se queda nativo. */}
               <button
                 type="button"
                 onClick={() => cambiarHueco(h.id, [...h.acepta, ""])}

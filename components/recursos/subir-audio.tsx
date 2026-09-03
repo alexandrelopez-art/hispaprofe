@@ -1,7 +1,9 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { campo } from "./campos";
+import Aviso from "@/components/ui/aviso";
+import Boton from "@/components/ui/boton";
+import Campo from "@/components/ui/campo";
 
 /**
  * Lo que cabe por el navegador. Copia a mano de `MAXIMO_SUBIDA` en
@@ -145,31 +147,25 @@ export default function SubirAudio({
             e.target.value = "";
           }}
         />
-        <button
-          type="button"
-          disabled={ocupado}
-          onClick={() => entrada.current?.click()}
-          className="h-9 rounded-full border border-hp-200 px-4 text-sm font-bold text-tinta transition-colors hover:border-hp-400 disabled:opacity-40"
-        >
+        <Boton variante="sutil" disabled={ocupado} onClick={() => entrada.current?.click()}>
           {subiendo ? "Subiendo y comprimiendo…" : "Subir un archivo"}
-        </button>
+        </Boton>
 
-        <input
-          type="text"
+        {/* Sin etiqueta visible antes (solo `placeholder`); `Campo` exige
+            una, así que «Dirección de Drive» es texto nuevo. */}
+        <Campo
+          etiqueta="Dirección de Drive"
+          name="direccion"
           value={direccion}
           onChange={(e) => setDireccion(e.target.value)}
           placeholder="…o pegar la dirección de Drive"
-          className={`${campo} mt-0 flex-1`}
+          className="flex-1"
         />
-        <button
-          type="button"
-          disabled={ocupado || !direccion.trim()}
-          onClick={traer}
-          className="h-9 rounded-full border border-hp-200 px-4 text-sm font-bold text-tinta transition-colors hover:border-hp-400 disabled:opacity-40"
-        >
+        <Boton variante="sutil" disabled={ocupado || !direccion.trim()} onClick={traer}>
           {trayendo ? "Trayendo y comprimiendo…" : "Traer de esa dirección"}
-        </button>
+        </Boton>
 
+        {/* Enlace de texto, sin aspecto de botón: se queda nativo. */}
         {valor && (
           <button
             type="button"
@@ -182,9 +178,8 @@ export default function SubirAudio({
         )}
       </div>
 
-      {error && (
-        <p className="rounded-tarjeta bg-sol-100 px-4 py-2 text-sm text-tinta">{error}</p>
-      )}
+      {/* Error amarillo → rojo: el cambio visual deliberado de esta sesión. */}
+      {error && <Aviso tono="error">{error}</Aviso>}
     </div>
   );
 }

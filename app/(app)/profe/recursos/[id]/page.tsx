@@ -4,8 +4,8 @@ import { puedeEditarse } from "@/lib/recursos";
 import { analizar } from "@/lib/ejercicios/registro";
 import { analizarExpresion } from "@/lib/expresion";
 import { notFound, redirect } from "next/navigation";
-import Link from "next/link";
 import Editor, { type MarcaRecurso } from "@/components/recursos/editor";
+import Encabezado from "@/components/ui/encabezado";
 
 export const dynamic = "force-dynamic";
 
@@ -37,10 +37,10 @@ export default async function RecursoPage({
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-12">
-      <Link href="/profe/recursos" className="text-sm font-semibold text-tinta-suave hover:text-hp-500">
-        ← Recursos
-      </Link>
-      <h1 className="mt-4 text-3xl font-extrabold tracking-tight text-tinta">{fila.titulo}</h1>
+      <Encabezado
+        titulo={fila.titulo}
+        volver={{ href: "/profe/recursos", texto: "Recursos" }}
+      />
 
       <div className="mt-8">
         <Editor

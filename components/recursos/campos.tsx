@@ -1,14 +1,29 @@
 "use client";
 
+import Campo from "@/components/ui/campo";
+
+/**
+ * `campo` y `area` siguen siendo cadenas de clases sueltas: las usan los
+ * campos que viven dentro de una lista con sus propios botones de añadir y
+ * quitar (preguntas, opciones, parejas, piezas, huecos, sobrantes…), que el
+ * contrato de la sesión B deja fuera de `Campo` a propósito («los que llevan
+ * botones dentro, listas o comportamiento propio no se convierten»).
+ */
 export const campo =
   "mt-1 h-10 w-full rounded-full border border-hp-200 bg-white px-4 text-sm font-normal text-tinta outline-none focus:border-hp-400";
 
 export const area =
   "mt-1 w-full rounded-tarjeta border border-hp-200 bg-white p-4 text-sm font-normal text-tinta outline-none focus:border-hp-400";
 
-export const botonSecundario =
-  "h-9 rounded-full border border-hp-200 px-4 text-sm font-bold text-tinta transition-colors hover:border-hp-400";
-
+/**
+ * Un campo de texto con su rótulo, reescrito sobre `Campo` de la casa. Se
+ * queda con el mismo nombre y las mismas props (`etiqueta`, `valor`,
+ * `alCambiar`, `ancho`) para no tocar a quien lo llama: solo cambia lo que
+ * hay dentro. `name` no viaja a ningún sitio —estos campos guardan su valor
+ * dentro del `datos` de una lista, no como un campo suelto del formulario—,
+ * así que se le pasa la propia etiqueta: no se lee, solo hace falta que
+ * `Campo` tenga uno.
+ */
 export function CampoTexto({
   etiqueta,
   valor,
@@ -21,15 +36,13 @@ export function CampoTexto({
   ancho?: boolean;
 }) {
   return (
-    <label className={`block text-sm font-semibold text-tinta ${ancho ? "" : "w-40"}`}>
-      {etiqueta}
-      <input
-        type="text"
-        value={valor}
-        onChange={(e) => alCambiar(e.target.value)}
-        className={campo}
-      />
-    </label>
+    <Campo
+      etiqueta={etiqueta}
+      name={etiqueta}
+      value={valor}
+      onChange={(e) => alCambiar(e.target.value)}
+      className={ancho ? "" : "w-40"}
+    />
   );
 }
 
@@ -54,35 +67,20 @@ export function CampoEscuchas({
   alCambiar: (n: number) => void;
 }) {
   return (
-    <label className="block w-56 text-sm font-semibold text-tinta">
-      Escuchas por audio
-      <input
-        type="number"
-        min={1}
-        // `step={1}`, y truncado además: el esquema exige un entero, y sin
-        // esto se podía teclear 1,5 y no enterarse hasta que «Guardar»
-        // devolvía un error, con el trabajo ya hecho. El paso del control y
-        // el saneo dicen lo mismo, así que el decimal ni llega a existir.
-        step={1}
-        value={valor ?? 2}
-        onChange={(e) => alCambiar(Math.max(1, Math.trunc(Number(e.target.value)) || 1))}
-        className={campo}
-      />
-      <span className="mt-1 block text-xs font-normal text-tinta-suave">
-        Dos es lo que da el examen. Sube el número para practicar.
-      </span>
-    </label>
-  );
-}
-
-export function BotonQuitar({ onClick, children }: { onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="text-sm font-semibold text-tinta-suave underline hover:text-hp-500"
-    >
-      {children}
-    </button>
+    <Campo
+      etiqueta="Escuchas por audio"
+      name="escuchas"
+      tipo="numero"
+      min={1}
+      // `step={1}`, y truncado además: el esquema exige un entero, y sin
+      // esto se podía teclear 1,5 y no enterarse hasta que «Guardar»
+      // devolvía un error, con el trabajo ya hecho. El paso del control y
+      // el saneo dicen lo mismo, así que el decimal ni llega a existir.
+      step={1}
+      value={valor ?? 2}
+      onChange={(e) => alCambiar(Math.max(1, Math.trunc(Number(e.target.value)) || 1))}
+      ayuda="Dos es lo que da el examen. Sube el número para practicar."
+      className="w-56"
+    />
   );
 }

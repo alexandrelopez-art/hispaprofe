@@ -11,6 +11,8 @@ import CaraOpcion, { progresoOpcion } from "@/components/ejercicios/opcion";
 import CaraHuecos, { progresoHuecos } from "@/components/ejercicios/huecos";
 import CaraRelacionar, { progresoRelacionar } from "@/components/ejercicios/relacionar";
 import CaraOrdenar, { progresoOrdenar } from "@/components/ejercicios/ordenar";
+import Boton from "@/components/ui/boton";
+import Rotulo from "@/components/ui/rotulo";
 
 /**
  * Responde y corrige un ejercicio sin guardarlo.
@@ -142,9 +144,7 @@ export default function Previsualizacion({ datos }: { datos: unknown }) {
 
   return (
     <section className="rounded-tarjeta border border-hp-100 bg-white p-6 shadow-suave">
-      <p className="text-xs font-bold uppercase tracking-wider text-tinta-suave">
-        Previsualización
-      </p>
+      <Rotulo>Previsualización</Rotulo>
       <p className="mt-1 text-sm text-tinta-suave">
         Se corrige con el mismo motor que corrige a tus estudiantes. Nada de lo
         que hagas aquí se guarda.
@@ -155,8 +155,7 @@ export default function Previsualizacion({ datos }: { datos: unknown }) {
       <div className="mt-6">{cara}</div>
 
       <div className="mt-6 flex flex-wrap items-center gap-3">
-        <button
-          type="button"
+        <Boton
           onClick={async () => {
             // Se manda el `datosJson` que produjo `publica`, no el de la
             // prop en directo: son el mismo mientras el botón está
@@ -166,10 +165,9 @@ export default function Previsualizacion({ datos }: { datos: unknown }) {
             else setCorreccion(r.correccion);
           }}
           disabled={correccion !== null || contestadas < total || datosJsonPublica !== datosJson}
-          className="h-11 rounded-full bg-hp-400 px-6 text-sm font-extrabold text-white transition-colors hover:bg-hp-500 disabled:cursor-not-allowed disabled:opacity-40"
         >
           Corregir
-        </button>
+        </Boton>
 
         {correccion ? (
           <>

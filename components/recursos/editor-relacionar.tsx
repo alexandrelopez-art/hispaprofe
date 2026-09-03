@@ -1,7 +1,10 @@
 "use client";
 
-import { area, botonSecundario, BotonQuitar, campo, CampoEscuchas } from "./campos";
+import { campo, CampoEscuchas } from "./campos";
 import SubirAudio from "./subir-audio";
+import Aviso from "@/components/ui/aviso";
+import Boton from "@/components/ui/boton";
+import Campo from "@/components/ui/campo";
 
 type Pareja = { id: string; izquierda: string; derecha: string; audio?: string };
 
@@ -89,48 +92,43 @@ export default function EditorRelacionar({
 
   return (
     <div className="space-y-6">
-      <label className="block text-sm font-semibold text-tinta">
-        Consigna
-        <textarea
-          rows={2}
-          value={d.consigna}
-          onChange={(e) => alCambiar({ ...d, consigna: e.target.value })}
-          className={area}
-        />
-      </label>
+      <Campo
+        etiqueta="Consigna"
+        name="consigna"
+        tipo="area"
+        rows={2}
+        value={d.consigna}
+        onChange={(e) => alCambiar({ ...d, consigna: e.target.value })}
+      />
 
       {incompleta && (
-        <p className="rounded-tarjeta bg-sol-100 px-4 py-3 text-sm text-tinta">
+        <Aviso tono="aviso">
           {parejasIncompletas && sobrantesEnBlanco
             ? "Hay parejas sin rellenar y sobrantes en blanco: complétalos antes de guardar."
             : parejasIncompletas
               ? "Hay parejas sin rellenar: complétalas antes de guardar."
               : "Hay sobrantes en blanco: rellénalos o quítalos antes de guardar."}
-        </p>
+        </Aviso>
       )}
 
       {repetida && (
-        <p className="rounded-tarjeta bg-sol-100 px-4 py-3 text-sm text-tinta">
+        <Aviso tono="aviso">
           «{repetida}» está dos veces entre las opciones de la derecha, contando
           los sobrantes. El estudiante vería dos celdas idénticas y una de las
           dos filas quedaría mal contada pase lo que pase.
-        </p>
+        </Aviso>
       )}
 
-      <label className="block text-sm font-semibold text-tinta">
-        Pasaje (opcional)
-        <textarea
-          rows={5}
-          value={d.texto ?? ""}
-          onChange={(e) => alCambiar({ ...d, texto: e.target.value || undefined })}
-          placeholder="Para las tareas de insertar fragmentos: el texto con los huecos numerados."
-          className={area}
-        />
-        <span className="mt-1 block text-xs font-normal text-tinta-suave">
-          Se pinta encima de las dos columnas. Numera los huecos en el texto y
-          escribe «Hueco 1», «Hueco 2»… en la columna de la izquierda.
-        </span>
-      </label>
+      <Campo
+        etiqueta="Pasaje (opcional)"
+        name="texto"
+        tipo="area"
+        rows={5}
+        value={d.texto ?? ""}
+        onChange={(e) => alCambiar({ ...d, texto: e.target.value || undefined })}
+        placeholder="Para las tareas de insertar fragmentos: el texto con los huecos numerados."
+        ayuda="Se pinta encima de las dos columnas. Numera los huecos en el texto y escribe «Hueco 1», «Hueco 2»… en la columna de la izquierda."
+      />
 
       <div className="space-y-3">
         {d.parejas.map((p, i) => (
@@ -165,9 +163,13 @@ export default function EditorRelacionar({
               </div>
             </div>
             {d.parejas.length > 2 && (
-              <BotonQuitar onClick={() => alCambiar({ ...d, parejas: d.parejas.filter((_, j) => j !== i) })}>
+              <Boton
+                variante="peligro"
+                tamano="pequeno"
+                onClick={() => alCambiar({ ...d, parejas: d.parejas.filter((_, j) => j !== i) })}
+              >
                 Quitar
-              </BotonQuitar>
+              </Boton>
             )}
           </div>
         ))}
@@ -193,24 +195,26 @@ export default function EditorRelacionar({
                 }}
                 className={`${campo} mt-0`}
               />
-              <BotonQuitar
+              <Boton
+                variante="peligro"
+                tamano="pequeno"
                 onClick={() =>
                   alCambiar({ ...d, sobrantes: d.sobrantes.filter((_, j) => j !== i) })
                 }
               >
                 Quitar
-              </BotonQuitar>
+              </Boton>
             </div>
           ))}
         </div>
 
-        <button
-          type="button"
+        <Boton
+          variante="sutil"
           onClick={() => alCambiar({ ...d, sobrantes: [...d.sobrantes, ""] })}
-          className={`${botonSecundario} mt-3`}
+          className="mt-3"
         >
           Añadir sobrante
-        </button>
+        </Boton>
       </fieldset>
 
       {d.parejas.some((p) => p.audio) && (
@@ -220,18 +224,17 @@ export default function EditorRelacionar({
         />
       )}
 
-      <button
-        type="button"
+      <Boton
+        variante="sutil"
         onClick={() =>
           alCambiar({
             ...d,
             parejas: [...d.parejas, { id: siguienteIdPareja(d.parejas), izquierda: "", derecha: "" }],
           })
         }
-        className={botonSecundario}
       >
         Añadir pareja
-      </button>
+      </Boton>
     </div>
   );
 }

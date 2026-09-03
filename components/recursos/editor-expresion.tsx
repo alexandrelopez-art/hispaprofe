@@ -1,7 +1,10 @@
 "use client";
 
-import { area, botonSecundario, BotonQuitar, campo, CampoTexto } from "./campos";
+import { area, campo, CampoTexto } from "./campos";
 import SubirAudio from "./subir-audio";
+import Aviso from "@/components/ui/aviso";
+import Boton from "@/components/ui/boton";
+import Campo from "@/components/ui/campo";
 
 type Criterio = { id: string; nombre: string; maximo: number };
 
@@ -74,66 +77,67 @@ export default function EditorExpresion({
 
   return (
     <div className="space-y-6">
-      <label className="block w-56 text-sm font-semibold text-tinta">
-        Modalidad
-        <select
-          value={d.modalidad}
-          onChange={(e) => {
-            const modalidad = e.target.value as "escrita" | "oral";
-            // Los campos son excluyentes: el esquema rechaza una escrita con
-            // minutos y una oral con palabras, así que se cambian juntos.
-            cambiar(
-              modalidad === "escrita"
-                ? {
-                    modalidad,
-                    palabras: { minimo: 100, maximo: 120 },
-                    minutos: undefined,
-                    grabada: false,
-                  }
-                : { modalidad, minutos: 3, palabras: undefined },
-            );
-          }}
-          className={campo}
-        >
-          <option value="escrita">Expresión escrita</option>
-          <option value="oral">Expresión oral</option>
-        </select>
-        <span className="mt-1 block text-xs font-normal text-tinta-suave">
-          {esEscrita
+      <Campo
+        etiqueta="Modalidad"
+        name="modalidad"
+        tipo="elegir"
+        value={d.modalidad}
+        onChange={(e) => {
+          const modalidad = e.target.value as "escrita" | "oral";
+          // Los campos son excluyentes: el esquema rechaza una escrita con
+          // minutos y una oral con palabras, así que se cambian juntos.
+          cambiar(
+            modalidad === "escrita"
+              ? {
+                  modalidad,
+                  palabras: { minimo: 100, maximo: 120 },
+                  minutos: undefined,
+                  grabada: false,
+                }
+              : { modalidad, minutos: 3, palabras: undefined },
+          );
+        }}
+        opciones={[
+          { valor: "escrita", nombre: "Expresión escrita" },
+          { valor: "oral", nombre: "Expresión oral" },
+        ]}
+        ayuda={
+          esEscrita
             ? "El alumno escribe en la aplicación y te llega para corregir."
-            : "El alumno responde hablando, en clase o grabándose."}
-        </span>
-      </label>
+            : "El alumno responde hablando, en clase o grabándose."
+        }
+        className="w-56"
+      />
 
       {!esEscrita && (
-        <label className="block w-72 text-sm font-semibold text-tinta">
-          ¿Dónde se hace?
-          <select
-            value={d.grabada ? "grabada" : "clase"}
-            onChange={(e) => cambiar({ grabada: e.target.value === "grabada" })}
-            className={campo}
-          >
-            <option value="clase">En clase, contigo delante</option>
-            <option value="grabada">La graba y te la manda</option>
-          </select>
-          <span className="mt-1 block text-xs font-normal text-tinta-suave">
-            {d.grabada
+        <Campo
+          etiqueta="¿Dónde se hace?"
+          name="grabada"
+          tipo="elegir"
+          value={d.grabada ? "grabada" : "clase"}
+          onChange={(e) => cambiar({ grabada: e.target.value === "grabada" })}
+          opciones={[
+            { valor: "clase", nombre: "En clase, contigo delante" },
+            { valor: "grabada", nombre: "La graba y te la manda" },
+          ]}
+          ayuda={
+            d.grabada
               ? "El alumno graba su respuesta en la aplicación y te llega a Entregas."
-              : "La citas en una de sus clases y la evalúas con él delante."}
-          </span>
-        </label>
+              : "La citas en una de sus clases y la evalúas con él delante."
+          }
+          className="w-72"
+        />
       )}
 
-      <label className="block text-sm font-semibold text-tinta">
-        Consigna
-        <textarea
-          rows={3}
-          value={d.consigna}
-          onChange={(e) => cambiar({ consigna: e.target.value })}
-          placeholder="Escribe un correo a un amigo contándole tus vacaciones."
-          className={area}
-        />
-      </label>
+      <Campo
+        etiqueta="Consigna"
+        name="consigna"
+        tipo="area"
+        rows={3}
+        value={d.consigna}
+        onChange={(e) => cambiar({ consigna: e.target.value })}
+        placeholder="Escribe un correo a un amigo contándole tus vacaciones."
+      />
 
       <fieldset className="rounded-tarjeta border border-hp-100 p-4">
         <legend className="px-2 text-sm font-bold text-tinta">Estímulo</legend>
@@ -143,30 +147,28 @@ export default function EditorExpresion({
           alumno sin volver a montarlo.
         </p>
 
-        <label className="mt-3 block text-sm font-semibold text-tinta">
-          Texto
-          <textarea
-            rows={4}
-            value={d.estimulo.texto ?? ""}
-            onChange={(e) =>
-              cambiar({ estimulo: { ...d.estimulo, texto: e.target.value || undefined } })
-            }
-            className={area}
-          />
-        </label>
+        <Campo
+          etiqueta="Texto"
+          name="estimulo-texto"
+          tipo="area"
+          rows={4}
+          value={d.estimulo.texto ?? ""}
+          onChange={(e) =>
+            cambiar({ estimulo: { ...d.estimulo, texto: e.target.value || undefined } })
+          }
+          className="mt-3"
+        />
 
-        <div className="mt-3">
-          <span className="block text-sm font-semibold text-tinta">Imagen (opcional)</span>
-          <input
-            type="text"
-            value={d.estimulo.imagen ?? ""}
-            onChange={(e) =>
-              cambiar({ estimulo: { ...d.estimulo, imagen: e.target.value || undefined } })
-            }
-            placeholder="Dirección de la imagen"
-            className={campo}
-          />
-        </div>
+        <Campo
+          etiqueta="Imagen (opcional)"
+          name="estimulo-imagen"
+          value={d.estimulo.imagen ?? ""}
+          onChange={(e) =>
+            cambiar({ estimulo: { ...d.estimulo, imagen: e.target.value || undefined } })
+          }
+          placeholder="Dirección de la imagen"
+          className="mt-3"
+        />
 
         <div className="mt-3">
           <span className="block text-sm font-semibold text-tinta">Audio (opcional)</span>
@@ -181,73 +183,64 @@ export default function EditorExpresion({
 
       {esEscrita ? (
         <div className="flex flex-wrap gap-4">
-          <label className="block w-40 text-sm font-semibold text-tinta">
-            Palabras, mínimo
-            <input
-              type="number"
-              min={1}
-              step={1}
-              value={d.palabras?.minimo ?? 100}
-              onChange={(e) =>
-                cambiar({
-                  palabras: {
-                    minimo: Math.max(1, Math.trunc(Number(e.target.value)) || 1),
-                    maximo: d.palabras?.maximo ?? 120,
-                  },
-                })
-              }
-              className={campo}
-            />
-          </label>
-          <label className="block w-40 text-sm font-semibold text-tinta">
-            Palabras, máximo
-            <input
-              type="number"
-              min={1}
-              step={1}
-              value={d.palabras?.maximo ?? 120}
-              onChange={(e) =>
-                cambiar({
-                  palabras: {
-                    minimo: d.palabras?.minimo ?? 100,
-                    maximo: Math.max(1, Math.trunc(Number(e.target.value)) || 1),
-                  },
-                })
-              }
-              className={campo}
-            />
-          </label>
-        </div>
-      ) : (
-        <label className="block w-40 text-sm font-semibold text-tinta">
-          Minutos
-          <input
-            type="number"
+          <Campo
+            etiqueta="Palabras, mínimo"
+            name="palabras-minimo"
+            tipo="numero"
             min={1}
             step={1}
-            value={d.minutos ?? 3}
+            value={d.palabras?.minimo ?? 100}
             onChange={(e) =>
-              cambiar({ minutos: Math.max(1, Math.trunc(Number(e.target.value)) || 1) })
+              cambiar({
+                palabras: {
+                  minimo: Math.max(1, Math.trunc(Number(e.target.value)) || 1),
+                  maximo: d.palabras?.maximo ?? 120,
+                },
+              })
             }
-            className={campo}
+            className="w-40"
           />
-        </label>
+          <Campo
+            etiqueta="Palabras, máximo"
+            name="palabras-maximo"
+            tipo="numero"
+            min={1}
+            step={1}
+            value={d.palabras?.maximo ?? 120}
+            onChange={(e) =>
+              cambiar({
+                palabras: {
+                  minimo: d.palabras?.minimo ?? 100,
+                  maximo: Math.max(1, Math.trunc(Number(e.target.value)) || 1),
+                },
+              })
+            }
+            className="w-40"
+          />
+        </div>
+      ) : (
+        <Campo
+          etiqueta="Minutos"
+          name="minutos"
+          tipo="numero"
+          min={1}
+          step={1}
+          value={d.minutos ?? 3}
+          onChange={(e) =>
+            cambiar({ minutos: Math.max(1, Math.trunc(Number(e.target.value)) || 1) })
+          }
+          className="w-40"
+        />
       )}
 
       {palabrasAlReves && (
-        <p className="rounded-tarjeta bg-sol-100 px-4 py-3 text-sm text-tinta">
-          El mínimo de palabras es mayor que el máximo.
-        </p>
+        <Aviso tono="aviso">El mínimo de palabras es mayor que el máximo.</Aviso>
       )}
-      {sinNombre && (
-        <p className="rounded-tarjeta bg-sol-100 px-4 py-3 text-sm text-tinta">
-          Hay un criterio sin nombre.
-        </p>
-      )}
+      {sinNombre && <Aviso tono="aviso">Hay un criterio sin nombre.</Aviso>}
       {repetido && (
-        <p className="rounded-tarjeta bg-sol-100 px-4 py-3 text-sm text-tinta">
+        <Aviso tono="aviso">
           Hay dos criterios llamados «{repetido}»: al corregir no sabrás cuál es cuál.
-        </p>
+        </Aviso>
       )}
 
       <fieldset className="rounded-tarjeta border border-hp-100 p-4">
@@ -284,18 +277,20 @@ export default function EditorExpresion({
                 />
               </label>
               {d.criterios.length > 1 && (
-                <BotonQuitar
+                <Boton
+                  variante="peligro"
+                  tamano="pequeno"
                   onClick={() => cambiar({ criterios: d.criterios.filter((_, j) => j !== i) })}
                 >
                   Quitar
-                </BotonQuitar>
+                </Boton>
               )}
             </div>
           ))}
         </div>
 
-        <button
-          type="button"
+        <Boton
+          variante="sutil"
           onClick={() =>
             cambiar({
               criterios: [
@@ -304,12 +299,15 @@ export default function EditorExpresion({
               ],
             })
           }
-          className={`${botonSecundario} mt-3`}
+          className="mt-3"
         >
           Añadir criterio
-        </button>
+        </Boton>
       </fieldset>
 
+      {/* Campo no cubre una ayuda con marcado dentro (aquí, un <strong>): se
+          deja el <textarea> nativo con las clases de Campo y el texto de
+          ayuda tal cual, con su <strong>. */}
       <label className="block text-sm font-semibold text-tinta">
         Texto modelo (opcional)
         <textarea

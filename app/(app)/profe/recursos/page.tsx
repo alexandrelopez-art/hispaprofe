@@ -1,9 +1,16 @@
 import { prisma } from "@/lib/prisma";
 import { getUsuarioActual } from "@/lib/usuario";
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import type { Prisma } from "@/lib/generated/prisma/client";
 import { Destreza, Nivel } from "@/lib/generated/prisma/enums";
+import { NIVELES } from "@/lib/niveles";
+import Boton from "@/components/ui/boton";
+import BotonEnviar from "@/components/ui/boton-enviar";
+import Campo from "@/components/ui/campo";
+import Encabezado from "@/components/ui/encabezado";
+import Etiqueta from "@/components/ui/etiqueta";
+import Tarjeta from "@/components/ui/tarjeta";
+import Vacio from "@/components/ui/vacio";
 
 export const dynamic = "force-dynamic";
 
@@ -95,88 +102,90 @@ export default async function RecursosPage({
 
   return (
     <div className="mx-auto max-w-4xl px-6 py-12">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-3xl font-extrabold tracking-tight text-tinta">Recursos</h1>
-        <Link
-          href="/profe/recursos/nuevo"
-          className="h-11 rounded-full bg-hp-400 px-6 text-sm font-extrabold leading-[2.75rem] text-white hover:bg-hp-500"
-        >
-          Nuevo ejercicio
-        </Link>
-      </div>
+      <Encabezado
+        titulo="Recursos"
+        acciones={<Boton href="/profe/recursos/nuevo">Nuevo ejercicio</Boton>}
+      />
 
+      {/* El buscador no tenía ninguna etiqueta visible antes (inputs y
+          selects sueltos con solo `placeholder`/orden como pista); `Campo`
+          exige una, así que «Buscar», «Nivel», «Destreza», «Tipo» y «Estado»
+          son texto nuevo — mismo criterio que ya usó la zona 1 en el
+          buscador de `/recorridos`. */}
       <form className="mt-6 flex flex-wrap gap-3">
-        <input
-          type="text"
+        <Campo
+          etiqueta="Buscar"
           name="q"
           defaultValue={q ?? ""}
           placeholder="Buscar por título"
-          className="h-10 flex-1 rounded-full border border-hp-200 px-4 text-sm text-tinta outline-none focus:border-hp-400"
+          className="min-w-56 flex-1"
         />
-        <select name="nivel" defaultValue={nivel ?? ""} className="h-10 rounded-full border border-hp-200 px-4 text-sm">
-          <option value="">Todos los niveles</option>
-          {["A1", "A2", "B1", "B2", "C1", "A2_B1_ESCOLAR"].map((n) => (
-            <option key={n} value={n}>
-              {n === "A2_B1_ESCOLAR" ? "A2/B1 escolar" : n}
-            </option>
-          ))}
-        </select>
-        <select name="destreza" defaultValue={destreza ?? ""} className="h-10 rounded-full border border-hp-200 px-4 text-sm">
-          <option value="">Todas las destrezas</option>
-          {Object.entries(destrezaLabel).map(([k, v]) => (
-            <option key={k} value={k}>
-              {v}
-            </option>
-          ))}
-        </select>
-        <select name="tipo" defaultValue={tipo ?? ""} className="h-10 rounded-full border border-hp-200 px-4 text-sm">
-          <option value="">Todos los tipos</option>
-          {Object.entries(tipoLabel).map(([k, v]) => (
-            <option key={k} value={k}>
-              {v}
-            </option>
-          ))}
-        </select>
-        <select name="estado" defaultValue={estado ?? ""} className="h-10 rounded-full border border-hp-200 px-4 text-sm">
-          <option value="">Todos</option>
-          <option value="publicado">Publicados</option>
-          <option value="borrador">Borradores</option>
-        </select>
-        <button type="submit" className="h-10 rounded-full border border-hp-200 px-5 text-sm font-bold text-tinta hover:border-hp-400">
+        <Campo
+          etiqueta="Nivel"
+          name="nivel"
+          tipo="elegir"
+          defaultValue={nivel ?? ""}
+          opciones={[{ valor: "", nombre: "Todos los niveles" }, ...NIVELES]}
+        />
+        <Campo
+          etiqueta="Destreza"
+          name="destreza"
+          tipo="elegir"
+          defaultValue={destreza ?? ""}
+          opciones={[
+            { valor: "", nombre: "Todas las destrezas" },
+            ...Object.entries(destrezaLabel).map(([valor, nombre]) => ({ valor, nombre })),
+          ]}
+        />
+        <Campo
+          etiqueta="Tipo"
+          name="tipo"
+          tipo="elegir"
+          defaultValue={tipo ?? ""}
+          opciones={[
+            { valor: "", nombre: "Todos los tipos" },
+            ...Object.entries(tipoLabel).map(([valor, nombre]) => ({ valor, nombre })),
+          ]}
+        />
+        <Campo
+          etiqueta="Estado"
+          name="estado"
+          tipo="elegir"
+          defaultValue={estado ?? ""}
+          opciones={[
+            { valor: "", nombre: "Todos" },
+            { valor: "publicado", nombre: "Publicados" },
+            { valor: "borrador", nombre: "Borradores" },
+          ]}
+        />
+        <BotonEnviar gerundio="Filtrando…" variante="sutil" className="self-end">
           Filtrar
-        </button>
+        </BotonEnviar>
       </form>
 
       {ejercicios.length === 0 ? (
-        <p className="mt-8 rounded-tarjeta border border-dashed border-hp-200 p-10 text-center text-tinta-suave">
-          No hay ningún ejercicio que encaje.
-        </p>
+        <Vacio className="mt-8">No hay ningún ejercicio que encaje.</Vacio>
       ) : (
         <ul className="mt-6 space-y-2">
           {ejercicios.map((e) => (
             <li key={e.id}>
-              <Link
-                href={`/profe/recursos/${e.id}`}
-                className="flex flex-wrap items-center gap-3 rounded-xl border border-hp-100 bg-white px-4 py-3 shadow-suave transition hover:border-hp-300"
-              >
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-semibold text-tinta">{e.titulo}</p>
-                  <p className="truncate text-xs text-tinta-suave">
-                    {tipoLabel[e.tipo] ?? e.tipo} · {e.nivel}
-                    {e.destreza ? ` · ${e.destreza}` : ""} ·{" "}
-                    {e._count.pasos === 0
-                      ? "sin usar"
-                      : `en ${e._count.pasos} paso${e._count.pasos !== 1 ? "s" : ""}`}
-                  </p>
+              <Tarjeta href={`/profe/recursos/${e.id}`}>
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-semibold text-tinta">{e.titulo}</p>
+                    <p className="truncate text-xs text-tinta-suave">
+                      {tipoLabel[e.tipo] ?? e.tipo} · {e.nivel}
+                      {e.destreza ? ` · ${e.destreza}` : ""} ·{" "}
+                      {e._count.pasos === 0
+                        ? "sin usar"
+                        : `en ${e._count.pasos} paso${e._count.pasos !== 1 ? "s" : ""}`}
+                    </p>
+                  </div>
+                  <Etiqueta tono={e.publicado ? "verde" : "neutro"} className="shrink-0">
+                    {e.publicado ? "Publicado" : "Borrador"}
+                  </Etiqueta>
                 </div>
-                <span
-                  className={`shrink-0 rounded-full px-3 py-1 text-xs font-bold ${
-                    e.publicado ? "bg-hp-100 text-hp-700" : "bg-sol-100 text-tinta"
-                  }`}
-                >
-                  {e.publicado ? "Publicado" : "Borrador"}
-                </span>
-              </Link>
+              </Tarjeta>
             </li>
           ))}
         </ul>
