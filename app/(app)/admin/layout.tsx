@@ -22,10 +22,10 @@ export default async function AdminLayout({
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-12">
-      <Encabezado titulo="Administración" />
+      <Encabezado titulo="Administración" margen="corto" />
 
       {/* Sin marca de pestaña activa: el nav de origen tampoco la tenía. */}
-      <nav className="-mt-6 mb-6 flex flex-wrap gap-2">
+      <nav className="mb-6 flex flex-wrap gap-2">
         {pestanas.map((p) => (
           <Boton key={p.href} href={p.href} variante="sutil" tamano="pequeno">
             {p.texto}

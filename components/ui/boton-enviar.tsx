@@ -20,6 +20,7 @@ export default function BotonEnviar({
   className = "",
   onClick,
   deshabilitado,
+  title,
   children,
 }: {
   gerundio: string;
@@ -28,12 +29,14 @@ export default function BotonEnviar({
   className?: string;
   onClick?: React.MouseEventHandler<HTMLButtonElement>;
   deshabilitado?: boolean;
+  title?: string;
   children: React.ReactNode;
 }) {
   const { pending } = useFormStatus();
   return (
     <button
       type="submit"
+      title={title}
       disabled={pending || deshabilitado}
       aria-busy={pending}
       onClick={onClick}

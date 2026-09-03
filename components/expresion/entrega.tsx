@@ -10,7 +10,7 @@ import { entregar, type EstadoExpresion } from "@/lib/acciones-expresion";
 import type { ExpresionPublica } from "@/lib/expresion";
 import Grabadora from "./grabadora";
 import Aviso from "@/components/ui/aviso";
-import { clasesDeBoton } from "@/components/ui/boton";
+import BotonEnviar from "@/components/ui/boton-enviar";
 import Rotulo from "@/components/ui/rotulo";
 import Tarjeta from "@/components/ui/tarjeta";
 
@@ -51,7 +51,7 @@ export default function Entrega({
   citada: Date | null;
 }) {
   const [texto, setTexto] = useState(entrega ?? "");
-  const [estado, enviar, enviando] = useActionState<EstadoExpresion, FormData>(entregar, {});
+  const [estado, enviar] = useActionState<EstadoExpresion, FormData>(entregar, {});
 
   const palabras = contarPalabras(texto);
   const limites = publica.palabras;
@@ -123,16 +123,13 @@ export default function Entrega({
 
           <div className="mt-3 flex flex-wrap items-center gap-3">
             {!cerrada && (
-              // Botón nativo: además de `pending` (`enviando`), se apaga sin
-              // palabras escritas, y `BotonEnviar` no admite una condición de
-              // apagado adicional a la del propio envío.
-              <button
-                type="submit"
-                disabled={enviando || palabras === 0}
-                className={clasesDeBoton("primario", "normal", "h-11 px-6 text-sm font-extrabold disabled:opacity-40")}
+              <BotonEnviar
+                gerundio="Entregando…"
+                deshabilitado={palabras === 0}
+                className="h-11 px-6 text-sm font-extrabold disabled:opacity-40"
               >
-                {enviando ? "Entregando…" : entrega ? "Volver a entregar" : "Entregar"}
-              </button>
+                {entrega ? "Volver a entregar" : "Entregar"}
+              </BotonEnviar>
             )}
             <span className={`text-sm ${fuera ? "font-bold text-tinta" : "text-tinta-suave"}`}>
               {limites

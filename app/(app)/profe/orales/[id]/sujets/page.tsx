@@ -94,17 +94,13 @@ export default async function SujetsPage({
               placeholder="Fuente (BBC Mundo)"
               className="flex-1"
             />
-            {/* Campo no cubre url todavía: se deja el <input> nativo con las
-                clases de Campo. */}
-            <label className="block flex-1 text-sm font-semibold text-tinta">
-              URL
-              <input
-                name="url"
-                type="url"
-                placeholder="https://…"
-                className="mt-1 h-10 w-full rounded-full border border-hp-200 bg-white px-4 text-sm font-normal text-tinta outline-none focus:border-hp-400"
-              />
-            </label>
+            <Campo
+              etiqueta="URL"
+              name="url"
+              tipo="url"
+              placeholder="https://…"
+              className="flex-1"
+            />
           </div>
           <Campo
             etiqueta="Preguntas"

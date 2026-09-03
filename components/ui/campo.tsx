@@ -1,6 +1,9 @@
 import { useId, type ComponentProps } from "react";
 
-const CONTROL =
+// Exportada: la reutiliza algún control que se queda nativo a propósito
+// (por ejemplo un <select> con <optgroup>, que Campo no admite) para no
+// copiar la cadena de clases a mano.
+export const CONTROL =
   "mt-1 w-full rounded-full border border-hp-200 bg-white px-4 text-sm font-normal text-tinta outline-none focus:border-hp-400 disabled:bg-fondo";
 
 type Base = { etiqueta: string; name?: string; ayuda?: string; error?: string; className?: string };

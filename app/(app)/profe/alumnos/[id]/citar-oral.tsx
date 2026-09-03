@@ -73,7 +73,7 @@ export default function CitarOral({
             defaultValue=""
             className="min-w-40 flex-1"
             opciones={[
-              { valor: "", nombre: "Citar el oral en…" },
+              { valor: "", nombre: "Citar el oral en…", deshabilitada: true },
               ...clases.map((c) => ({
                 valor: c.id,
                 nombre: `${formatoFecha.format(c.empiezaEl)}${c.donde ? ` · ${c.donde}` : ""}`,

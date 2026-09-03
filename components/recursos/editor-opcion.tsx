@@ -107,7 +107,6 @@ export default function EditorOpcion({
     <div className="space-y-6">
       <Campo
         etiqueta="Consigna"
-        name="consigna"
         tipo="area"
         rows={2}
         value={d.consigna}
@@ -183,7 +182,6 @@ export default function EditorOpcion({
       */}
       <Campo
         etiqueta="Cómo se enseña"
-        name="presentacion"
         tipo="elegir"
         value={d.presentacion}
         onChange={(e) =>
@@ -204,7 +202,6 @@ export default function EditorOpcion({
       */}
       <Campo
         etiqueta="Pasaje con huecos (opcional)"
-        name="texto"
         tipo="area"
         rows={6}
         value={d.texto ?? ""}

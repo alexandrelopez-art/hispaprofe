@@ -44,7 +44,7 @@ function nombreDe(u: {
 /**
  * Una fecha del filtro. Vacía o ilegible es «sin filtro», no un error.
  *
- * `finDeDia` es imprescindible en «hasta»: un <input type="date"> da
+ * `finDeDia` es imprescindible en «hasta»: un `Campo tipo="fecha"` da
  * «2026-08-05», y tomarlo como medianoche dejaría fuera la clase de ese
  * mismo día a las seis de la tarde. «Hasta el 5» significa el 5 incluido.
  *
@@ -135,17 +135,12 @@ export default async function ClasesPage({
           </summary>
 
           <form action={crearClase} className="mt-4 grid gap-4 sm:grid-cols-2">
-            {/* Campo no cubre fechas todavía: se deja el <input> nativo con
-                las clases de Campo. */}
-            <label className="block text-sm font-semibold text-tinta">
-              Día y hora
-              <input
-                type="datetime-local"
-                name="empiezaEl"
-                required
-                className="mt-1 h-10 w-full rounded-full border border-hp-200 bg-white px-4 text-sm font-normal text-tinta outline-none focus:border-hp-400"
-              />
-            </label>
+            <Campo
+              etiqueta="Día y hora"
+              name="empiezaEl"
+              tipo="fechahora"
+              required
+            />
 
             <Campo
               etiqueta="Duración (minutos)"
@@ -163,7 +158,7 @@ export default async function ClasesPage({
               required
               defaultValue=""
               opciones={[
-                { valor: "", nombre: "Elige un estudiante o un grupo" },
+                { valor: "", nombre: "Elige un estudiante o un grupo", deshabilitada: true },
                 ...estudiantes.map((e) => ({ valor: `alumno:${e.id}`, nombre: nombreDe(e) })),
                 ...grupos.map((g) => ({ valor: `grupo:${g.id}`, nombre: `Grupo · ${g.nombre}` })),
               ]}
@@ -176,17 +171,13 @@ export default async function ClasesPage({
               placeholder="en su casa, aula 2..."
             />
 
-            {/* Campo no cubre url todavía: se deja el <input> nativo con las
-                clases de Campo. */}
-            <label className="block text-sm font-semibold text-tinta sm:col-span-2">
-              Enlace de conexión (opcional)
-              <input
-                type="url"
-                name="enlace"
-                placeholder="https://meet.google.com/..."
-                className="mt-1 h-10 w-full rounded-full border border-hp-200 bg-white px-4 text-sm font-normal text-tinta outline-none focus:border-hp-400"
-              />
-            </label>
+            <Campo
+              etiqueta="Enlace de conexión (opcional)"
+              name="enlace"
+              tipo="url"
+              placeholder="https://meet.google.com/..."
+              className="sm:col-span-2"
+            />
 
             <BotonEnviar gerundio="Registrando…" className="sm:col-span-2 sm:justify-self-start">
               Registrar
@@ -209,26 +200,8 @@ export default async function ClasesPage({
           opciones={opcionesQuien}
         />
 
-        {/* Campo no cubre fechas todavía: se dejan los <input> nativos con
-            las clases de Campo. */}
-        <label className="block text-sm font-semibold text-tinta">
-          Desde
-          <input
-            type="date"
-            name="desde"
-            defaultValue={q.desde ?? ""}
-            className="mt-1 h-10 w-full rounded-full border border-hp-200 bg-white px-4 text-sm font-normal text-tinta outline-none focus:border-hp-400"
-          />
-        </label>
-        <label className="block text-sm font-semibold text-tinta">
-          Hasta
-          <input
-            type="date"
-            name="hasta"
-            defaultValue={q.hasta ?? ""}
-            className="mt-1 h-10 w-full rounded-full border border-hp-200 bg-white px-4 text-sm font-normal text-tinta outline-none focus:border-hp-400"
-          />
-        </label>
+        <Campo etiqueta="Desde" name="desde" tipo="fecha" defaultValue={q.desde ?? ""} />
+        <Campo etiqueta="Hasta" name="hasta" tipo="fecha" defaultValue={q.hasta ?? ""} />
 
         <Campo
           etiqueta="Estado"

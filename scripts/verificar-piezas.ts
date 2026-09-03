@@ -50,29 +50,19 @@ const EXCEPCIONES: { prefijo: string; patron?: string; razon: string }[] = [
   // la página vive en `Encabezado`, en el layout o justo encima).
   { prefijo: "app/(app)/admin/page.tsx", patron: "título a mano", razon: "falso positivo: text-3xl font-extrabold es el número de cada `Dato`, no un h1 (el título real es el Encabezado del layout de /admin)" },
   { prefijo: "app/(app)/clases/profesor.tsx", patron: "título a mano", razon: "falso positivo: los 4 hallazgos son los números de las tarjetas de estadística (Secuencias/Estudiantes/Asignaciones/Progreso), no un h1 (el título real ya es un Encabezado)" },
-  { prefijo: "components/orales/panel.tsx", patron: "título a mano", razon: "falso positivo: es la nota «/20», no un h1" },
-  { prefijo: "components/orales/panel.tsx", patron: "casilla a mano", razon: "falso positivo: `const campo = campoDeReloj[...]` es una variable de qué reloj está corriendo, no una clase de <input>" },
 
-  // ─── Task 6: casos «toque ligero» — native date/url/search/file inputs,
-  // optgroup, listas — que el contrato deja fuera de Campo/Boton/Tarjeta ──
-  { prefijo: "app/(app)/admin/personas/page.tsx", patron: "casilla a mano", razon: "el buscador es <input type=\"search\">, que Campo no cubre todavía (mismo hueco que url/fecha), con las clases de Campo y su propia etiqueta" },
-  { prefijo: "app/(app)/admin/personas/page.tsx", patron: "botón a mano", razon: "falso positivo del regex sobre ese mismo buscador y sobre el <input type=\"text\" name=\"confirmacion\"> que exige escribir el correo para confirmar la supresión — un campo con comportamiento propio (aria-label dinámico, compara contra el email de la fila) que se queda nativo a propósito" },
-  { prefijo: "app/(app)/profe/alumnos/[id]/page.tsx", patron: "botón a mano", razon: "falso positivo: el único hallazgo que queda es el <input type=\"number\"> nativo del Campo-con-botón-dentro (el botón en sí ya se convirtió a BotonEnviar); Campo no admite un botón dentro de la misma fila sin sitio para su etiqueta" },
-  { prefijo: "app/(app)/profe/clases/[id]/page.tsx", patron: "casilla a mano", razon: "<input type=\"datetime-local\">, <select> con <optgroup> (agrupa estudiantes y grupos, Campo no lo soporta) y <input type=\"url\">, los tres con las clases de Campo" },
-  { prefijo: "app/(app)/profe/clases/[id]/page.tsx", patron: "botón a mano", razon: "falso positivo del regex sobre esos mismos tres controles" },
-  { prefijo: "app/(app)/profe/clases/page.tsx", patron: "casilla a mano", razon: "<input type=\"datetime-local\">, dos <input type=\"date\"> y un <input type=\"url\">, los cuatro con las clases de Campo" },
-  { prefijo: "app/(app)/profe/clases/page.tsx", patron: "botón a mano", razon: "falso positivo del regex sobre esos mismos cuatro controles" },
-  { prefijo: "app/(app)/profe/orales/[id]/sujets/page.tsx", patron: "casilla a mano", razon: "<input type=\"url\"> con las clases de Campo (Campo no cubre url todavía)" },
-  { prefijo: "app/(app)/profe/orales/[id]/sujets/page.tsx", patron: "botón a mano", razon: "falso positivo del regex sobre ese mismo input" },
-  { prefijo: "app/(app)/profe/importar/importar-cliente.tsx", patron: "casilla a mano", razon: "la constante `campo` y el <input> de puntos viven dentro de la lista que se repite por cada fila del CSV (\"listas\" — excepción del propio contrato de Campo)" },
-  { prefijo: "app/(app)/profe/importar/importar-cliente.tsx", patron: "botón a mano", razon: "falso positivo del regex sobre esos mismos controles" },
-  { prefijo: "app/(app)/profe/importar/importar-cliente.tsx", patron: "tarjeta a mano", razon: "las 3 tarjetas se quedan nativas porque Tarjeta no está en la lista de piezas que se tocan en los editores grandes (solo botones, avisos, etiquetas, rótulos y campos sencillos)" },
-  { prefijo: "components/recursos/campos.tsx", patron: "casilla a mano", razon: "exporta las clases `campo`/`area` que usan los editores de recursos para los campos que viven dentro de una lista con sus propios botones de añadir/quitar (preguntas, opciones, parejas…) — la excepción de \"listas\" del propio contrato de Campo" },
-  { prefijo: "components/recursos/campos.tsx", patron: "botón a mano", razon: "falso positivo del regex sobre esas mismas clases" },
-  { prefijo: "components/orales/cronometro.tsx", patron: "tarjeta a mano", razon: "components/orales/* es de toque ligero: Tarjeta no está en la lista de piezas que se tocan ahí (solo botones, avisos, etiquetas, rótulos y campos sencillos), así que la caja del cronómetro se queda con sus clases nativas" },
+  // ─── Task 6/2: casos «toque ligero», ficheros enteros ─────────────────────
+  // Uno por fichero (o carpeta) en vez de uno por patrón: todo lo que hay
+  // hoy en cada uno de estos ya está fuera del contrato por el mismo motivo
+  // (listas propias, o «toque ligero» declarado), así que separar por patrón
+  // no añadía nada — y con el tope de excepciones, sí que costaba.
+  { prefijo: "app/(app)/profe/importar/importar-cliente.tsx", razon: "toda la pantalla es de \"listas\" (CSV fila a fila, con sus propios botones) — la excepción del propio contrato de Campo — y Tarjeta no está en la lista de piezas que se tocan en los editores grandes" },
+  { prefijo: "components/recursos/campos.tsx", razon: "exporta las clases `campo`/`area` que usan los editores de recursos para los campos que viven dentro de una lista con sus propios botones de añadir/quitar — la excepción de \"listas\" del propio contrato de Campo" },
+  { prefijo: "components/orales/", razon: "toque ligero declarado en la Task 6: solo botones, avisos, etiquetas, rótulos y campos sencillos se tocan ahí, así que Tarjeta y algún que otro falso positivo (una nota «/20», una variable llamada `campo`) se quedan nativos" },
 
-  // ─── Task 6: el enlace ENLACE no puede ser Tarjeta ────────────────────────
-  { prefijo: "app/(app)/pasos/[pasoId]/page.tsx", patron: "tarjeta a mano", razon: "el bloque ENLACE es un <a target=\"_blank\" rel=\"noopener noreferrer\">: Tarjeta no acepta target/rel, y un enlace externo sin noopener es un agujero de verdad (ya razonado en el propio comentario del código)" },
+  // ─── Task 2: tres botones que comparten un único <form> con varias
+  // acciones (formAction) — ver el comentario en el propio fichero ──────────
+  { prefijo: "components/recursos/editor.tsx", patron: "botón montado a mano", razon: "Guardar/Publicar/Borrar viven en el mismo <form action={guardar}>, con Publicar y Borrar como formAction sobre ese mismo <form>; BotonEnviar lee su `pending` de useFormStatus(), que es del <form> entero y no de qué botón lo disparó, así que convertir cualquiera de los tres encendería el gerundio y el apagado de los otros dos con el envío equivocado — un botón diría «Guardando…» mientras se publica" },
 ];
 
 function ficheros(dir: string): string[] {
@@ -102,27 +92,31 @@ for (const raiz of ["app", "components"]) {
   }
 }
 
-if (hallazgos.length === 0) {
-  console.log("OK: ninguna pieza escrita a mano fuera de las excepciones.\n\nTodo en orden.");
-  process.exit(0);
+if (hallazgos.length > 0) {
+  const porFichero = new Map<string, typeof hallazgos>();
+  for (const h of hallazgos) porFichero.set(h.fichero, [...(porFichero.get(h.fichero) ?? []), h]);
+  for (const [fichero, lista] of [...porFichero.entries()].sort()) {
+    console.log(fichero);
+    for (const h of lista) console.log(`  ${h.veces} × ${h.patron} → ${h.pieza}`);
+  }
+  console.log(`\n${porFichero.size} ficheros, ${hallazgos.reduce((s, h) => s + h.veces, 0)} hallazgos.`);
 }
-
-const porFichero = new Map<string, typeof hallazgos>();
-for (const h of hallazgos) porFichero.set(h.fichero, [...(porFichero.get(h.fichero) ?? []), h]);
-for (const [fichero, lista] of [...porFichero.entries()].sort()) {
-  console.log(fichero);
-  for (const h of lista) console.log(`  ${h.veces} × ${h.patron} → ${h.pieza}`);
-}
-console.log(`\n${porFichero.size} ficheros, ${hallazgos.reduce((s, h) => s + h.veces, 0)} hallazgos.`);
 
 // El tope frena el apaño de «añadir una excepción por si acaso»: si crece,
 // la lista deja de ser lo estructural y los falsos positivos nombrados, y
-// vuelve a ser un cajón de sastre. Va antes del veredicto y corre siempre
-// (también con --listar): la foto de hallazgos ya se imprimió arriba.
+// vuelve a ser un cajón de sastre. Corre SIEMPRE, antes del veredicto de
+// hallazgos (y también con --listar) — incluido cuando hallazgos.length es
+// 0: una tirada en verde con 27 excepciones obsoletas tiene que seguir
+// fallando, no colarse por el atajo de «no hay nada que listar».
 const TOPE_EXCEPCIONES = 14;
 if (EXCEPCIONES.length > TOPE_EXCEPCIONES) {
   console.error(`FALLO: ${EXCEPCIONES.length} excepciones; el tope es ${TOPE_EXCEPCIONES}. Antes de añadir una, convertir.`);
   process.exit(1);
+}
+
+if (hallazgos.length === 0) {
+  console.log("OK: ninguna pieza escrita a mano fuera de las excepciones.\n\nTodo en orden.");
+  process.exit(0);
 }
 
 if (!soloListar) {

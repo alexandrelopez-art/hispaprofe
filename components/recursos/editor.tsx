@@ -254,8 +254,9 @@ export default function Editor({
     <div className={`grid gap-8 ${conPrevisualizacion ? "lg:grid-cols-2" : ""}`}>
       <form action={guardar} className="space-y-6">
         {/* Los ocultos llevan el estado del editor al servidor; los campos
-            visibles de abajo usan otro name para que el orden del DOM no
-            decida cuál gana. */}
+            visibles de abajo son solo el reflejo en pantalla y no llevan
+            `name` (`Campo` ya no lo exige): dos campos con el mismo `name`
+            competirían por cuál gana en el FormData. */}
         <input type="hidden" name="id" value={inicial?.id ?? ""} />
         <input type="hidden" name="datos" value={JSON.stringify(datos)} />
         <input type="hidden" name="titulo" value={titulo} />
@@ -295,7 +296,6 @@ export default function Editor({
         <div className="flex flex-wrap gap-4">
           <Campo
             etiqueta="Título"
-            name="titulo-visible"
             value={titulo}
             onChange={(e) => setTitulo(e.target.value)}
             disabled={Boolean(bloqueado)}
@@ -304,7 +304,6 @@ export default function Editor({
 
           <Campo
             etiqueta="Nivel"
-            name="nivel-visible"
             tipo="elegir"
             value={nivel}
             onChange={(e) => setNivel(e.target.value)}
@@ -315,7 +314,6 @@ export default function Editor({
 
           <Campo
             etiqueta="Destreza"
-            name="destreza-visible"
             tipo="elegir"
             value={destreza}
             onChange={(e) => setDestreza(e.target.value)}
@@ -330,7 +328,6 @@ export default function Editor({
 
         <Campo
           etiqueta="Etiquetas, separadas por comas"
-          name="etiquetas-visible"
           value={etiquetas}
           onChange={(e) => setEtiquetas(e.target.value)}
           placeholder="la casa, ser y estar"
@@ -376,8 +373,18 @@ export default function Editor({
         {mensajeOk && <Aviso tono="ok">{mensajeOk}</Aviso>}
 
         <div className="flex flex-wrap items-center gap-3">
-          {/* Botón nativo, no BotonEnviar: el onClick que marca `ultima`
-              tiene que correr antes del envío, y BotonEnviar no lo admite. */}
+          {/*
+            Los tres botones de abajo comparten un único <form>: «Publicar» y
+            «Borrar» son el mismo <form action={guardar}> con un formAction
+            propio, no formularios aparte. BotonEnviar lee su `pending` de
+            useFormStatus(), que es del <form> entero — no de qué botón lo
+            disparó —, así que si cualquiera de los tres fuera BotonEnviar,
+            pulsar «Publicar» encendería también el gerundio y el apagado de
+            «Guardar» (y viceversa): un botón diría «Guardando…» mientras en
+            realidad se está publicando. Se quedan nativos con clasesDeBoton
+            a propósito, cada uno con su propio `disabled` (guardando/
+            publicando/nada) tomado de su propio useActionState.
+          */}
           <button
             type="submit"
             onClick={() => setUltima("guardar")}
@@ -406,9 +413,7 @@ export default function Editor({
           {/*
             Borrar solo tiene sentido para limpiar los borradores que uno
             deja por el camino. Si cuelga de algún paso, `puedeBorrarse` lo
-            niega y el motivo sale arriba. Mismo motivo que los de arriba
-            (formAction + onClick antes del envío): se queda nativo, con el
-            pill de «peligro» que ya usa «Borrar la clase».
+            niega y el motivo sale arriba.
           */}
           {inicial && (
             <button

@@ -165,15 +165,8 @@ function BloqueContenido({
       );
 
     case "ENLACE":
-      // Se queda como <a> nativa, no Tarjeta: Tarjeta no acepta `target` ni
-      // `rel`, y un enlace externo sin `noopener` es un agujero de verdad.
       return (
-        <a
-          href={bloque.url ?? "#"}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="block overflow-hidden rounded-tarjeta border border-hp-100 bg-white shadow-suave transition hover:border-hp-300 hover:shadow-tarjeta"
-        >
+        <Tarjeta href={bloque.url ?? "#"} externo relleno="ninguno" className="overflow-hidden">
           {bloque.imagen && (
             /* eslint-disable-next-line @next/next/no-img-element */
             <img
@@ -191,7 +184,7 @@ function BloqueContenido({
             )}
             <p className="mt-1 truncate text-xs text-hp-600">{bloque.url}</p>
           </div>
-        </a>
+        </Tarjeta>
       );
 
     default:
@@ -402,9 +395,10 @@ export default async function PasoPage({
         titulo={paso.titulo}
         lede={tipoDescripcion[paso.tipo] ?? ""}
         volver={{ href: `/recorridos/${paso.recorridoId}`, texto: paso.recorrido.titulo }}
+        margen="corto"
       />
 
-      <div className="-mt-6 mb-8 flex flex-wrap items-center gap-2">
+      <div className="mb-8 flex flex-wrap items-center gap-2">
         <span className="text-xs font-bold text-tinta-suave">
           Paso {paso.orden} de {hermanos.length} · Ciclo {paso.ciclo}
         </span>

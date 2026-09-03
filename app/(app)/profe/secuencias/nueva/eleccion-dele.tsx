@@ -114,7 +114,7 @@ export default function EleccionDele({
           }}
           className="flex-1"
           opciones={[
-            { valor: "", nombre: "Elige" },
+            { valor: "", nombre: "Elige", deshabilitada: true },
             ...NIVELES.map((n) => ({ valor: n, nombre: nombreNivel(n) })),
           ]}
         />

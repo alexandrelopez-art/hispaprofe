@@ -9,7 +9,8 @@ import {
 import type { Encargo } from "@/lib/pegado/encargo";
 import Previsualizacion from "@/components/recursos/previsualizacion";
 import Aviso from "@/components/ui/aviso";
-import Boton, { clasesDeBoton } from "@/components/ui/boton";
+import Boton from "@/components/ui/boton";
+import BotonEnviar from "@/components/ui/boton-enviar";
 import Campo from "@/components/ui/campo";
 import Tarjeta from "@/components/ui/tarjeta";
 
@@ -189,17 +190,15 @@ export default function PegarCodigo({
             className="mt-2 w-full rounded-xl border-2 border-hp-200 p-3 font-mono text-xs font-normal text-tinta"
           />
         </label>
-        {/* Se queda con su <button> nativo, no BotonEnviar: el `onClick` que
-            marca `ultima` tiene que correr antes de que el formulario se
-            envíe, y BotonEnviar no acepta onClick. */}
-        <button
-          type="submit"
+        <BotonEnviar
+          gerundio="Comprobando…"
+          variante="sutil"
+          tamano="pequeno"
           onClick={() => setUltima("comprobar")}
-          disabled={comprobando}
-          className={`mt-2 ${clasesDeBoton("sutil", "pequeno")}`}
+          className="mt-2"
         >
-          {comprobando ? "Comprobando…" : "Comprobar"}
-        </button>
+          Comprobar
+        </BotonEnviar>
       </form>
 
       {error && <Aviso tono="error" className="mt-3">{error}</Aviso>}
@@ -238,16 +237,9 @@ export default function PegarCodigo({
                 ejercicio: entendido.datos,
               })}
             />
-            {/* Mismo motivo que «Comprobar»: el onClick que marca `ultima`
-                tiene que correr antes del envío, y BotonEnviar no lo admite. */}
-            <button
-              type="submit"
-              onClick={() => setUltima("guardar")}
-              disabled={guardando}
-              className={clasesDeBoton("primario", "normal")}
-            >
-              {guardando ? "Guardando…" : "Guardar en este paso"}
-            </button>
+            <BotonEnviar gerundio="Guardando…" onClick={() => setUltima("guardar")}>
+              Guardar en este paso
+            </BotonEnviar>
           </form>
         </div>
       )}

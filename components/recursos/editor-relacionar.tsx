@@ -94,7 +94,6 @@ export default function EditorRelacionar({
     <div className="space-y-6">
       <Campo
         etiqueta="Consigna"
-        name="consigna"
         tipo="area"
         rows={2}
         value={d.consigna}
@@ -121,7 +120,6 @@ export default function EditorRelacionar({
 
       <Campo
         etiqueta="Pasaje (opcional)"
-        name="texto"
         tipo="area"
         rows={5}
         value={d.texto ?? ""}

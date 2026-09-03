@@ -79,7 +79,6 @@ export default function EditorExpresion({
     <div className="space-y-6">
       <Campo
         etiqueta="Modalidad"
-        name="modalidad"
         tipo="elegir"
         value={d.modalidad}
         onChange={(e) => {
@@ -112,7 +111,6 @@ export default function EditorExpresion({
       {!esEscrita && (
         <Campo
           etiqueta="¿Dónde se hace?"
-          name="grabada"
           tipo="elegir"
           value={d.grabada ? "grabada" : "clase"}
           onChange={(e) => cambiar({ grabada: e.target.value === "grabada" })}
@@ -131,7 +129,6 @@ export default function EditorExpresion({
 
       <Campo
         etiqueta="Consigna"
-        name="consigna"
         tipo="area"
         rows={3}
         value={d.consigna}
@@ -150,7 +147,6 @@ export default function EditorExpresion({
 
         <Campo
           etiqueta="Texto"
-          name="estimulo-texto"
           tipo="area"
           rows={4}
           value={d.estimulo.texto ?? ""}
@@ -162,7 +158,6 @@ export default function EditorExpresion({
 
         <Campo
           etiqueta="Imagen (opcional)"
-          name="estimulo-imagen"
           value={d.estimulo.imagen ?? ""}
           onChange={(e) =>
             cambiar({ estimulo: { ...d.estimulo, imagen: e.target.value || undefined } })
@@ -186,7 +181,6 @@ export default function EditorExpresion({
         <div className="flex flex-wrap gap-4">
           <Campo
             etiqueta="Palabras, mínimo"
-            name="palabras-minimo"
             tipo="numero"
             min={1}
             step={1}
@@ -203,7 +197,6 @@ export default function EditorExpresion({
           />
           <Campo
             etiqueta="Palabras, máximo"
-            name="palabras-maximo"
             tipo="numero"
             min={1}
             step={1}
@@ -222,7 +215,6 @@ export default function EditorExpresion({
       ) : (
         <Campo
           etiqueta="Minutos"
-          name="minutos"
           tipo="numero"
           min={1}
           step={1}

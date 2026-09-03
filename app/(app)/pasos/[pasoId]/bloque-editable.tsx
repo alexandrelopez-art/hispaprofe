@@ -6,13 +6,13 @@ import {
   editarBloque,
   moverBloque,
 } from "@/lib/acciones";
-import BotonConfirmar from "@/components/boton-confirmar";
 import EditorTexto from "@/components/editor-texto";
 import SubirImagen from "@/components/subir-imagen";
 import SubirAudio from "@/components/recursos/subir-audio";
 import { esAudioDeDrive } from "@/lib/bloques";
 import Aviso from "@/components/ui/aviso";
-import Boton, { clasesDeBoton } from "@/components/ui/boton";
+import Boton from "@/components/ui/boton";
+import BotonConfirmar from "@/components/ui/boton-confirmar";
 import Campo from "@/components/ui/campo";
 import Rotulo from "@/components/ui/rotulo";
 
@@ -145,7 +145,8 @@ export default function BloqueEditable({
           <BotonConfirmar
             aviso="¿Borrar este bloque de contenido?"
             title="Borrar"
-            className={clasesDeBoton("peligro", "pequeno")}
+            variante="peligro"
+            tamano="pequeno"
           >
             Borrar
           </BotonConfirmar>

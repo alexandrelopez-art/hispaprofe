@@ -69,7 +69,6 @@ export default function EditorOrdenar({
     <div className="space-y-6">
       <Campo
         etiqueta="Consigna"
-        name="consigna"
         tipo="area"
         rows={2}
         value={d.consigna}

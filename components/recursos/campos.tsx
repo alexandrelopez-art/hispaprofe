@@ -19,10 +19,9 @@ export const area =
  * Un campo de texto con su rótulo, reescrito sobre `Campo` de la casa. Se
  * queda con el mismo nombre y las mismas props (`etiqueta`, `valor`,
  * `alCambiar`, `ancho`) para no tocar a quien lo llama: solo cambia lo que
- * hay dentro. `name` no viaja a ningún sitio —estos campos guardan su valor
- * dentro del `datos` de una lista, no como un campo suelto del formulario—,
- * así que se le pasa la propia etiqueta: no se lee, solo hace falta que
- * `Campo` tenga uno.
+ * hay dentro. Sin `name`: estos campos guardan su valor dentro del `datos`
+ * de una lista, no como un campo suelto del formulario, y `Campo` ya no
+ * exige uno.
  */
 export function CampoTexto({
   etiqueta,
@@ -38,7 +37,6 @@ export function CampoTexto({
   return (
     <Campo
       etiqueta={etiqueta}
-      name={etiqueta}
       value={valor}
       onChange={(e) => alCambiar(e.target.value)}
       className={ancho ? "" : "w-40"}
@@ -69,7 +67,6 @@ export function CampoEscuchas({
   return (
     <Campo
       etiqueta="Escuchas por audio"
-      name="escuchas"
       tipo="numero"
       min={1}
       // `step={1}`, y truncado además: el esquema exige un entero, y sin

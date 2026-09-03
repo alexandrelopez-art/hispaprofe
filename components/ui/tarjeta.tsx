@@ -7,9 +7,14 @@ const BORDE: Record<Acento, string> = {
   hp: "border-l-4 border-l-hp-400", verde: "border-l-4 border-l-verde-500", sol: "border-l-4 border-l-sol-400", coral: "border-l-4 border-l-coral-500",
 };
 
-/** Cuánto respira el contenido dentro de la tarjeta. `normal` es el valor de siempre. */
-export type Relleno = "normal" | "compacto" | "suelto" | "minimo";
-const RELLENO: Record<Relleno, string> = { normal: "p-6", compacto: "p-4", suelto: "p-8", minimo: "p-3" };
+/**
+ * Cuánto respira el contenido dentro de la tarjeta. `normal` es el valor de
+ * siempre. `ninguno` es para cuando el propio contenido ya trae su relleno
+ * (una imagen a sangre con un `<div>` de texto debajo con su `p-4`): sin
+ * esto, el `p-*` de la tarjeta metería un borde alrededor de la imagen.
+ */
+export type Relleno = "normal" | "compacto" | "suelto" | "minimo" | "ninguno";
+const RELLENO: Record<Relleno, string> = { normal: "p-6", compacto: "p-4", suelto: "p-8", minimo: "p-3", ninguno: "p-0" };
 
 /**
  * La caja de la identidad. Con `href`, toda la tarjeta es un enlace.

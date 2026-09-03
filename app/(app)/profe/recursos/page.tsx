@@ -5,7 +5,6 @@ import type { Prisma } from "@/lib/generated/prisma/client";
 import { Destreza, Nivel } from "@/lib/generated/prisma/enums";
 import { NIVELES } from "@/lib/niveles";
 import Boton from "@/components/ui/boton";
-import BotonEnviar from "@/components/ui/boton-enviar";
 import Campo from "@/components/ui/campo";
 import Encabezado from "@/components/ui/encabezado";
 import Etiqueta from "@/components/ui/etiqueta";
@@ -158,9 +157,10 @@ export default async function RecursosPage({
             { valor: "borrador", nombre: "Borradores" },
           ]}
         />
-        <BotonEnviar gerundio="Filtrando…" variante="sutil" className="self-end">
+        {/* Formulario GET: `useFormStatus` no lo ve, así que no hay gerundio. */}
+        <Boton type="submit" variante="sutil" className="self-end">
           Filtrar
-        </BotonEnviar>
+        </Boton>
       </form>
 
       {ejercicios.length === 0 ? (

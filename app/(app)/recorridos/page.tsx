@@ -5,7 +5,7 @@ import type { Prisma } from "@/lib/generated/prisma/client";
 import { servicioLabel } from "@/lib/servicios";
 import { getUsuarioActual } from "@/lib/usuario";
 import { NIVELES, nombreNivel } from "@/lib/niveles";
-import BotonEnviar from "@/components/ui/boton-enviar";
+import Boton from "@/components/ui/boton";
 import Campo from "@/components/ui/campo";
 import Encabezado from "@/components/ui/encabezado";
 import Etiqueta from "@/components/ui/etiqueta";
@@ -88,7 +88,8 @@ export default async function RecorridosPage({
           defaultValue={nivel}
           opciones={[{ valor: "", nombre: "Todos los niveles" }, ...NIVELES]}
         />
-        <BotonEnviar gerundio="Buscando…">Buscar</BotonEnviar>
+        {/* Formulario GET: `useFormStatus` no lo ve, así que no hay gerundio. */}
+        <Boton type="submit">Buscar</Boton>
         {hayFiltro && (
           <Link
             href="/recorridos"

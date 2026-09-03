@@ -17,7 +17,7 @@ import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import Aviso from "@/components/ui/aviso";
 import BotonEnviar from "@/components/ui/boton-enviar";
-import Campo from "@/components/ui/campo";
+import Campo, { CONTROL } from "@/components/ui/campo";
 import Encabezado from "@/components/ui/encabezado";
 import Tarjeta from "@/components/ui/tarjeta";
 
@@ -350,18 +350,13 @@ export default async function ClasePage({
         <Tarjeta className="grid gap-4 sm:grid-cols-2">
           <input type="hidden" name="claseId" value={clase.id} />
 
-          {/* Campo no cubre fechas todavía: se deja el <input> nativo con
-              las clases de Campo. */}
-          <label className="block text-sm font-semibold text-tinta">
-            Día y hora
-            <input
-              type="datetime-local"
-              name="empiezaEl"
-              required
-              defaultValue={paraInput(clase.empiezaEl)}
-              className="mt-1 h-10 w-full rounded-full border border-hp-200 bg-white px-4 text-sm font-normal text-tinta outline-none focus:border-hp-400"
-            />
-          </label>
+          <Campo
+            etiqueta="Día y hora"
+            name="empiezaEl"
+            tipo="fechahora"
+            required
+            defaultValue={paraInput(clase.empiezaEl)}
+          />
 
           <Campo
             etiqueta="Duración (minutos)"
@@ -373,14 +368,15 @@ export default async function ClasePage({
           />
 
           {/* Campo no soporta <optgroup> (agrupa estudiantes y grupos por
-              separado): se deja el <select> nativo con las clases de Campo. */}
+              separado): se deja el <select> nativo, con las clases de Campo
+              importadas (`CONTROL`) en vez de copiadas a mano. */}
           <label className="block text-sm font-semibold text-tinta">
             Con quién
             <select
               name="destinatario"
               required
               defaultValue={destinatarioActual}
-              className="mt-1 h-10 w-full rounded-full border border-hp-200 bg-white px-4 text-sm font-normal text-tinta outline-none focus:border-hp-400"
+              className={`${CONTROL} h-10`}
             >
               {opcionesEstudiantes.length > 0 && (
                 <optgroup label="Estudiantes">
@@ -438,17 +434,13 @@ export default async function ClasePage({
             ayuda="Déjalo vacío para cobrar lo que diga la tarifa por hora."
           />
 
-          {/* Campo no cubre url todavía: se deja el <input> nativo con las
-              clases de Campo. */}
-          <label className="block text-sm font-semibold text-tinta sm:col-span-2">
-            Enlace de conexión
-            <input
-              type="url"
-              name="enlace"
-              defaultValue={clase.enlace ?? ""}
-              className="mt-1 h-10 w-full rounded-full border border-hp-200 bg-white px-4 text-sm font-normal text-tinta outline-none focus:border-hp-400"
-            />
-          </label>
+          <Campo
+            etiqueta="Enlace de conexión"
+            name="enlace"
+            tipo="url"
+            defaultValue={clase.enlace ?? ""}
+            className="sm:col-span-2"
+          />
 
           <BotonEnviar
             gerundio="Guardando…"

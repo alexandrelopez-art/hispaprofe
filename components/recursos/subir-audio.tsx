@@ -155,7 +155,6 @@ export default function SubirAudio({
             una, así que «Dirección de Drive» es texto nuevo. */}
         <Campo
           etiqueta="Dirección de Drive"
-          name="direccion"
           value={direccion}
           onChange={(e) => setDireccion(e.target.value)}
           placeholder="…o pegar la dirección de Drive"

@@ -20,12 +20,11 @@ import {
   sobreCuantosPorPaso,
   type EstadoPaso,
 } from "@/lib/progreso";
-import BotonConfirmar from "@/components/boton-confirmar";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { servicioLabel } from "@/lib/servicios";
 import { nombreNivel } from "@/lib/niveles";
-import { clasesDeBoton } from "@/components/ui/boton";
+import BotonConfirmar from "@/components/ui/boton-confirmar";
 import BotonEnviar from "@/components/ui/boton-enviar";
 import Campo from "@/components/ui/campo";
 import Encabezado from "@/components/ui/encabezado";
@@ -164,6 +163,7 @@ export default async function RecorridoDetallePage({
         titulo={recorrido.titulo}
         lede={recorrido.descripcion}
         volver={{ href: "/recorridos", texto: "Secuencias" }}
+        margen="corto"
         acciones={
           sePuedeBorrar && (
             <>
@@ -178,7 +178,8 @@ export default async function RecorridoDetallePage({
                   <BotonConfirmar
                     aviso={`«${recorrido.titulo}» dejará de aparecer en la preparación del alumno. Quien ya la tenga asignada la sigue teniendo, pero nadie nuevo podrá empezarla.`}
                     title="Retirarla del catálogo del alumno"
-                    className={clasesDeBoton("sutil", "pequeno")}
+                    variante="sutil"
+                    tamano="pequeno"
                   >
                     Despublicar
                   </BotonConfirmar>
@@ -201,7 +202,8 @@ export default async function RecorridoDetallePage({
                   <BotonConfirmar
                     aviso={aviso}
                     title="Borrar la secuencia entera"
-                    className={clasesDeBoton("peligro", "pequeno")}
+                    variante="peligro"
+                    tamano="pequeno"
                   >
                     Borrar la secuencia
                   </BotonConfirmar>
@@ -212,7 +214,7 @@ export default async function RecorridoDetallePage({
         }
       />
 
-      <div className="-mt-6 mb-6 flex items-center gap-2">
+      <div className="mb-6 flex items-center gap-2">
         <Rotulo>{servicioLabel[recorrido.tipo] ?? recorrido.tipo}</Rotulo>
         <Etiqueta tono="hp">{nombreNivel(recorrido.nivel) || recorrido.nivel}</Etiqueta>
       </div>
@@ -347,9 +349,6 @@ export default async function RecorridoDetallePage({
 
                     {esProfe && (
                       <div className="mt-1.5 flex items-center gap-1.5">
-                        {/* ↑ y ↓ se quedan con su <button> nativo: necesitan
-                            `disabled` según la posición del paso, y BotonEnviar
-                            solo sabe apagarse mientras el envío está en vuelo. */}
                         <form action={moverPaso}>
                           <input type="hidden" name="pasoId" value={paso.id} />
                           <input
@@ -357,14 +356,15 @@ export default async function RecorridoDetallePage({
                             name="direccion"
                             value="arriba"
                           />
-                          <button
-                            type="submit"
-                            disabled={paso.orden === 1}
+                          <BotonEnviar
+                            gerundio="Moviendo…"
+                            variante="sutil"
+                            tamano="pequeno"
+                            deshabilitado={paso.orden === 1}
                             title="Subir"
-                            className={clasesDeBoton("sutil", "pequeno")}
                           >
                             ↑
-                          </button>
+                          </BotonEnviar>
                         </form>
 
                         <form action={moverPaso}>
@@ -374,14 +374,15 @@ export default async function RecorridoDetallePage({
                             name="direccion"
                             value="abajo"
                           />
-                          <button
-                            type="submit"
-                            disabled={paso.orden === recorrido.pasos.length}
+                          <BotonEnviar
+                            gerundio="Moviendo…"
+                            variante="sutil"
+                            tamano="pequeno"
+                            deshabilitado={paso.orden === recorrido.pasos.length}
                             title="Bajar"
-                            className={clasesDeBoton("sutil", "pequeno")}
                           >
                             ↓
-                          </button>
+                          </BotonEnviar>
                         </form>
 
                         <form action={borrarPaso}>
@@ -389,7 +390,8 @@ export default async function RecorridoDetallePage({
                           <BotonConfirmar
                             aviso={`¿Borrar el paso "${paso.titulo}"? Se borra también su contenido, el registro de quién lo había completado y las grabaciones que hayan entregado los alumnos, sin vuelta atrás.`}
                             title="Borrar paso"
-                            className={clasesDeBoton("peligro", "pequeno")}
+                            variante="peligro"
+                            tamano="pequeno"
                           >
                             Borrar
                           </BotonConfirmar>
@@ -448,7 +450,7 @@ export default async function RecorridoDetallePage({
                   defaultValue=""
                   className="flex-1"
                   opciones={[
-                    { valor: "", nombre: "Elige" },
+                    { valor: "", nombre: "Elige", deshabilitada: true },
                     { valor: "ACTIVACION", nombre: "Activación" },
                     { valor: "ACTIVIDAD", nombre: "Actividad" },
                     { valor: "ANDAMIAJE", nombre: "Andamiaje" },

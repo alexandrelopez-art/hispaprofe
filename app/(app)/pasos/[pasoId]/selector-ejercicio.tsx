@@ -169,7 +169,7 @@ export default function SelectorEjercicio({
               defaultValue=""
               className="flex-1"
               opciones={[
-                { valor: "", nombre: "Elige un ejercicio" },
+                { valor: "", nombre: "Elige un ejercicio", deshabilitada: true },
                 ...candidatos.map((c) => ({
                   valor: c.id,
                   nombre: `${c.titulo} · ${nombreNivel(c.nivel)}`,

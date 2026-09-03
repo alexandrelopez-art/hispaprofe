@@ -228,7 +228,7 @@ export default async function GrupoPage({
                 required
                 defaultValue=""
                 opciones={[
-                  { valor: "", nombre: "Elige un curso" },
+                  { valor: "", nombre: "Elige un curso", deshabilitada: true },
                   ...cursos.map((curso) => ({
                     valor: curso.id,
                     nombre: `${curso.name}${curso.section ? ` · ${curso.section}` : ""}`,
@@ -281,7 +281,7 @@ export default async function GrupoPage({
               required
               defaultValue=""
               opciones={[
-                { valor: "", nombre: "Elige una secuencia" },
+                { valor: "", nombre: "Elige una secuencia", deshabilitada: true },
                 ...secuencias.map((secuencia) => ({
                   valor: secuencia.id,
                   nombre: `${servicioLabel[secuencia.tipo] ?? secuencia.tipo} · ${nombreNivel(secuencia.nivel)} · ${secuencia.titulo}`,

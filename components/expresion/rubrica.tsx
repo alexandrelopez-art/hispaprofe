@@ -3,8 +3,8 @@
 import { useActionState, useState } from "react";
 import { valorar, type EstadoExpresion } from "@/lib/acciones-expresion";
 import Aviso from "@/components/ui/aviso";
+import BotonEnviar from "@/components/ui/boton-enviar";
 import Campo from "@/components/ui/campo";
-import { clasesDeBoton } from "@/components/ui/boton";
 import Tarjeta from "@/components/ui/tarjeta";
 
 export default function Rubrica({
@@ -19,7 +19,7 @@ export default function Rubrica({
   valoracion: { notas: Record<string, number>; comentario: string } | null;
 }) {
   const [notas, setNotas] = useState<Record<string, number>>(valoracion?.notas ?? {});
-  const [estado, guardar, guardando] = useActionState<EstadoExpresion, FormData>(valorar, {});
+  const [estado, guardar] = useActionState<EstadoExpresion, FormData>(valorar, {});
 
   const total = criterios.reduce((s, c) => s + (notas[c.id] ?? 0), 0);
   const maximo = criterios.reduce((s, c) => s + c.maximo, 0);
@@ -75,16 +75,13 @@ export default function Rubrica({
         )}
 
         <div className="mt-6 flex flex-wrap items-center gap-3">
-          {/* Botón nativo: además de `pending`, se apaga si falta puntuar
-              algún criterio (`!completa`), y `BotonEnviar` no admite una
-              condición de apagado adicional a la del propio envío. */}
-          <button
-            type="submit"
-            disabled={guardando || !completa}
-            className={clasesDeBoton("primario", "normal", "disabled:cursor-not-allowed disabled:opacity-40")}
+          <BotonEnviar
+            gerundio="Guardando…"
+            deshabilitado={!completa}
+            className="disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {guardando ? "Guardando…" : valoracion ? "Volver a corregir" : "Corregir"}
-          </button>
+            {valoracion ? "Volver a corregir" : "Corregir"}
+          </BotonEnviar>
           <span className="text-sm text-tinta-suave">
             {completa ? `${total} de ${maximo} puntos` : "Falta puntuar algún criterio"}
           </span>
