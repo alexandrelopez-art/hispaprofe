@@ -2,6 +2,7 @@
 
 import { TOPE_SEGUNDOS } from "@/lib/orales/criterios";
 import { fmtTiempo } from "@/lib/orales/formato";
+import Boton from "@/components/ui/boton";
 
 /**
  * El cronómetro es de presentación pura: recibe los segundos ya calculados
@@ -58,6 +59,9 @@ export default function Cronometro({
         <span className="ml-1 text-lg font-medium text-tinta-suave">/ 05:00</span>
       </span>
       <div className="mt-2 flex gap-2">
+        {/* Botón nativo: tres aspectos posibles (acabado/corriendo/parado) y
+            ninguna de las 4 variantes de `Boton` los representa sin perder
+            la distinción de color entre ellos. */}
         <button
           type="button"
           onClick={alPulsar}
@@ -83,14 +87,9 @@ export default function Cronometro({
                 ? "Reanudar"
                 : "Iniciar"}
         </button>
-        <button
-          type="button"
-          onClick={alReiniciar}
-          className="rounded-lg border border-hp-100 px-3.5 py-2.5 text-tinta-suave"
-          title="Reiniciar"
-        >
+        <Boton onClick={alReiniciar} variante="sutil" tamano="pequeno" title="Reiniciar">
           ↺
-        </button>
+        </Boton>
       </div>
     </div>
   );

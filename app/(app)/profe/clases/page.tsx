@@ -9,6 +9,15 @@ import { crearClase } from "@/lib/acciones-clases";
 import type { EstadoClase } from "@/lib/generated/prisma/enums";
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import Aviso from "@/components/ui/aviso";
+import BotonEnviar from "@/components/ui/boton-enviar";
+import Campo from "@/components/ui/campo";
+import Encabezado from "@/components/ui/encabezado";
+import Etiqueta from "@/components/ui/etiqueta";
+import type { TonoEtiqueta } from "@/components/ui/etiqueta";
+import Rotulo from "@/components/ui/rotulo";
+import Tarjeta from "@/components/ui/tarjeta";
+import Vacio from "@/components/ui/vacio";
 
 export const dynamic = "force-dynamic";
 
@@ -18,10 +27,10 @@ const estadoLabel: Record<string, string> = {
   ANULADA: "Anulada",
 };
 
-const estadoStyle: Record<string, string> = {
-  AGENDADA: "bg-hp-100 text-hp-700 ring-hp-200",
-  DADA: "bg-bloque2/25 text-tinta ring-bloque2/50",
-  ANULADA: "bg-fondo text-tinta-suave ring-hp-100",
+const estadoTono: Record<string, TonoEtiqueta> = {
+  AGENDADA: "hp",
+  DADA: "bloque2",
+  ANULADA: "neutro",
 };
 
 function nombreDe(u: {
@@ -60,12 +69,10 @@ function estadoDeTexto(bruto?: string): EstadoClase | undefined {
 
 function Total({ n, etiqueta }: { n: string; etiqueta: string }) {
   return (
-    <div className="rounded-tarjeta border border-hp-100 bg-white p-4 shadow-suave">
+    <Tarjeta>
       <p className="text-2xl font-extrabold text-tinta">{n}</p>
-      <p className="mt-1 text-xs font-bold uppercase tracking-wider text-tinta-suave">
-        {etiqueta}
-      </p>
-    </div>
+      <Rotulo className="mt-1">{etiqueta}</Rotulo>
+    </Tarjeta>
   );
 }
 
@@ -111,142 +118,134 @@ export default async function ClasesPage({
     }),
   ]);
 
+  const opcionesQuien = [
+    { valor: "", nombre: "Todo el mundo" },
+    ...estudiantes.map((e) => ({ valor: `alumno:${e.id}`, nombre: nombreDe(e) })),
+    ...grupos.map((g) => ({ valor: `grupo:${g.id}`, nombre: `Grupo · ${g.nombre}` })),
+  ];
+
   return (
     <div className="mx-auto max-w-5xl px-6 py-12">
-      <h1 className="text-3xl font-extrabold tracking-tight text-tinta">
-        Clases
-      </h1>
+      <Encabezado titulo="Clases" />
 
-      <details className="mt-6 rounded-tarjeta border border-hp-100 bg-white p-5 shadow-suave">
-        <summary className="cursor-pointer text-lg font-bold text-tinta">
-          Registrar una clase
-        </summary>
+      <Tarjeta className="mt-6">
+        <details>
+          <summary className="cursor-pointer text-lg font-bold text-tinta">
+            Registrar una clase
+          </summary>
 
-        <form action={crearClase} className="mt-4 grid gap-4 sm:grid-cols-2">
-          <label className="block text-sm font-semibold text-tinta">
-            Día y hora
-            <input
-              type="datetime-local"
-              name="empiezaEl"
-              required
-              className="mt-1 h-10 w-full rounded-full border border-hp-200 bg-fondo px-4 text-sm font-normal text-tinta outline-none focus:border-hp-400"
-            />
-          </label>
+          <form action={crearClase} className="mt-4 grid gap-4 sm:grid-cols-2">
+            {/* Campo no cubre fechas todavía: se deja el <input> nativo con
+                las clases de Campo. */}
+            <label className="block text-sm font-semibold text-tinta">
+              Día y hora
+              <input
+                type="datetime-local"
+                name="empiezaEl"
+                required
+                className="mt-1 h-10 w-full rounded-full border border-hp-200 bg-white px-4 text-sm font-normal text-tinta outline-none focus:border-hp-400"
+              />
+            </label>
 
-          <label className="block text-sm font-semibold text-tinta">
-            Duración (minutos)
-            <input
-              type="number"
+            <Campo
+              etiqueta="Duración (minutos)"
               name="minutos"
+              tipo="numero"
               min={1}
               defaultValue={60}
               required
-              className="mt-1 h-10 w-full rounded-full border border-hp-200 bg-fondo px-4 text-sm font-normal text-tinta outline-none focus:border-hp-400"
             />
-          </label>
 
-          <label className="block text-sm font-semibold text-tinta">
-            Con quién
-            <select
+            <Campo
+              etiqueta="Con quién"
               name="destinatario"
+              tipo="elegir"
               required
               defaultValue=""
-              className="mt-1 h-10 w-full rounded-full border border-hp-200 bg-fondo px-4 text-sm font-normal text-tinta outline-none focus:border-hp-400"
-            >
-              <option value="" disabled>
-                Elige un estudiante o un grupo
-              </option>
-              {estudiantes.map((e) => (
-                <option key={e.id} value={`alumno:${e.id}`}>
-                  {nombreDe(e)}
-                </option>
-              ))}
-              {grupos.map((g) => (
-                <option key={g.id} value={`grupo:${g.id}`}>
-                  Grupo · {g.nombre}
-                </option>
-              ))}
-            </select>
-          </label>
+              opciones={[
+                { valor: "", nombre: "Elige un estudiante o un grupo" },
+                ...estudiantes.map((e) => ({ valor: `alumno:${e.id}`, nombre: nombreDe(e) })),
+                ...grupos.map((g) => ({ valor: `grupo:${g.id}`, nombre: `Grupo · ${g.nombre}` })),
+              ]}
+            />
 
-          <label className="block text-sm font-semibold text-tinta">
-            Dónde (opcional)
-            <input
-              type="text"
+            <Campo
+              etiqueta="Dónde (opcional)"
               name="donde"
+              tipo="texto"
               placeholder="en su casa, aula 2..."
-              className="mt-1 h-10 w-full rounded-full border border-hp-200 bg-fondo px-4 text-sm font-normal text-tinta outline-none focus:border-hp-400"
             />
-          </label>
 
-          <label className="block text-sm font-semibold text-tinta sm:col-span-2">
-            Enlace de conexión (opcional)
-            <input
-              type="url"
-              name="enlace"
-              placeholder="https://meet.google.com/..."
-              className="mt-1 h-10 w-full rounded-full border border-hp-200 bg-fondo px-4 text-sm font-normal text-tinta outline-none focus:border-hp-400"
-            />
-          </label>
+            {/* Campo no cubre url todavía: se deja el <input> nativo con las
+                clases de Campo. */}
+            <label className="block text-sm font-semibold text-tinta sm:col-span-2">
+              Enlace de conexión (opcional)
+              <input
+                type="url"
+                name="enlace"
+                placeholder="https://meet.google.com/..."
+                className="mt-1 h-10 w-full rounded-full border border-hp-200 bg-white px-4 text-sm font-normal text-tinta outline-none focus:border-hp-400"
+              />
+            </label>
 
-          <button
-            type="submit"
-            className="h-10 rounded-full bg-hp-400 px-5 text-sm font-bold text-white transition-colors hover:bg-hp-500 sm:col-span-2 sm:justify-self-start"
-          >
-            Registrar
-          </button>
-        </form>
-      </details>
+            <BotonEnviar gerundio="Registrando…" className="sm:col-span-2 sm:justify-self-start">
+              Registrar
+            </BotonEnviar>
+          </form>
+        </details>
+      </Tarjeta>
 
+      {/* El buscador no tenía ninguna etiqueta visible antes (inputs y
+          selects sueltos con solo `placeholder`/orden como pista); `Campo`
+          exige una, así que «Con quién», «Desde», «Hasta» y «Estado» son
+          texto nuevo — mismo criterio que ya usó la zona 1 en el buscador de
+          `/recorridos`. */}
       <form className="mt-8 grid gap-3 sm:grid-cols-5">
-        <select
+        <Campo
+          etiqueta="Con quién"
           name="quien"
+          tipo="elegir"
           defaultValue={q.quien ?? ""}
-          className="h-10 rounded-full border border-hp-200 bg-white px-4 text-sm text-tinta outline-none focus:border-hp-400"
-        >
-          <option value="">Todo el mundo</option>
-          {estudiantes.map((e) => (
-            <option key={e.id} value={`alumno:${e.id}`}>
-              {nombreDe(e)}
-            </option>
-          ))}
-          {grupos.map((g) => (
-            <option key={g.id} value={`grupo:${g.id}`}>
-              Grupo · {g.nombre}
-            </option>
-          ))}
-        </select>
-
-        <input
-          type="date"
-          name="desde"
-          defaultValue={q.desde ?? ""}
-          className="h-10 rounded-full border border-hp-200 bg-white px-4 text-sm text-tinta outline-none focus:border-hp-400"
-        />
-        <input
-          type="date"
-          name="hasta"
-          defaultValue={q.hasta ?? ""}
-          className="h-10 rounded-full border border-hp-200 bg-white px-4 text-sm text-tinta outline-none focus:border-hp-400"
+          opciones={opcionesQuien}
         />
 
-        <select
+        {/* Campo no cubre fechas todavía: se dejan los <input> nativos con
+            las clases de Campo. */}
+        <label className="block text-sm font-semibold text-tinta">
+          Desde
+          <input
+            type="date"
+            name="desde"
+            defaultValue={q.desde ?? ""}
+            className="mt-1 h-10 w-full rounded-full border border-hp-200 bg-white px-4 text-sm font-normal text-tinta outline-none focus:border-hp-400"
+          />
+        </label>
+        <label className="block text-sm font-semibold text-tinta">
+          Hasta
+          <input
+            type="date"
+            name="hasta"
+            defaultValue={q.hasta ?? ""}
+            className="mt-1 h-10 w-full rounded-full border border-hp-200 bg-white px-4 text-sm font-normal text-tinta outline-none focus:border-hp-400"
+          />
+        </label>
+
+        <Campo
+          etiqueta="Estado"
           name="estado"
+          tipo="elegir"
           defaultValue={q.estado ?? ""}
-          className="h-10 rounded-full border border-hp-200 bg-white px-4 text-sm text-tinta outline-none focus:border-hp-400"
-        >
-          <option value="">Cualquier estado</option>
-          <option value="AGENDADA">Agendadas</option>
-          <option value="DADA">Dadas</option>
-          <option value="ANULADA">Anuladas</option>
-        </select>
+          opciones={[
+            { valor: "", nombre: "Cualquier estado" },
+            { valor: "AGENDADA", nombre: "Agendadas" },
+            { valor: "DADA", nombre: "Dadas" },
+            { valor: "ANULADA", nombre: "Anuladas" },
+          ]}
+        />
 
-        <button
-          type="submit"
-          className="h-10 rounded-full border-2 border-hp-200 px-5 text-sm font-bold text-hp-600 transition-colors hover:border-hp-400"
-        >
+        <BotonEnviar gerundio="Filtrando…" variante="sutil" className="self-end">
           Filtrar
-        </button>
+        </BotonEnviar>
       </form>
 
       <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -257,17 +256,15 @@ export default async function ClasesPage({
       </div>
 
       {totales.sinTarifa > 0 && (
-        <p className="mt-4 rounded-xl bg-sol-100 px-4 py-3 text-sm text-tinta">
+        <Aviso tono="aviso" className="mt-4">
           {totales.sinTarifa} clase{totales.sinTarifa !== 1 ? "s" : ""} dada
           {totales.sinTarifa !== 1 ? "s" : ""} sin importe. Le falta la tarifa
           por hora a quien {totales.sinTarifa !== 1 ? "las" : "la"} recibió.
-        </p>
+        </Aviso>
       )}
 
       {clases.length === 0 ? (
-        <p className="mt-6 rounded-tarjeta border border-dashed border-hp-200 p-10 text-center text-tinta-suave">
-          No hay clases con esos filtros.
-        </p>
+        <Vacio className="mt-6">No hay clases con esos filtros.</Vacio>
       ) : (
         <ul className="mt-6 space-y-2">
           {clases.map((c) => (
@@ -297,13 +294,9 @@ export default async function ClasesPage({
                   </span>
                 )}
 
-                <span
-                  className={`shrink-0 rounded-md px-2 py-0.5 text-xs font-semibold ring-1 ring-inset ${
-                    estadoStyle[c.estado] ?? "bg-fondo text-tinta ring-hp-100"
-                  }`}
-                >
+                <Etiqueta tono={estadoTono[c.estado] ?? "neutro"} className="shrink-0">
                   {estadoLabel[c.estado] ?? c.estado}
-                </span>
+                </Etiqueta>
 
                 <span
                   className={`shrink-0 rounded-md px-2 py-0.5 text-xs font-bold ${

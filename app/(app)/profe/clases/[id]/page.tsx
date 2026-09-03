@@ -15,6 +15,11 @@ import {
 import { estaSuprimido } from "@/lib/roles";
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
+import Aviso from "@/components/ui/aviso";
+import BotonEnviar from "@/components/ui/boton-enviar";
+import Campo from "@/components/ui/campo";
+import Encabezado from "@/components/ui/encabezado";
+import Tarjeta from "@/components/ui/tarjeta";
 
 export const dynamic = "force-dynamic";
 
@@ -172,97 +177,85 @@ export default async function ClasePage({
 
   const sinCerrar = clase.asignados.filter((d) => !d.cerradoEl).length;
 
+  const titulo = clase.estudiante
+    ? estaSuprimido(clase.estudiante)
+      ? "Estudiante suprimido"
+      : nombreDe(clase.estudiante)
+    : `Grupo · ${clase.grupo?.nombre ?? "sin grupo"}`;
+
   return (
     <div className="mx-auto max-w-3xl px-6 py-12">
-      <Link
-        href="/profe/clases"
-        className="text-sm font-semibold text-tinta-suave hover:text-hp-500"
-      >
-        ← Clases
-      </Link>
+      <Encabezado
+        titulo={titulo}
+        volver={{ href: "/profe/clases", texto: "Clases" }}
+        lede={
+          <>
+            {fechaHora(clase.empiezaEl)} · {horas(clase.minutos)} ·{" "}
+            {estadoLabel[clase.estado] ?? clase.estado}
+            {clase.estado === "DADA" && ` · ${euros(clase.importeCentimos)}`}
+          </>
+        }
+      />
 
-      <h1 className="mt-4 text-3xl font-extrabold tracking-tight text-tinta">
-        {clase.estudiante
-          ? estaSuprimido(clase.estudiante)
-            ? "Estudiante suprimido"
-            : nombreDe(clase.estudiante)
-          : `Grupo · ${clase.grupo?.nombre ?? "sin grupo"}`}
-      </h1>
-      <p className="mt-1 text-tinta-suave">
-        {fechaHora(clase.empiezaEl)} · {horas(clase.minutos)} ·{" "}
-        {estadoLabel[clase.estado] ?? clase.estado}
-        {clase.estado === "DADA" && ` · ${euros(clase.importeCentimos)}`}
-      </p>
-
-      <div className="mt-6 flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-2">
         {(["AGENDADA", "DADA", "ANULADA"] as const)
           .filter((e) => e !== clase.estado)
           .map((estado) => (
             <form action={cambiarEstadoClase} key={estado}>
               <input type="hidden" name="claseId" value={clase.id} />
               <input type="hidden" name="estado" value={estado} />
-              <button
-                type="submit"
-                className="h-9 rounded-full border-2 border-hp-200 px-4 text-xs font-bold text-hp-600 transition-colors hover:border-hp-400"
-              >
+              <BotonEnviar gerundio="Cambiando…" variante="sutil" tamano="pequeno">
                 {estado === "DADA"
                   ? "Marcar como dada"
                   : estado === "ANULADA"
                     ? "Anular"
                     : "Volver a agendar"}
-              </button>
+              </BotonEnviar>
             </form>
           ))}
       </div>
 
       {clase.estado === "DADA" && clase.importeCentimos === null && (
-        <p className="mt-4 rounded-xl bg-sol-100 px-4 py-3 text-sm text-tinta">
+        <Aviso tono="aviso" className="mt-4">
           Esta clase no tiene importe: todavía no hay ningún sitio donde
           escribir una tarifa por hora. El precio se congela al marcarla dada,
           así que cuando haya tarifas podrás volver a agendarla y marcarla dada
           otra vez para ponerle el suyo.
-        </p>
+        </Aviso>
       )}
 
       <h2 className="mt-10 text-lg font-bold text-tinta">
         Registro y deberes
       </h2>
 
-      <form
-        action={guardarFicha}
-        className="mt-3 rounded-tarjeta border border-hp-100 bg-white p-5 shadow-suave"
-      >
-        <input type="hidden" name="claseId" value={clase.id} />
+      <Tarjeta className="mt-3">
+        <form action={guardarFicha}>
+          <input type="hidden" name="claseId" value={clase.id} />
 
-        <label className="block text-sm font-semibold text-tinta">
-          Registro académico (solo lo ves tú)
-          <textarea
+          <Campo
+            etiqueta="Registro académico (solo lo ves tú)"
             name="notas"
+            tipo="area"
             rows={5}
             defaultValue={clase.notas ?? ""}
             placeholder="Qué se trabajó, qué le cuesta, por dónde seguir..."
-            className="mt-1 w-full rounded-xl border border-hp-200 bg-fondo px-4 py-3 text-sm font-normal text-tinta outline-none focus:border-hp-400"
           />
-        </label>
 
-        <label className="mt-4 block text-sm font-semibold text-tinta">
-          Deberes (los ve en su tablero quien está en la clase)
-          <textarea
+          <Campo
+            etiqueta="Deberes (los ve en su tablero quien está en la clase)"
             name="deberes"
+            tipo="area"
             rows={3}
             defaultValue={clase.deberes ?? ""}
             placeholder="Ejercicios 3 y 4 de la página 12."
-            className="mt-1 w-full rounded-xl border border-hp-200 bg-fondo px-4 py-3 text-sm font-normal text-tinta outline-none focus:border-hp-400"
+            className="mt-4"
           />
-        </label>
 
-        <button
-          type="submit"
-          className="mt-5 h-10 rounded-full bg-hp-400 px-5 text-sm font-bold text-white transition-colors hover:bg-hp-500"
-        >
-          Guardar
-        </button>
-      </form>
+          <BotonEnviar gerundio="Guardando…" className="mt-5">
+            Guardar
+          </BotonEnviar>
+        </form>
+      </Tarjeta>
 
       {clase.asignados.length > 0 && (
         <>
@@ -273,14 +266,11 @@ export default async function ClasePage({
             {sinCerrar > 0 && (
               <form action={cerrarTodos}>
                 <input type="hidden" name="claseId" value={clase.id} />
-                <button
-                  type="submit"
-                  className="h-9 rounded-full border-2 border-hp-200 px-4 text-xs font-bold text-hp-600 transition-colors hover:border-hp-400"
-                >
+                <BotonEnviar gerundio="Cerrando…" variante="sutil" tamano="pequeno">
                   {sinCerrar === 1
                     ? "Cerrar el que queda"
                     : `Cerrar los ${sinCerrar} que quedan`}
-                </button>
+                </BotonEnviar>
               </form>
             )}
           </div>
@@ -305,24 +295,18 @@ export default async function ClasePage({
                     <form action={abrirDeberDeClase}>
                       <input type="hidden" name="claseId" value={clase.id} />
                       <input type="hidden" name="deberId" value={d.id} />
-                      <button
-                        type="submit"
-                        className="h-8 rounded-full border border-hp-200 px-3 text-[11px] font-bold text-tinta-suave transition-colors hover:border-hp-400"
-                      >
+                      <BotonEnviar gerundio="Abriendo…" variante="sutil" tamano="pequeno">
                         Reabrir
-                      </button>
+                      </BotonEnviar>
                     </form>
                   </>
                 ) : (
                   <form action={cerrarDeberDeClase}>
                     <input type="hidden" name="claseId" value={clase.id} />
                     <input type="hidden" name="deberId" value={d.id} />
-                    <button
-                      type="submit"
-                      className="h-8 rounded-full bg-hp-400 px-4 text-[11px] font-bold text-white transition-colors hover:bg-hp-500"
-                    >
+                    <BotonEnviar gerundio="Cerrando…" tamano="pequeno">
                       Dar por hecho
-                    </button>
+                    </BotonEnviar>
                   </form>
                 )}
               </li>
@@ -332,11 +316,8 @@ export default async function ClasePage({
       )}
 
       {citas.length > 0 && (
-        <section className="mt-8 rounded-tarjeta border border-hp-100 bg-white p-5 shadow-suave">
-          <p className="text-xs font-bold uppercase tracking-wider text-tinta-suave">
-            Orales citados en esta clase
-          </p>
-          <ul className="mt-3 space-y-2">
+        <Tarjeta titulo="Orales citados en esta clase" className="mt-8">
+          <ul className="space-y-2">
             {citas.map((c) => {
               const paso = tituloDe.get(c.pasoId);
               const alumno = c.asignacion.estudiante;
@@ -360,81 +341,75 @@ export default async function ClasePage({
               );
             })}
           </ul>
-        </section>
+        </Tarjeta>
       )}
 
       <h2 className="mt-10 text-lg font-bold text-tinta">Cambiar los datos</h2>
 
-      <form
-        action={editarClase}
-        className="mt-3 grid gap-4 rounded-tarjeta border border-hp-100 bg-white p-5 shadow-suave sm:grid-cols-2"
-      >
-        <input type="hidden" name="claseId" value={clase.id} />
+      <form action={editarClase} className="mt-3">
+        <Tarjeta className="grid gap-4 sm:grid-cols-2">
+          <input type="hidden" name="claseId" value={clase.id} />
 
-        <label className="block text-sm font-semibold text-tinta">
-          Día y hora
-          <input
-            type="datetime-local"
-            name="empiezaEl"
-            required
-            defaultValue={paraInput(clase.empiezaEl)}
-            className="mt-1 h-10 w-full rounded-full border border-hp-200 bg-fondo px-4 text-sm font-normal text-tinta outline-none focus:border-hp-400"
-          />
-        </label>
+          {/* Campo no cubre fechas todavía: se deja el <input> nativo con
+              las clases de Campo. */}
+          <label className="block text-sm font-semibold text-tinta">
+            Día y hora
+            <input
+              type="datetime-local"
+              name="empiezaEl"
+              required
+              defaultValue={paraInput(clase.empiezaEl)}
+              className="mt-1 h-10 w-full rounded-full border border-hp-200 bg-white px-4 text-sm font-normal text-tinta outline-none focus:border-hp-400"
+            />
+          </label>
 
-        <label className="block text-sm font-semibold text-tinta">
-          Duración (minutos)
-          <input
-            type="number"
+          <Campo
+            etiqueta="Duración (minutos)"
             name="minutos"
+            tipo="numero"
             min={1}
             required
             defaultValue={clase.minutos}
-            className="mt-1 h-10 w-full rounded-full border border-hp-200 bg-fondo px-4 text-sm font-normal text-tinta outline-none focus:border-hp-400"
           />
-        </label>
 
-        <label className="block text-sm font-semibold text-tinta">
-          Con quién
-          <select
-            name="destinatario"
-            required
-            defaultValue={destinatarioActual}
-            className="mt-1 h-10 w-full rounded-full border border-hp-200 bg-fondo px-4 text-sm font-normal text-tinta outline-none focus:border-hp-400"
-          >
-            {opcionesEstudiantes.length > 0 && (
-              <optgroup label="Estudiantes">
-                {opcionesEstudiantes.map((e) => (
-                  <option key={e.id} value={`alumno:${e.id}`}>
-                    {estaSuprimido(e) ? "Estudiante suprimido" : nombreDe(e)}
-                  </option>
-                ))}
-              </optgroup>
-            )}
-            {opcionesGrupos.length > 0 && (
-              <optgroup label="Grupos">
-                {opcionesGrupos.map((g) => (
-                  <option key={g.id} value={`grupo:${g.id}`}>
-                    {g.nombre}
-                  </option>
-                ))}
-              </optgroup>
-            )}
-          </select>
-        </label>
+          {/* Campo no soporta <optgroup> (agrupa estudiantes y grupos por
+              separado): se deja el <select> nativo con las clases de Campo. */}
+          <label className="block text-sm font-semibold text-tinta">
+            Con quién
+            <select
+              name="destinatario"
+              required
+              defaultValue={destinatarioActual}
+              className="mt-1 h-10 w-full rounded-full border border-hp-200 bg-white px-4 text-sm font-normal text-tinta outline-none focus:border-hp-400"
+            >
+              {opcionesEstudiantes.length > 0 && (
+                <optgroup label="Estudiantes">
+                  {opcionesEstudiantes.map((e) => (
+                    <option key={e.id} value={`alumno:${e.id}`}>
+                      {estaSuprimido(e) ? "Estudiante suprimido" : nombreDe(e)}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+              {opcionesGrupos.length > 0 && (
+                <optgroup label="Grupos">
+                  {opcionesGrupos.map((g) => (
+                    <option key={g.id} value={`grupo:${g.id}`}>
+                      {g.nombre}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+            </select>
+          </label>
 
-        <label className="block text-sm font-semibold text-tinta">
-          Dónde
-          <input
-            type="text"
+          <Campo
+            etiqueta="Dónde"
             name="donde"
+            tipo="texto"
             defaultValue={clase.donde ?? ""}
-            className="mt-1 h-10 w-full rounded-full border border-hp-200 bg-fondo px-4 text-sm font-normal text-tinta outline-none focus:border-hp-400"
           />
-        </label>
 
-        <label className="block text-sm font-semibold text-tinta">
-          Precio
           {/* El navegador para el envío antes de que salga de aquí, y enseña
               el `title`. Sin esto, un precio mal escrito hacía que la acción
               volviera sin guardar **nada** —ni el sitio, ni el enlace, ni las
@@ -443,9 +418,10 @@ export default async function ClasePage({
               porque este formulario llama a la acción directamente y no
               recoge nada de vuelta. La comprobación del servidor se queda
               igual: esta es comodidad, no la guarda de verdad. */}
-          <input
-            type="text"
+          <Campo
+            etiqueta="Precio"
             name="precio"
+            tipo="texto"
             inputMode="decimal"
             pattern="\s*\d+([.,]\d{1,2})?\s*€?\s*"
             title="Escribe el precio en euros, con dos decimales como mucho. Por ejemplo: 30,50"
@@ -459,29 +435,29 @@ export default async function ClasePage({
                 : ""
             }
             placeholder="Automático, según la tarifa"
-            className="mt-1 h-10 w-full rounded-full border border-hp-200 bg-fondo px-4 text-sm font-normal text-tinta outline-none focus:border-hp-400"
+            ayuda="Déjalo vacío para cobrar lo que diga la tarifa por hora."
           />
-          <span className="mt-1 block text-xs font-normal text-tinta-suave">
-            Déjalo vacío para cobrar lo que diga la tarifa por hora.
-          </span>
-        </label>
 
-        <label className="block text-sm font-semibold text-tinta sm:col-span-2">
-          Enlace de conexión
-          <input
-            type="url"
-            name="enlace"
-            defaultValue={clase.enlace ?? ""}
-            className="mt-1 h-10 w-full rounded-full border border-hp-200 bg-fondo px-4 text-sm font-normal text-tinta outline-none focus:border-hp-400"
-          />
-        </label>
+          {/* Campo no cubre url todavía: se deja el <input> nativo con las
+              clases de Campo. */}
+          <label className="block text-sm font-semibold text-tinta sm:col-span-2">
+            Enlace de conexión
+            <input
+              type="url"
+              name="enlace"
+              defaultValue={clase.enlace ?? ""}
+              className="mt-1 h-10 w-full rounded-full border border-hp-200 bg-white px-4 text-sm font-normal text-tinta outline-none focus:border-hp-400"
+            />
+          </label>
 
-        <button
-          type="submit"
-          className="h-10 rounded-full border-2 border-hp-200 px-5 text-sm font-bold text-hp-600 transition-colors hover:border-hp-400 sm:col-span-2 sm:justify-self-start"
-        >
-          Guardar los cambios
-        </button>
+          <BotonEnviar
+            gerundio="Guardando…"
+            variante="sutil"
+            className="sm:col-span-2 sm:justify-self-start"
+          >
+            Guardar los cambios
+          </BotonEnviar>
+        </Tarjeta>
       </form>
 
       <p className="mt-6 text-xs text-tinta-suave">
@@ -501,12 +477,9 @@ export default async function ClasePage({
           </p>
           <form action={borrarLaClase} className="mt-3">
             <input type="hidden" name="claseId" value={clase.id} />
-            <button
-              type="submit"
-              className="h-9 rounded-full bg-bloque3 px-4 text-xs font-bold text-tinta transition-opacity hover:opacity-80"
-            >
+            <BotonEnviar gerundio="Borrando…" variante="peligro" tamano="pequeno">
               Borrar la clase
-            </button>
+            </BotonEnviar>
           </form>
         </details>
       )}

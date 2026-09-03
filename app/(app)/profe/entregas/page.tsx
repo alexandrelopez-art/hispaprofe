@@ -3,6 +3,9 @@ import { getUsuarioActual } from "@/lib/usuario";
 import { analizarExpresion, seOyeLaEntrega } from "@/lib/expresion";
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import Encabezado from "@/components/ui/encabezado";
+import Etiqueta from "@/components/ui/etiqueta";
+import Vacio from "@/components/ui/vacio";
 
 export const dynamic = "force-dynamic";
 
@@ -68,17 +71,13 @@ export default async function EntregasPage() {
 
   return (
     <div className="mx-auto max-w-3xl px-6 py-12">
-      <h1 className="text-3xl font-extrabold tracking-tight text-tinta">Entregas</h1>
-      <p className="mt-2 text-tinta-suave">
-        Lo que está esperando corrección. Las orales que el alumno graba y
-        manda salen aquí; las de clase no, porque no hay entrega y se corrigen
-        desde la ficha del alumno o desde la clase.
-      </p>
+      <Encabezado
+        titulo="Entregas"
+        lede="Lo que está esperando corrección. Las orales que el alumno graba y manda salen aquí; las de clase no, porque no hay entrega y se corrigen desde la ficha del alumno o desde la clase."
+      />
 
       {pendientes.length === 0 ? (
-        <p className="mt-8 rounded-tarjeta border border-dashed border-hp-200 p-10 text-center text-tinta-suave">
-          No hay nada esperando.
-        </p>
+        <Vacio className="mt-8">No hay nada esperando.</Vacio>
       ) : (
         <ul className="mt-6 space-y-2">
           {pendientes.map((p) => {
@@ -101,9 +100,9 @@ export default async function EntregasPage() {
                   </p>
                 </div>
                 {suena && (
-                  <span className="shrink-0 rounded-full bg-sol-100 px-2.5 py-0.5 text-[11px] font-bold text-tinta">
+                  <Etiqueta tono="sol" className="shrink-0">
                     Audio
-                  </span>
+                  </Etiqueta>
                 )}
                 <span className="shrink-0 text-xs text-tinta-suave">
                   {formatoFecha.format(p.completadoEl)}

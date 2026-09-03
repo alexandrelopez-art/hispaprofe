@@ -2,9 +2,11 @@ import { prisma } from "@/lib/prisma";
 import { getUsuarioActual } from "@/lib/usuario";
 import { analizarExpresion, seOyeLaEntrega } from "@/lib/expresion";
 import { notFound, redirect } from "next/navigation";
-import Link from "next/link";
 import Rubrica from "@/components/expresion/rubrica";
 import { reabrir } from "@/lib/acciones-expresion";
+import BotonEnviar from "@/components/ui/boton-enviar";
+import Encabezado from "@/components/ui/encabezado";
+import Tarjeta from "@/components/ui/tarjeta";
 
 export const dynamic = "force-dynamic";
 
@@ -68,11 +70,11 @@ export default async function CorregirPage({
 
   return (
     <div className="mx-auto max-w-3xl px-6 py-12">
-      <Link href="/profe/entregas" className="text-sm font-semibold text-tinta-suave hover:text-hp-500">
-        ← Entregas
-      </Link>
-      <h1 className="mt-4 text-3xl font-extrabold tracking-tight text-tinta">{nombre}</h1>
-      <p className="mt-1 text-tinta-suave">{registro.paso.titulo}</p>
+      <Encabezado
+        titulo={nombre}
+        volver={{ href: "/profe/entregas", texto: "Entregas" }}
+        lede={registro.paso.titulo}
+      />
 
       <p className="mt-6 rounded-tarjeta bg-fondo p-4 text-sm text-tinta">{datos.consigna}</p>
 
@@ -83,10 +85,7 @@ export default async function CorregirPage({
         los megas de todas las entregas al abrir la pantalla.
       */}
       {registro.entrega && (
-        <section className="mt-6 rounded-tarjeta border border-hp-100 bg-white p-6 shadow-suave">
-          <p className="text-xs font-bold uppercase tracking-wider text-tinta-suave">
-            {suena ? "Lo que grabó" : "Lo que escribió"}
-          </p>
+        <Tarjeta titulo={suena ? "Lo que grabó" : "Lo que escribió"} className="mt-6">
           {suena ? (
             <audio controls preload="none" src={registro.entrega} className="mt-3 w-full max-w-md">
               Tu navegador no puede reproducir este audio.
@@ -96,7 +95,7 @@ export default async function CorregirPage({
               {registro.entrega}
             </p>
           )}
-        </section>
+        </Tarjeta>
       )}
 
       <div className="mt-6">
@@ -129,21 +128,17 @@ export default async function CorregirPage({
               a poder entregar. Lo que mandó no se toca: sigue aquí hasta que lo
               sustituya.
             </p>
-            <button
-              type="submit"
-              className="mt-3 h-9 rounded-full border border-hp-200 px-4 text-xs font-bold text-tinta-suave transition-colors hover:border-hp-400 hover:text-hp-600"
-            >
+            <BotonEnviar gerundio="Reabriendo…" variante="sutil" tamano="pequeno" className="mt-3">
               Reabrir
-            </button>
+            </BotonEnviar>
           </form>
         </details>
       )}
 
       {datos.modelo && (
-        <section className="mt-6 rounded-tarjeta border border-hp-100 bg-white p-6 shadow-suave">
-          <p className="text-xs font-bold uppercase tracking-wider text-tinta-suave">Texto modelo</p>
+        <Tarjeta titulo="Texto modelo" className="mt-6">
           <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-tinta">{datos.modelo}</p>
-        </section>
+        </Tarjeta>
       )}
     </div>
   );

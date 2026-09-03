@@ -10,6 +10,8 @@ import Cronometro from "@/components/orales/cronometro";
 import TarjetaCriterio from "@/components/orales/tarjeta-criterio";
 import ParrillaSujets from "@/components/orales/parrilla-sujets";
 import type { SujetoDeParrilla } from "@/components/orales/parrilla-sujets";
+import Aviso from "@/components/ui/aviso";
+import Tarjeta from "@/components/ui/tarjeta";
 
 type Estado = {
   sujetoId: string | null;
@@ -420,11 +422,7 @@ export default function Panel({
         </div>
       </header>
 
-      {error && (
-        <p className="rounded-lg bg-coral-100 px-4 py-2 text-sm font-semibold text-coral-600">
-          {error}
-        </p>
-      )}
+      {error && <Aviso tono="error">{error}</Aviso>}
 
       <div className="grid gap-4 md:grid-cols-2">
         <Cronometro
@@ -520,7 +518,7 @@ export default function Panel({
         ))}
       </div>
 
-      <div className="rounded-tarjeta border border-hp-100 bg-white p-5">
+      <Tarjeta className="p-5">
         <h3 className="text-[11px] font-extrabold uppercase tracking-widest text-tinta-suave">
           Comentario general
         </h3>
@@ -535,7 +533,7 @@ export default function Panel({
           placeholder="Apreciación global, consejos, puntos a trabajar…"
           className="mt-2 min-h-24 w-full rounded-lg border border-hp-100 bg-fondo p-3 text-sm"
         />
-      </div>
+      </Tarjeta>
     </div>
   );
 }

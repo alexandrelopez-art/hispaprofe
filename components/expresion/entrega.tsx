@@ -9,6 +9,10 @@ import { entregar, type EstadoExpresion } from "@/lib/acciones-expresion";
 // al bundle. Que se quede en `import type`.
 import type { ExpresionPublica } from "@/lib/expresion";
 import Grabadora from "./grabadora";
+import Aviso from "@/components/ui/aviso";
+import { clasesDeBoton } from "@/components/ui/boton";
+import Rotulo from "@/components/ui/rotulo";
+import Tarjeta from "@/components/ui/tarjeta";
 
 /** Palabras de verdad: separadas por espacios, sin contar los de sobra. */
 function contarPalabras(texto: string): number {
@@ -54,7 +58,7 @@ export default function Entrega({
   const fuera = limites && (palabras < limites.minimo || palabras > limites.maximo);
 
   return (
-    <section className="mt-8 rounded-tarjeta border border-hp-100 bg-white p-6 shadow-suave">
+    <Tarjeta className="mt-8">
       <p className="font-bold text-tinta">{publica.consigna}</p>
 
       {publica.estimulo.texto && (
@@ -77,18 +81,20 @@ export default function Entrega({
       )}
 
       {publica.modalidad === "oral" && !publica.grabada ? (
-        <div className="mt-6 rounded-tarjeta bg-sol-100 px-4 py-3 text-sm text-tinta">
-          <p>
+        <Aviso tono="aviso" className="mt-6 block">
+          <span className="block">
             Esta tarea se hace en clase, con tu profesor. Aquí tienes el
             material para prepararla
             {publica.minutos ? `: dura unos ${publica.minutos} minutos` : ""}.
-          </p>
+          </span>
           {citada && (
-            <p className="mt-2 font-bold">
+            // Un <p> dentro de otro (el que ya pone Aviso) no es válido HTML:
+            // se queda en <span> con el mismo aspecto de línea aparte.
+            <span className="mt-2 block font-bold">
               Tu profe te ha citado para el {formatoFecha.format(citada)}.
-            </p>
+            </span>
           )}
-        </div>
+        </Aviso>
       ) : publica.modalidad === "oral" ? (
         // La oral grabada: se entrega dentro de la aplicación, así que no hay
         // ni cita ni línea de «esto se hace en clase».
@@ -103,6 +109,10 @@ export default function Entrega({
           <input type="hidden" name="pasoId" value={pasoId} />
           <input type="hidden" name="texto" value={texto} />
 
+          {/* Textarea sin `name`: el campo de verdad que viaja con el
+              formulario es el <input type="hidden"> de arriba. `Campo`
+              pondría su propio `name` en el control visible y duplicaría el
+              valor, así que se queda nativo. */}
           <textarea
             rows={12}
             value={texto}
@@ -113,10 +123,13 @@ export default function Entrega({
 
           <div className="mt-3 flex flex-wrap items-center gap-3">
             {!cerrada && (
+              // Botón nativo: además de `pending` (`enviando`), se apaga sin
+              // palabras escritas, y `BotonEnviar` no admite una condición de
+              // apagado adicional a la del propio envío.
               <button
                 type="submit"
                 disabled={enviando || palabras === 0}
-                className="h-11 rounded-full bg-hp-400 px-6 text-sm font-extrabold text-white transition-colors hover:bg-hp-500 disabled:opacity-40"
+                className={clasesDeBoton("primario", "normal", "h-11 px-6 text-sm font-extrabold disabled:opacity-40")}
               >
                 {enviando ? "Entregando…" : entrega ? "Volver a entregar" : "Entregar"}
               </button>
@@ -150,15 +163,15 @@ export default function Entrega({
       )}
 
       {estado.error && (
-        <p className="mt-3 rounded-tarjeta bg-sol-100 px-4 py-3 text-sm text-tinta">{estado.error}</p>
+        <Aviso tono="error" className="mt-3">{estado.error}</Aviso>
       )}
       {estado.ok && !estado.error && (
-        <p className="mt-3 rounded-tarjeta bg-hp-100 px-4 py-3 text-sm text-hp-700">{estado.ok}</p>
+        <Aviso tono="ok" className="mt-3">{estado.ok}</Aviso>
       )}
 
       {valoracion && (
         <div className="mt-8 border-t border-hp-100 pt-6">
-          <p className="text-xs font-bold uppercase tracking-wider text-tinta-suave">Tu corrección</p>
+          <Rotulo>Tu corrección</Rotulo>
           <ul className="mt-3 space-y-1">
             {publica.criterios.map((c) => (
               <li key={c.id} className="flex justify-between text-sm text-tinta">
@@ -179,12 +192,12 @@ export default function Entrega({
 
       {publica.modelo && (
         <div className="mt-8 border-t border-hp-100 pt-6">
-          <p className="text-xs font-bold uppercase tracking-wider text-tinta-suave">Texto modelo</p>
+          <Rotulo>Texto modelo</Rotulo>
           <p className="mt-3 whitespace-pre-wrap rounded-tarjeta bg-fondo p-4 text-sm leading-relaxed text-tinta">
             {publica.modelo}
           </p>
         </div>
       )}
-    </section>
+    </Tarjeta>
   );
 }
