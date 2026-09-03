@@ -24,6 +24,8 @@ function refrescar(pasoId: string, estudianteId?: string) {
   revalidatePath(`/pasos/${pasoId}`);
   revalidatePath("/profe/entregas");
   revalidatePath("/dashboard");
+  // La entrega (PasoCompletado) que toca esto también se enseña en /clases.
+  revalidatePath("/clases");
   if (estudianteId) revalidatePath(`/profe/alumnos/${estudianteId}`);
 }
 

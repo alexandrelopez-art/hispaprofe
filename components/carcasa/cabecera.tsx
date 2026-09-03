@@ -2,21 +2,10 @@ import Link from "next/link";
 import { salir } from "@/lib/acciones-entrada";
 import { esAdmin } from "@/lib/roles";
 import Etiqueta from "@/components/ui/etiqueta";
+import Logo from "@/components/ui/logo";
 import NavPuertas from "./nav-puertas";
 
 type Usuario = { firstName: string | null; email: string; role: string };
-
-function Logo({ enlaza }: { enlaza: boolean }) {
-  const cuerpo = (
-    <>
-      <span className="grid h-9 w-9 place-items-center rounded-xl bg-hp-500 text-xl font-extrabold text-white">ñ</span>
-      <span className="text-lg font-extrabold text-tinta">Hispa<span className="text-coral-500">profe</span></span>
-    </>
-  );
-  return enlaza
-    ? <Link href="/dashboard" className="flex shrink-0 items-center gap-2">{cuerpo}</Link>
-    : <span className="flex shrink-0 items-center gap-2">{cuerpo}</span>;
-}
 
 /**
  * La cabecera de dentro: el mismo logo que la portada, las puertas, y a la
@@ -29,7 +18,7 @@ export default function Cabecera({ usuario, reducida = false }: { usuario: Usuar
   return (
     <header className="sticky top-0 z-10 border-b border-hp-100 bg-white/85 backdrop-blur">
       <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-1 px-6 pt-3">
-        <Logo enlaza={!reducida} />
+        <Logo enlaza={!reducida} href="/dashboard" />
         <div className="ml-auto flex items-center gap-3 text-sm font-semibold text-tinta-suave">
           {!reducida && (
             <Link href="/cuenta" className="hidden sm:inline hover:text-hp-500">{nombre}</Link>

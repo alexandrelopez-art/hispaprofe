@@ -17,10 +17,6 @@ export type BloquePreparacion = {
   nombre: string;
   titulo: string;
   descripcion: string;
-  /** Clase de color del círculo. */
-  acento: string;
-  /** Clase del borde al pasar por encima. */
-  borde: string;
   /**
    * Si el alumno puede abrírselo por su cuenta. El examen blanco no: ese lo
    * asigna el profesor, y es lo que separa un ensayo de un simulacro.
@@ -35,8 +31,6 @@ export const BLOQUES: BloquePreparacion[] = [
     titulo: "Estructura y estrategias",
     descripcion:
       "Cómo es el examen por dentro: cuántas pruebas, cuánto duran y qué busca el tribunal en cada una.",
-    acento: "bg-bloque1",
-    borde: "hover:border-bloque1",
     autoservicio: true,
   },
   {
@@ -45,8 +39,6 @@ export const BLOQUES: BloquePreparacion[] = [
     titulo: "Práctica por tarea",
     descripcion:
       "Propuestas reales de cada prueba, una por una, con corrección de tu profe.",
-    acento: "bg-bloque2",
-    borde: "hover:border-bloque2",
     autoservicio: true,
   },
   {
@@ -55,8 +47,6 @@ export const BLOQUES: BloquePreparacion[] = [
     titulo: "Examen blanco",
     descripcion:
       "Simulacro completo y cronometrado, seguido de una cita para repasar los resultados.",
-    acento: "bg-bloque3",
-    borde: "hover:border-bloque3",
     autoservicio: false,
   },
   {
@@ -65,8 +55,6 @@ export const BLOQUES: BloquePreparacion[] = [
     titulo: "Ejercicios temáticos",
     descripcion:
       "Biblioteca de ejercicios cortos clasificados por tema y categoría, para practicar suelto.",
-    acento: "bg-bloque4",
-    borde: "hover:border-bloque4",
     autoservicio: true,
   },
 ];

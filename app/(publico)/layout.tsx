@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { usuarioDeLaSesion } from "@/lib/sesion";
+import Logo from "@/components/ui/logo";
 
 const enlacesNav = [
   { href: "/", label: "Inicio" },
@@ -20,14 +21,7 @@ export default async function PublicoLayout({
     <>
       <header className="sticky top-0 z-10 bg-white/85 backdrop-blur border-b border-hp-100">
         <div className="mx-auto max-w-6xl flex items-center gap-6 px-6 h-16">
-          <Link href="/" className="flex items-center gap-2 shrink-0">
-            <span className="grid place-items-center w-9 h-9 rounded-xl bg-hp-500 text-white font-extrabold text-xl">
-              ñ
-            </span>
-            <span className="font-extrabold text-tinta text-lg">
-              Hispa<span className="text-coral-500">profe</span>
-            </span>
-          </Link>
+          <Logo href="/" />
 
           <nav className="hidden md:flex items-center gap-5 text-sm font-semibold text-tinta-suave">
             {enlacesNav.map((e) => (

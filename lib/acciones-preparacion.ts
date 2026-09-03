@@ -52,5 +52,7 @@ export async function empezarPractica(formData: FormData) {
 
   revalidatePath("/dele");
   revalidatePath("/dashboard");
+  // `abrirPractica` crea una Asignacion: también sale en /clases.
+  revalidatePath("/clases");
   redirect(`/recorridos/${recorridoId}`);
 }

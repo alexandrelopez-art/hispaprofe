@@ -26,19 +26,21 @@ export default function Formulario({ obligado }: { obligado: boolean }) {
   }
 
   return (
-    <form action={accion} className="mt-8 rounded-tarjeta border border-hp-100 bg-white p-5 shadow-suave">
-      {!obligado && (
-        <Campo etiqueta="Contraseña actual" name="actual" tipo="contrasena" required autoComplete="current-password" />
-      )}
-      <Campo etiqueta="Contraseña nueva" name="nueva" tipo="contrasena" required minLength={8} autoComplete="new-password" className="mt-4" />
-      <Campo etiqueta="Repítela" name="repetida" tipo="contrasena" required minLength={8} autoComplete="new-password" className="mt-4" />
-      <p className="mt-2 text-xs text-tinta-suave">Al menos 8 caracteres.</p>
-      {estado.error && (
-        <Aviso tono="error" className="mt-4">{estado.error}</Aviso>
-      )}
-      <BotonEnviar gerundio="Guardando…" className="mt-5">
-        Guardar
-      </BotonEnviar>
-    </form>
+    <Tarjeta className="mt-8">
+      <form action={accion}>
+        {!obligado && (
+          <Campo etiqueta="Contraseña actual" name="actual" tipo="contrasena" required autoComplete="current-password" />
+        )}
+        <Campo etiqueta="Contraseña nueva" name="nueva" tipo="contrasena" required minLength={8} autoComplete="new-password" className="mt-4" />
+        <Campo etiqueta="Repítela" name="repetida" tipo="contrasena" required minLength={8} autoComplete="new-password" className="mt-4" />
+        <p className="mt-2 text-xs text-tinta-suave">Al menos 8 caracteres.</p>
+        {estado.error && (
+          <Aviso tono="error" className="mt-4">{estado.error}</Aviso>
+        )}
+        <BotonEnviar gerundio="Guardando…" className="mt-5">
+          Guardar
+        </BotonEnviar>
+      </form>
+    </Tarjeta>
   );
 }

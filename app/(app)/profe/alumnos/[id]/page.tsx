@@ -360,9 +360,10 @@ export default async function AlumnoPage({
                                   </Link>
                                 ) : null
                               ) : (
-                                // Campo con botón dentro, en una fila muy
-                                // estrecha y sin sitio para su etiqueta: se
-                                // queda a mano, como permite el contrato.
+                                // Campo lleva un botón dentro, en una fila
+                                // muy estrecha y sin sitio para su etiqueta:
+                                // el input se queda a mano, como permite el
+                                // contrato; el botón sí pasa a BotonEnviar.
                                 <form
                                   action={otorgarPuntos}
                                   className="flex shrink-0 items-center gap-1"
@@ -385,12 +386,9 @@ export default async function AlumnoPage({
                                     placeholder="pts"
                                     className="h-7 w-16 rounded-full border border-hp-200 bg-white px-2 text-center text-xs text-tinta outline-none focus:border-hp-400"
                                   />
-                                  <button
-                                    type="submit"
-                                    className="h-7 rounded-full border border-hp-200 px-2 text-[11px] font-bold text-tinta-suave transition-colors hover:border-hp-400 hover:text-hp-600"
-                                  >
+                                  <BotonEnviar gerundio="Guardando…" variante="sutil" tamano="pequeno">
                                     Guardar
-                                  </button>
+                                  </BotonEnviar>
                                 </form>
                               )}
                             </div>

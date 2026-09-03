@@ -102,6 +102,8 @@ function refrescar(claseId?: string) {
   revalidatePath("/profe/clases");
   if (claseId) revalidatePath(`/profe/clases/${claseId}`);
   revalidatePath("/dashboard");
+  // La clase y sus deberes también se enseñan en /clases.
+  revalidatePath("/clases");
 }
 
 /**
@@ -364,5 +366,6 @@ export async function borrarLaClase(formData: FormData) {
 
   revalidatePath("/profe/clases");
   revalidatePath("/dashboard");
+  revalidatePath("/clases");
   redirect("/profe/clases");
 }

@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import Encabezado from "@/components/ui/encabezado";
+import Tarjeta from "@/components/ui/tarjeta";
 import { deberesPendientes, proximaClase } from "@/lib/clases";
 import { fechaHora } from "@/lib/fechas";
 import { cuantosPorBloque } from "@/lib/catalogo-preparacion";
@@ -52,7 +53,7 @@ export default async function PanelEstudiante({
       <Puertas datos={{ dele, clases }} />
 
       {mostrarHucha && (
-        <section className="mt-8 rounded-tarjeta border border-hp-100 bg-white p-6 shadow-suave">
+        <Tarjeta className="mt-8">
           {resumen.pasosRevisados === 0 ? (
             <>
               <p className="text-lg font-bold text-tinta">
@@ -77,7 +78,7 @@ export default async function PanelEstudiante({
               </p>
             </>
           )}
-        </section>
+        </Tarjeta>
       )}
     </div>
   );

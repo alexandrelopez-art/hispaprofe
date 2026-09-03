@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
+import Logo from "@/components/ui/logo";
 
 
 export default function LandingPublica() {
@@ -179,14 +180,7 @@ export default function LandingPublica() {
       <footer className="border-t border-hp-100 bg-white">
         <div className="mx-auto max-w-6xl px-6 py-12 grid gap-10 sm:grid-cols-2 lg:grid-cols-[2fr_1fr_1fr]">
           <div>
-            <Link href="/" className="flex items-center gap-2">
-              <span className="grid place-items-center w-9 h-9 rounded-xl bg-hp-500 text-white font-extrabold text-xl">
-                ñ
-              </span>
-              <span className="font-extrabold text-tinta text-lg">
-                Hispa<span className="text-coral-500">profe</span>
-              </span>
-            </Link>
+            <Logo href="/" />
             <p className="mt-4 max-w-sm text-sm text-tinta-suave leading-6">
               Recursos y clases de español como lengua extranjera, hechos con
               cariño por un profe.

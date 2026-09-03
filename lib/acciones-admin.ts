@@ -18,6 +18,10 @@ function refrescar() {
   revalidatePath("/profe/alumnos");
   revalidatePath("/profe/clases");
   revalidatePath("/dashboard");
+  // `suprimir` (uno de los llamadores) borra Deber y Asignacion —y con ella,
+  // en cascada, PasoCompletado— así que /clases también puede tener datos
+  // viejos.
+  revalidatePath("/clases");
 }
 
 /**

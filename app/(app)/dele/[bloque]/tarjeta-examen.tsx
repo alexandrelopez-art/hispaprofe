@@ -4,6 +4,7 @@ import Etiqueta, { type TonoEtiqueta } from "@/components/ui/etiqueta";
 import TarjetaPieza from "@/components/ui/tarjeta";
 import { empezarPractica } from "@/lib/acciones-preparacion";
 import type { Tarjeta } from "@/lib/catalogo-preparacion";
+import { nombreNivel } from "@/lib/niveles";
 
 const NOMBRE_PRUEBA: Record<string, string> = {
   CO: "Comprensión auditiva",
@@ -12,18 +13,6 @@ const NOMBRE_PRUEBA: Record<string, string> = {
   EO: "Expresión oral",
   EEI: "Expresión e interacción escritas",
   EOI: "Expresión e interacción orales",
-};
-
-// El mismo criterio que el resto de la casa (`/recorridos/[id]`, la elección
-// de DELE al crear una secuencia…): los niveles MCER se enseñan tal cual y el
-// único que necesita traducción es el combinado de escolares.
-const NOMBRE_NIVEL: Record<string, string> = {
-  A1: "A1",
-  A2: "A2",
-  B1: "B1",
-  B2: "B2",
-  C1: "C1",
-  A2_B1_ESCOLAR: "A2/B1 escolar",
 };
 
 function textoDelEstado(estado: Tarjeta["estado"]): string {
@@ -77,7 +66,7 @@ export default function TarjetaExamen({
     <TarjetaPieza className="flex flex-wrap items-center justify-between gap-4">
       <div className="min-w-0">
         <h3 className="text-base font-bold text-tinta">
-          {NOMBRE_NIVEL[tarjeta.nivel] ?? tarjeta.nivel} ·{" "}
+          {nombreNivel(tarjeta.nivel)} ·{" "}
           {tarjeta.destreza
             ? (NOMBRE_PRUEBA[tarjeta.destreza] ?? tarjeta.destreza)
             : tarjeta.titulo}

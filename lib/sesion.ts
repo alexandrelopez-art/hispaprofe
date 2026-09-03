@@ -38,6 +38,10 @@ export async function usuarioPorToken(
   ahora: Date = new Date(),
 ): Promise<User | null> {
   if (!token) return null;
+  // `include` completo a propósito: `cambiarMiContrasena` necesita
+  // `contrasenaHash` a través de `getUsuarioActual()`. Es seguro porque este
+  // usuario nunca llega a un componente de cliente: `Cabecera` solo recibe
+  // nombre, correo y rol, elegidos a mano en cada página.
   const sesion = await prisma.sesion.findUnique({
     where: { tokenHash: hashDeToken(token) },
     include: { usuario: true },

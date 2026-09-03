@@ -8,10 +8,11 @@ import { NIVELES, nombreNivel } from "@/lib/niveles";
 import BotonEnviar from "@/components/ui/boton-enviar";
 import Campo from "@/components/ui/campo";
 import Encabezado from "@/components/ui/encabezado";
-import Etiqueta, { type TonoEtiqueta } from "@/components/ui/etiqueta";
+import Etiqueta from "@/components/ui/etiqueta";
 import Rotulo from "@/components/ui/rotulo";
 import Tarjeta from "@/components/ui/tarjeta";
 import Vacio from "@/components/ui/vacio";
+import { tipoLabel, tipoTono } from "@/lib/tipos-de-paso";
 
 export const dynamic = "force-dynamic";
 
@@ -23,23 +24,6 @@ const TIPOS = [
   "MICRO_TAREA",
   "MACRO_TAREA",
 ] as const;
-
-const tipoLabel: Record<string, string> = {
-  ACTIVACION: "Activación",
-  ACTIVIDAD: "Actividad",
-  ANDAMIAJE: "Andamiaje",
-  MICRO_TAREA: "Micro tarea",
-  MACRO_TAREA: "Macro tarea",
-};
-
-// El color más cercano de la identidad para cada tipo de paso.
-const tipoTono: Record<string, TonoEtiqueta> = {
-  ACTIVACION: "bloque2",
-  ACTIVIDAD: "hp",
-  ANDAMIAJE: "bloque1",
-  MICRO_TAREA: "sol",
-  MACRO_TAREA: "bloque3",
-};
 
 export default async function RecorridosPage({
   searchParams,

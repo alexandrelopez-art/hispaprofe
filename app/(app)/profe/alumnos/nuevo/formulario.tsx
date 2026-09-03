@@ -37,26 +37,28 @@ export default function Formulario() {
   }
 
   return (
-    <form action={accion} className="mt-8 rounded-tarjeta border border-hp-100 bg-white p-5 shadow-suave">
-      <Campo etiqueta="Correo" name="email" tipo="correo" required placeholder="estudiante@gmail.com" />
-      <div className="mt-4 flex gap-3">
-        <Campo etiqueta="Nombre" name="firstName" tipo="texto" className="flex-1" />
-        <Campo etiqueta="Apellido" name="lastName" tipo="texto" className="flex-1" />
-      </div>
-      <Campo
-        etiqueta="Nivel"
-        name="nivel"
-        tipo="elegir"
-        defaultValue=""
-        className="mt-4"
-        opciones={[{ valor: "", nombre: "Sin nivel" }, ...NIVELES]}
-      />
-      {estado.error && (
-        <Aviso tono="error" className="mt-4">{estado.error}</Aviso>
-      )}
-      <BotonEnviar gerundio="Creando…" className="mt-5">
-        Crear ficha
-      </BotonEnviar>
-    </form>
+    <Tarjeta className="mt-8">
+      <form action={accion}>
+        <Campo etiqueta="Correo" name="email" tipo="correo" required placeholder="estudiante@gmail.com" />
+        <div className="mt-4 flex gap-3">
+          <Campo etiqueta="Nombre" name="firstName" tipo="texto" className="flex-1" />
+          <Campo etiqueta="Apellido" name="lastName" tipo="texto" className="flex-1" />
+        </div>
+        <Campo
+          etiqueta="Nivel"
+          name="nivel"
+          tipo="elegir"
+          defaultValue=""
+          className="mt-4"
+          opciones={[{ valor: "", nombre: "Sin nivel" }, ...NIVELES]}
+        />
+        {estado.error && (
+          <Aviso tono="error" className="mt-4">{estado.error}</Aviso>
+        )}
+        <BotonEnviar gerundio="Creando…" className="mt-5">
+          Crear ficha
+        </BotonEnviar>
+      </form>
+    </Tarjeta>
   );
 }

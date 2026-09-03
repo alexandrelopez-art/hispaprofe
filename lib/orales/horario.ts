@@ -3,7 +3,7 @@
  *
  * Es la lógica más frágil de la rama —siete campos, dos separadores, dos
  * formatos de pausa, herencia del día— y por eso vive aquí, pura, fuera de
- * `lib/acciones-orales.ts`: una acción de servidor exige sesión de Clerk, así
+ * `lib/acciones-orales.ts`: una acción de servidor exige sesión, así
  * que `scripts/verificar-orales.ts` no puede llamarla ni ejercitar esta
  * lógica a través de ella. Lo que hace la acción con esto —emparejar por
  * correo o por nombre, comprobar las reglas, escribir— sí necesita Prisma y

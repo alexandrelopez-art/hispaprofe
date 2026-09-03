@@ -336,12 +336,16 @@ export default function EditorBloques({ pasoId }: { pasoId: string }) {
 
       {tipo === "ENLACE" && (
         <>
-          <textarea
+          {/* Mismo cambio que ya llevaba su gemelo en bloque-editable.tsx:
+              rótulo «Descripción» visible en vez de solo el placeholder. */}
+          <Campo
+            etiqueta="Descripción"
+            name="texto"
+            tipo="area"
             value={texto}
             onChange={(e) => setTexto(e.target.value)}
             rows={2}
-            placeholder="Descripción (opcional)"
-            className="mt-3 w-full rounded-2xl border border-hp-200 bg-white px-4 py-3 text-sm text-tinta outline-none focus:border-hp-400"
+            className="mt-3"
           />
           <Campo
             etiqueta="Imagen"

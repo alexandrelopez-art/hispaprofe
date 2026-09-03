@@ -17,7 +17,7 @@ import { estudianteAsignable } from "@/lib/estudiantes";
  * `components/`, no del compilador.
  *
  * También son las únicas verificables desde un script: una acción de
- * servidor necesita sesión de Clerk y contexto de petición, así que no se
+ * servidor necesita sesión y contexto de petición, así que no se
  * puede llamar desde `scripts/verificar-orales.ts`. Lo que está aquí sí.
  */
 

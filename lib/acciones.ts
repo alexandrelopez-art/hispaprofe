@@ -83,6 +83,7 @@ export async function asignarSecuencia(formData: FormData) {
   revalidatePath(`/recorridos/${recorridoId}`);
   revalidatePath("/profe/alumnos");
   revalidatePath("/dashboard");
+  revalidatePath("/clases");
 }
 
 export async function asignarSecuenciaAVarios(formData: FormData) {
@@ -109,6 +110,7 @@ export async function asignarSecuenciaAVarios(formData: FormData) {
   revalidatePath(`/recorridos/${recorridoId}`);
   revalidatePath("/profe/alumnos");
   revalidatePath("/dashboard");
+  revalidatePath("/clases");
   for (const estudianteId of asignables) {
     revalidatePath(`/profe/alumnos/${estudianteId}`);
   }
@@ -138,6 +140,7 @@ export async function asignarSecuenciaAGrupo(formData: FormData) {
   revalidatePath(`/recorridos/${recorridoId}`);
   revalidatePath("/profe/alumnos");
   revalidatePath("/dashboard");
+  revalidatePath("/clases");
 }
 
 export async function archivarAsignacion(formData: FormData) {
@@ -154,6 +157,7 @@ export async function archivarAsignacion(formData: FormData) {
   revalidatePath(`/recorridos/${asignacion.recorridoId}`);
   revalidatePath("/profe/alumnos");
   revalidatePath("/dashboard");
+  revalidatePath("/clases");
 }
 
 // ─── Grupos ──────────────────────────────────────────────────────────────
@@ -541,6 +545,7 @@ export async function otorgarPuntos(formData: FormData) {
 
   revalidatePath(`/profe/alumnos/${asignacion.estudianteId}`);
   revalidatePath("/dashboard");
+  revalidatePath("/clases");
 }
 
 export async function crearPaso(formData: FormData) {
@@ -1008,6 +1013,7 @@ export async function importarPuntos(formData: FormData) {
 
   revalidatePath("/profe/alumnos");
   revalidatePath("/dashboard");
+  revalidatePath("/clases");
   for (const estudianteId of estudianteIds) {
     if (estudianteId) revalidatePath(`/profe/alumnos/${estudianteId}`);
   }
@@ -1055,6 +1061,7 @@ export async function marcarPasoHecho(formData: FormData) {
   revalidatePath(`/pasos/${pasoId}`);
   revalidatePath(`/recorridos/${paso.recorridoId}`);
   revalidatePath("/dashboard");
+  revalidatePath("/clases");
 }
 
 /**
@@ -1178,6 +1185,7 @@ export async function responderEjercicio(formData: FormData) {
   revalidatePath(`/pasos/${pasoId}`);
   revalidatePath(`/recorridos/${paso.recorridoId}`);
   revalidatePath("/dashboard");
+  revalidatePath("/clases");
 }
 
 /** Desmarca un paso, salvo que el profesor ya lo haya revisado. */
@@ -1210,6 +1218,7 @@ export async function desmarcarPasoHecho(formData: FormData) {
   revalidatePath(`/pasos/${pasoId}`);
   revalidatePath(`/recorridos/${paso.recorridoId}`);
   revalidatePath("/dashboard");
+  revalidatePath("/clases");
 }
 
 /**
@@ -1306,5 +1315,6 @@ export async function borrarRecorrido(formData: FormData) {
 
   revalidatePath("/recorridos");
   revalidatePath("/dashboard");
+  revalidatePath("/clases");
   redirect("/recorridos");
 }
