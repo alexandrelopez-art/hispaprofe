@@ -40,7 +40,7 @@ export default async function OralesPage() {
       />
 
       <form action={crearConvocatoria}>
-        <Tarjeta className="flex gap-2 p-4">
+        <Tarjeta relleno="compacto" className="flex gap-2">
           <input
             name="nombre"
             required
@@ -55,7 +55,7 @@ export default async function OralesPage() {
       <ul className="mt-6 space-y-2">
         {convocatorias.map((c) => (
           <li key={c.id}>
-            <Tarjeta className="flex items-center gap-3 p-4">
+            <Tarjeta relleno="compacto" className="flex items-center gap-3">
               <Link href={`/profe/orales/${c.id}`} className="flex-1">
                 <span className="font-bold text-tinta">{c.nombre}</span>
                 <span className="ml-2 text-xs text-tinta-suave">

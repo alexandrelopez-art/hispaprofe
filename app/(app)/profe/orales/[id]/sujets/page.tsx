@@ -52,7 +52,7 @@ export default async function SujetsPage({
           «Descripción», «Fuente», «URL» y «Preguntas» son texto nuevo — mismo
           criterio que ya usó la zona 1 en el buscador de `/recorridos`. */}
       <form action={crearSujeto} className="mt-5">
-        <Tarjeta className="space-y-3 p-5">
+        <Tarjeta relleno="compacto" className="space-y-3">
           <input type="hidden" name="convocatoriaId" value={id} />
           <div className="flex gap-3">
             <Campo
@@ -61,7 +61,6 @@ export default async function SujetsPage({
               tipo="numero"
               min={1}
               required
-              placeholder="Nº"
               className="w-20"
             />
             <Campo
@@ -122,7 +121,7 @@ export default async function SujetsPage({
       <ul className="mt-6 space-y-2">
         {sujetos.map((s) => (
           <li key={s.id}>
-            <Tarjeta className="flex items-center gap-3 p-3">
+            <Tarjeta relleno="minimo" className="flex items-center gap-3">
               <span className="w-8 text-center font-extrabold text-tinta">{s.numero}</span>
               <span className="flex-1">
                 <span className="block font-bold text-tinta">{s.titulo}</span>

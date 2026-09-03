@@ -205,7 +205,7 @@ export default function BloqueEditable({
               {bloque.tipo === "ENLACE" && (
                 <>
                   <Campo
-                    etiqueta="Descripción"
+                    etiqueta="Descripción (opcional)"
                     name="texto"
                     tipo="area"
                     value={texto}

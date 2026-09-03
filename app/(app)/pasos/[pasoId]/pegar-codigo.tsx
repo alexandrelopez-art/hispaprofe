@@ -169,23 +169,26 @@ export default function PegarCodigo({
       <form action={comprobar} className="mt-6">
         <input type="hidden" name="pasoId" value={pasoId} />
         {/*
-          Sigue controlado (`value` + `onChange`): `Campo` reenvía las dos
-          props tal cual al <textarea> de siempre, que es lo único que hace
-          falta para que el `reset()` de la transición de la acción —ver el
-          comentario de `pegado` más arriba— devuelva el texto en vez de
-          vaciarlo.
+          Sigue controlado (`value` + `onChange`): el `reset()` de la
+          transición de la acción —ver el comentario de `pegado` más
+          arriba— devuelve el texto en vez de vaciarlo.
+
+          Campo no pone clases al control; el JSON quiere monoespaciada. Se
+          queda con el <textarea> nativo de siempre (con sus clases de
+          antes de pasar por Campo) en vez de perder el `font-mono`.
         */}
-        <Campo
-          etiqueta="2. Lo que te devuelva, pégalo aquí"
-          name="pegado"
-          tipo="area"
-          value={pegado}
-          onChange={(e) => setPegado(e.target.value)}
-          rows={10}
-          spellCheck={false}
-          placeholder='{ "bloque": "…", "ejercicio": { … } }'
-          className="font-mono"
-        />
+        <label className="block text-sm font-bold text-tinta">
+          2. Lo que te devuelva, pégalo aquí
+          <textarea
+            name="pegado"
+            value={pegado}
+            onChange={(e) => setPegado(e.target.value)}
+            rows={10}
+            spellCheck={false}
+            placeholder='{ "bloque": "…", "ejercicio": { … } }'
+            className="mt-2 w-full rounded-xl border-2 border-hp-200 p-3 font-mono text-xs font-normal text-tinta"
+          />
+        </label>
         {/* Se queda con su <button> nativo, no BotonEnviar: el `onClick` que
             marca `ultima` tiene que correr antes de que el formulario se
             envíe, y BotonEnviar no acepta onClick. */}

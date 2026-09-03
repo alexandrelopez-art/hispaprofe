@@ -339,7 +339,7 @@ export default function EditorBloques({ pasoId }: { pasoId: string }) {
           {/* Mismo cambio que ya llevaba su gemelo en bloque-editable.tsx:
               rótulo «Descripción» visible en vez de solo el placeholder. */}
           <Campo
-            etiqueta="Descripción"
+            etiqueta="Descripción (opcional)"
             name="texto"
             tipo="area"
             value={texto}

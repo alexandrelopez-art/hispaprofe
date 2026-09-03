@@ -518,7 +518,7 @@ export default function Panel({
         ))}
       </div>
 
-      <Tarjeta className="p-5">
+      <Tarjeta relleno="compacto">
         <h3 className="text-[11px] font-extrabold uppercase tracking-widest text-tinta-suave">
           Comentario general
         </h3>

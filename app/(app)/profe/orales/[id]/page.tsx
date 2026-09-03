@@ -185,7 +185,7 @@ export default async function ConvocatoriaPage({
                 grupo sigue donde lo dejó la vez anterior.
               */}
               <form action={pegarHorario}>
-                <Tarjeta className="space-y-3 p-5">
+                <Tarjeta relleno="compacto" className="space-y-3">
                   <input type="hidden" name="convocatoriaId" value={id} />
                   <h2 className="font-bold text-tinta">
                     {turnos.length > 0 ? "Pegar más horario" : "Pega el horario del liceo"}
