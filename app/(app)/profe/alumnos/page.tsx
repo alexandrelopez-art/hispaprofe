@@ -114,7 +114,7 @@ export default async function AlumnosPage() {
       />
 
       {mios.length === 0 ? (
-        <Vacio>
+        <Vacio className="mt-8">
           Todavía no tienes estudiantes. Crea un grupo con sus correos, o
           asígnale una secuencia a alguien de la lista de abajo.
         </Vacio>

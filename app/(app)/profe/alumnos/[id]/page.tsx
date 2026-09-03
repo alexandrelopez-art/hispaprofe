@@ -181,7 +181,7 @@ export default async function AlumnoPage({
       </h2>
 
       {asignaciones.length === 0 ? (
-        <Vacio>Sin secuencias asignadas todavía.</Vacio>
+        <Vacio className="mt-3">Sin secuencias asignadas todavía.</Vacio>
       ) : (
         <ul className="mt-3 space-y-3">
           {asignaciones.map((asignacion) => {

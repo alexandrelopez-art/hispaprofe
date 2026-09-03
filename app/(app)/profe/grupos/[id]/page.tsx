@@ -248,6 +248,8 @@ export default async function GrupoPage({
       <Tarjeta className="mt-3">
         <form action={anadirCorreosAGrupo}>
           <input type="hidden" name="grupoId" value={grupo.id} />
+          {/* Antes solo tenía placeholder; la etiqueta «Correos» es nueva,
+              para que un lector de pantalla tenga nombre, igual que «Nota». */}
           <Campo
             etiqueta="Correos"
             name="correos"
@@ -266,7 +268,7 @@ export default async function GrupoPage({
         Asignar una secuencia al grupo
       </h2>
       {grupo.miembros.length === 0 ? (
-        <Vacio>Añade estudiantes antes de asignar.</Vacio>
+        <Vacio className="mt-3">Añade estudiantes antes de asignar.</Vacio>
       ) : (
         <Tarjeta className="mt-3">
           <form action={asignarSecuenciaAGrupo}>
