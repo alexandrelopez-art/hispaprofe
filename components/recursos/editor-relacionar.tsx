@@ -132,6 +132,7 @@ export default function EditorRelacionar({
 
       <div className="space-y-3">
         {d.parejas.map((p, i) => (
+          // Grupo de formulario, no tarjeta: fieldset/legend a propósito, sin sombra.
           <div key={p.id} className="flex flex-wrap items-end gap-3 rounded-tarjeta border border-hp-100 p-4">
             <label className="block flex-1 text-sm font-semibold text-tinta">
               Izquierda

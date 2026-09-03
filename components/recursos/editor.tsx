@@ -253,6 +253,9 @@ export default function Editor({
   return (
     <div className={`grid gap-8 ${conPrevisualizacion ? "lg:grid-cols-2" : ""}`}>
       <form action={guardar} className="space-y-6">
+        {/* Los ocultos llevan el estado del editor al servidor; los campos
+            visibles de abajo usan otro name para que el orden del DOM no
+            decida cuál gana. */}
         <input type="hidden" name="id" value={inicial?.id ?? ""} />
         <input type="hidden" name="datos" value={JSON.stringify(datos)} />
         <input type="hidden" name="titulo" value={titulo} />
@@ -292,7 +295,7 @@ export default function Editor({
         <div className="flex flex-wrap gap-4">
           <Campo
             etiqueta="Título"
-            name="titulo"
+            name="titulo-visible"
             value={titulo}
             onChange={(e) => setTitulo(e.target.value)}
             disabled={Boolean(bloqueado)}
@@ -301,7 +304,7 @@ export default function Editor({
 
           <Campo
             etiqueta="Nivel"
-            name="nivel"
+            name="nivel-visible"
             tipo="elegir"
             value={nivel}
             onChange={(e) => setNivel(e.target.value)}
@@ -312,7 +315,7 @@ export default function Editor({
 
           <Campo
             etiqueta="Destreza"
-            name="destreza"
+            name="destreza-visible"
             tipo="elegir"
             value={destreza}
             onChange={(e) => setDestreza(e.target.value)}
@@ -327,7 +330,7 @@ export default function Editor({
 
         <Campo
           etiqueta="Etiquetas, separadas por comas"
-          name="etiquetas"
+          name="etiquetas-visible"
           value={etiquetas}
           onChange={(e) => setEtiquetas(e.target.value)}
           placeholder="la casa, ser y estar"

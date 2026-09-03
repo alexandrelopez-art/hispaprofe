@@ -115,6 +115,7 @@ export default function EditorHuecos({
       ) : (
         <div className="space-y-3">
           {d.huecos.map((h) => (
+            // Grupo de formulario, no tarjeta: fieldset/legend a propósito, sin sombra.
             <fieldset key={h.id} className="rounded-tarjeta border border-hp-100 p-4">
               <legend className="px-2 text-sm font-bold text-tinta">
                 Hueco <code>{`{{${h.id}}}`}</code>

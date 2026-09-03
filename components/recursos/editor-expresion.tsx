@@ -139,6 +139,7 @@ export default function EditorExpresion({
         placeholder="Escribe un correo a un amigo contándole tus vacaciones."
       />
 
+      {/* Grupo de formulario, no tarjeta: fieldset/legend a propósito, sin sombra. */}
       <fieldset className="rounded-tarjeta border border-hp-100 p-4">
         <legend className="px-2 text-sm font-bold text-tinta">Estímulo</legend>
         <p className="text-sm text-tinta-suave">
