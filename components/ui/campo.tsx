@@ -1,8 +1,10 @@
 import { useId, type ComponentProps } from "react";
 
-// Exportada: la reutiliza algún control que se queda nativo a propósito
-// (por ejemplo un <select> con <optgroup>, que Campo no admite) para no
-// copiar la cadena de clases a mano.
+// Exportada solo para el puñado de controles nativos que Campo no puede
+// expresar (por ejemplo un <select> con <optgroup>, que Campo no admite):
+// no es una forma de que un control nativo pase desapercibido. El script
+// de verificación tiene un patrón que la busca fuera de components/ui/, y
+// pide una excepción nombrada en EXCEPCIONES para cada sitio que la use.
 export const CONTROL =
   "mt-1 w-full rounded-full border border-hp-200 bg-white px-4 text-sm font-normal text-tinta outline-none focus:border-hp-400 disabled:bg-fondo";
 

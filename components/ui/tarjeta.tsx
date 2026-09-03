@@ -25,11 +25,15 @@ const RELLENO: Record<Relleno, string> = { normal: "p-6", compacto: "p-4", suelt
  * target="_blank" rel="noopener noreferrer">`: un enlace a otro dominio no
  * navega dentro de la app, y sin `noopener` la pestaña nueva podría manipular
  * la que la abrió.
+ * Con `href` (sea `Link` o el `<a>` externo), la tarjeta entera reacciona al
+ * paso del ratón: el borde y la sombra crecen juntos (`hover:shadow-tarjeta`)
+ * con una transición de todas las propiedades, no solo de color — para que
+ * toda tarjeta enlazable se sienta igual, sea cual sea el contenido de dentro.
  */
 export default function Tarjeta({ titulo, acento, href, externo, relleno = "normal", className = "", children }: {
   titulo?: string; acento?: Acento; href?: string; externo?: boolean; relleno?: Relleno; className?: string; children: React.ReactNode;
 }) {
-  const clases = `block rounded-tarjeta border border-hp-100 bg-white ${RELLENO[relleno]} shadow-suave ${acento ? BORDE[acento] : ""} ${href ? "transition-colors hover:border-hp-300" : ""} ${className}`;
+  const clases = `block rounded-tarjeta border border-hp-100 bg-white ${RELLENO[relleno]} shadow-suave ${acento ? BORDE[acento] : ""} ${href ? "transition hover:border-hp-300 hover:shadow-tarjeta" : ""} ${className}`;
   const cuerpo = (<>{titulo && <Rotulo className="mb-3">{titulo}</Rotulo>}{children}</>);
   if (!href) return <section className={clases}>{cuerpo}</section>;
   if (externo) return <a href={href} target="_blank" rel="noopener noreferrer" className={clases}>{cuerpo}</a>;

@@ -18,14 +18,25 @@ const PATRONES: { nombre: string; pieza: string; regex: RegExp }[] = [
   // input nativo también puede llevar `border border-hp-200` (es la clase
   // de Campo), pero el color de texto `text-tinta-suave` solo lo lleva el
   // botón `sutil` — sin eso, cualquier input con las clases de Campo se
-  // confundía con un botón.
-  { nombre: "botón a mano", pieza: "Boton / BotonEnviar", regex: /rounded-full (bg-hp-[45]00|border-2 border-tinta|border border-hp-200 text-tinta-suave)/ },
+  // confundía con un botón. La cuarta alternativa (`bg-error-500 text-white`)
+  // es el mismo cierre para `peligro`.
+  { nombre: "botón a mano", pieza: "Boton / BotonEnviar", regex: /rounded-full (bg-hp-[45]00|bg-error-500 text-white|border-2 border-tinta|border border-hp-200 text-tinta-suave)/ },
   { nombre: "casilla a mano", pieza: "Campo", regex: /const campo =|rounded-full border border-hp-200 bg-white px-4/ },
   { nombre: "nombres de nivel duplicados", pieza: "lib/niveles", regex: /nivelLabel|NOMBRE_NIVEL|const nombreNivel/ },
   { nombre: "rótulo a mano", pieza: "Rotulo", regex: /text-xs font-bold uppercase tracking-wider/ },
   { nombre: "aviso amarillo como error", pieza: "Aviso tono=\"error\"", regex: /bg-sol-100[^"]*text-(coral|tinta)[^"]*"[^>]*>\s*\{?\s*(error|estado\.error|mensaje)/ },
   { nombre: "botón montado a mano", pieza: "Boton / BotonEnviar (ya admiten onClick y deshabilitado)", regex: /clasesDeBoton\(/ },
-  { nombre: "casilla nativa", pieza: "Campo (tipo fecha/fechahora/hora/url/busqueda)", regex: /type="(date|datetime-local|time|url|search)"/ },
+  // Cubre las tres grafías (comillas dobles, simples, y `{"..."}`), no solo
+  // `type="date"` literal: un `type={condicion ? "date" : "text"}` también
+  // es una casilla nativa que Campo ya sabe hacer.
+  { nombre: "casilla nativa", pieza: "Campo (tipo fecha/fechahora/hora/url/busqueda)", regex: /type=(?:["']|\{["'])(date|datetime-local|time|url|search)["']\}?/ },
+  // `CONTROL` es la cadena de clases de Campo, exportada para el puñado de
+  // controles nativos que Campo no puede expresar (ver el comentario junto a
+  // `export const CONTROL` en components/ui/campo.tsx). Si aparece fuera de
+  // components/ui/, es un control nativo que necesita su propia excepción
+  // nombrada — no un hueco para copiar las clases de Campo sin que el script
+  // se entere.
+  { nombre: "control reutilizado fuera de Campo", pieza: "Campo", regex: /\bCONTROL\b/ },
 ];
 
 /**
@@ -42,12 +53,10 @@ const PATRONES: { nombre: string; pieza: string; regex: RegExp }[] = [
  */
 const EXCEPCIONES: { prefijo: string; patron?: string; razon: string }[] = [
   { prefijo: "components/ui/", razon: "son las piezas" },
-  { prefijo: "components/carcasa/", razon: "la cabecera usa las clases de la identidad directamente" },
   { prefijo: "app/(publico)/", razon: "la portada tiene su propio diseño, aprobado" },
   { prefijo: "app/(imprimible)/", razon: "es la ficha A4 para imprimir" },
   { prefijo: "components/ejercicios/", razon: "el motor de ejercicios que resuelve el estudiante; no se toca en la sesión B" },
   { prefijo: "components/expresion/grabadora.tsx", razon: "la grabadora tiene su propia interfaz de estados" },
-  { prefijo: "app/(app)/muestrario/", razon: "es el muestrario de las piezas: enseña sus clases a propósito, no es una pantalla real" },
 
   // ─── Task 6: falsos positivos del regex «título a mano» ──────────────────
   // `text-3xl font-extrabold` también es la clase del número grande de una
@@ -61,7 +70,7 @@ const EXCEPCIONES: { prefijo: string; patron?: string; razon: string }[] = [
   // hoy en cada uno de estos ya está fuera del contrato por el mismo motivo
   // (listas propias, o «toque ligero» declarado), así que separar por patrón
   // no añadía nada — y con el tope de excepciones, sí que costaba.
-  { prefijo: "app/(app)/profe/importar/importar-cliente.tsx", razon: "toda la pantalla es de \"listas\" (CSV fila a fila, con sus propios botones) — la excepción del propio contrato de Campo — y Tarjeta no está en la lista de piezas que se tocan en los editores grandes" },
+  { prefijo: "app/(app)/profe/importar/importar-cliente.tsx", razon: "toda la pantalla es de \"listas\" (CSV fila a fila): la constante `campo` y sus <input> — la excepción del propio contrato de Campo — y las 3 tarjetas nativas porque Tarjeta no está en la lista de piezas que se tocan en los editores grandes" },
   { prefijo: "components/recursos/campos.tsx", razon: "exporta las clases `campo`/`area` que usan los editores de recursos para los campos que viven dentro de una lista con sus propios botones de añadir/quitar — la excepción de \"listas\" del propio contrato de Campo" },
   { prefijo: "components/orales/panel.tsx", razon: "los 4 hallazgos son falsos positivos: 1 × «título a mano» es la nota «/20» (no un h1) y 3 × «casilla a mano» son `const campo = campoDeReloj[...]`, una variable de qué reloj está corriendo (no una clase de <input>)" },
   { prefijo: "components/orales/cronometro.tsx", razon: "components/orales/* es de toque ligero: Tarjeta no está en la lista de piezas que se tocan ahí (solo botones, avisos, etiquetas, rótulos y campos sencillos), así que la caja del cronómetro se queda con sus clases nativas" },
@@ -69,6 +78,9 @@ const EXCEPCIONES: { prefijo: string; patron?: string; razon: string }[] = [
   // ─── Task 2: tres botones que comparten un único <form> con varias
   // acciones (formAction) — ver el comentario en el propio fichero ──────────
   { prefijo: "components/recursos/editor.tsx", patron: "botón montado a mano", razon: "Guardar/Publicar/Borrar viven en el mismo <form action={guardar}>, con Publicar y Borrar como formAction sobre ese mismo <form>; BotonEnviar lee su `pending` de useFormStatus(), que es del <form> entero y no de qué botón lo disparó, así que convertir cualquiera de los tres encendería el gerundio y el apagado de los otros dos con el envío equivocado — un botón diría «Guardando…» mientras se publica" },
+
+  // ─── Task 2, ronda final: el <select> con <optgroup> reutiliza CONTROL ────
+  { prefijo: "app/(app)/profe/clases/[id]/page.tsx", patron: "control reutilizado fuera de Campo", razon: "el <select> agrupa estudiantes y grupos con <optgroup>, que Campo no admite (spec: «Fuera»); reutiliza CONTROL en vez de copiar la cadena de clases a mano" },
 ];
 
 function ficheros(dir: string): string[] {

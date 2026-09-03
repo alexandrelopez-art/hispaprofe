@@ -10,6 +10,7 @@ import type { EstadoClase } from "@/lib/generated/prisma/enums";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import Aviso from "@/components/ui/aviso";
+import Boton from "@/components/ui/boton";
 import BotonEnviar from "@/components/ui/boton-enviar";
 import Campo from "@/components/ui/campo";
 import Encabezado from "@/components/ui/encabezado";
@@ -216,9 +217,10 @@ export default async function ClasesPage({
           ]}
         />
 
-        <BotonEnviar gerundio="Filtrando…" variante="sutil" className="self-end">
+        {/* Formulario GET: `useFormStatus` no lo ve, así que no hay gerundio. */}
+        <Boton type="submit" variante="sutil" className="self-end">
           Filtrar
-        </BotonEnviar>
+        </Boton>
       </form>
 
       <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

@@ -10,6 +10,7 @@ import {
 } from "@/lib/acciones-admin";
 import type { Prisma } from "@/lib/generated/prisma/client";
 import NuevaContrasena from "@/components/nueva-contrasena";
+import Boton from "@/components/ui/boton";
 import BotonEnviar from "@/components/ui/boton-enviar";
 import Campo from "@/components/ui/campo";
 import Etiqueta, { type TonoEtiqueta } from "@/components/ui/etiqueta";
@@ -107,7 +108,8 @@ export default async function AdminPersonasPage({
           placeholder="Buscar por nombre o correo"
           className="min-w-56 flex-1"
         />
-        <BotonEnviar gerundio="Buscando…" variante="sutil">Buscar</BotonEnviar>
+        {/* Formulario GET: `useFormStatus` no lo ve, así que no hay gerundio. */}
+        <Boton type="submit" variante="sutil">Buscar</Boton>
       </form>
 
       <p className="mt-4 text-sm text-tinta-suave">

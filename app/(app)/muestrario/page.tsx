@@ -41,19 +41,26 @@ export default async function MuestrarioPage() {
         </Tarjeta>
 
         <Tarjeta titulo="BotonEnviar">
-          <form
-            action={async () => {
-              "use server";
-              await new Promise((r) => setTimeout(r, 1500));
-            }}
-            className="flex flex-wrap items-center gap-3"
-          >
-            <BotonEnviar gerundio="Guardando…">Guardar</BotonEnviar>
-            <BotonEnviar gerundio="Guardando…" deshabilitado>Apagado por regla</BotonEnviar>
-            <BotonEnviar gerundio="Guardando…" variante="sutil" title="Guarda sin cerrar el formulario">
-              Con title
-            </BotonEnviar>
-          </form>
+          <div className="flex flex-wrap items-center gap-3">
+            <form
+              action={async () => {
+                "use server";
+                await new Promise((r) => setTimeout(r, 1500));
+              }}
+              className="contents"
+            >
+              <BotonEnviar gerundio="Guardando…">Guardar</BotonEnviar>
+              <BotonEnviar gerundio="Guardando…" variante="sutil" title="Guarda sin cerrar el formulario">
+                Con rótulo emergente
+              </BotonEnviar>
+            </form>
+            {/* Su propio <form>: si compartiera el de arriba, useFormStatus
+                encendería su gerundio mientras el vecino está en vuelo, y el
+                ejemplo de "apagado por regla" enseñaría justo lo contrario. */}
+            <form action={async () => { "use server"; }} className="contents">
+              <BotonEnviar gerundio="Guardando…" deshabilitado>Apagado por regla</BotonEnviar>
+            </form>
+          </div>
         </Tarjeta>
 
         <Tarjeta titulo="Campo">
