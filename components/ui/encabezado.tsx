@@ -1,10 +1,18 @@
 import Link from "next/link";
 
-export default function Encabezado({ titulo, lede, volver, acciones }: {
+// `margen` es prop, no `className`: Tailwind emite las clases `mb-*` en el
+// orden en que aparecen aquí abajo, así que un `-mt-6` o `mb-N` colado desde
+// fuera en className perdía siempre contra (o ganaba de forma imprevisible
+// a) el `mb-8` de base — el mismo problema de orden de cascada que `Tarjeta`
+// ya resolvió con `relleno`.
+const MARGEN = { normal: "mb-8", corto: "mb-3" } as const;
+
+export default function Encabezado({ titulo, lede, volver, acciones, margen = "normal" }: {
   titulo: string; lede?: React.ReactNode; volver?: { href: string; texto: string }; acciones?: React.ReactNode;
+  margen?: "normal" | "corto";
 }) {
   return (
-    <div className="mb-8">
+    <div className={MARGEN[margen]}>
       {volver && (
         <Link href={volver.href} className="text-sm font-semibold text-tinta-suave hover:text-hp-500">← {volver.texto}</Link>
       )}

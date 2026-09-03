@@ -19,6 +19,8 @@ const PATRONES: { nombre: string; pieza: string; regex: RegExp }[] = [
   { nombre: "nombres de nivel duplicados", pieza: "lib/niveles", regex: /nivelLabel|NOMBRE_NIVEL|const nombreNivel/ },
   { nombre: "rótulo a mano", pieza: "Rotulo", regex: /text-xs font-bold uppercase tracking-wider/ },
   { nombre: "aviso amarillo como error", pieza: "Aviso tono=\"error\"", regex: /bg-sol-100[^"]*text-(coral|tinta)[^"]*"[^>]*>\s*\{?\s*(error|estado\.error|mensaje)/ },
+  { nombre: "botón montado a mano", pieza: "Boton / BotonEnviar (ya admiten onClick y deshabilitado)", regex: /clasesDeBoton\(/ },
+  { nombre: "casilla nativa", pieza: "Campo (tipo fecha/fechahora/hora/url/busqueda)", regex: /type="(date|datetime-local|time|url|search)"/ },
 ];
 
 /**
@@ -112,6 +114,17 @@ for (const [fichero, lista] of [...porFichero.entries()].sort()) {
   for (const h of lista) console.log(`  ${h.veces} × ${h.patron} → ${h.pieza}`);
 }
 console.log(`\n${porFichero.size} ficheros, ${hallazgos.reduce((s, h) => s + h.veces, 0)} hallazgos.`);
+
+// El tope frena el apaño de «añadir una excepción por si acaso»: si crece,
+// la lista deja de ser lo estructural y los falsos positivos nombrados, y
+// vuelve a ser un cajón de sastre. Va antes del veredicto y corre siempre
+// (también con --listar): la foto de hallazgos ya se imprimió arriba.
+const TOPE_EXCEPCIONES = 14;
+if (EXCEPCIONES.length > TOPE_EXCEPCIONES) {
+  console.error(`FALLO: ${EXCEPCIONES.length} excepciones; el tope es ${TOPE_EXCEPCIONES}. Antes de añadir una, convertir.`);
+  process.exit(1);
+}
+
 if (!soloListar) {
   console.error("\nFALLO: quedan piezas escritas a mano fuera de las excepciones.");
   process.exit(1);

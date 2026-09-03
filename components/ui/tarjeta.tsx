@@ -16,11 +16,17 @@ const RELLENO: Record<Relleno, string> = { normal: "p-6", compacto: "p-4", suelt
  * El relleno se elige con `relleno`, no con `className`: Tailwind emite las
  * clases `p-*` en el orden en que aparecen aquí abajo, así que un `p-N`
  * colado en `className` perdía siempre contra el `p-6` de base.
+ * `externo` (solo con `href`) cambia el `<Link>` interno por un `<a
+ * target="_blank" rel="noopener noreferrer">`: un enlace a otro dominio no
+ * navega dentro de la app, y sin `noopener` la pestaña nueva podría manipular
+ * la que la abrió.
  */
-export default function Tarjeta({ titulo, acento, href, relleno = "normal", className = "", children }: {
-  titulo?: string; acento?: Acento; href?: string; relleno?: Relleno; className?: string; children: React.ReactNode;
+export default function Tarjeta({ titulo, acento, href, externo, relleno = "normal", className = "", children }: {
+  titulo?: string; acento?: Acento; href?: string; externo?: boolean; relleno?: Relleno; className?: string; children: React.ReactNode;
 }) {
   const clases = `block rounded-tarjeta border border-hp-100 bg-white ${RELLENO[relleno]} shadow-suave ${acento ? BORDE[acento] : ""} ${href ? "transition-colors hover:border-hp-300" : ""} ${className}`;
   const cuerpo = (<>{titulo && <Rotulo className="mb-3">{titulo}</Rotulo>}{children}</>);
-  return href ? <Link href={href} className={clases}>{cuerpo}</Link> : <section className={clases}>{cuerpo}</section>;
+  if (!href) return <section className={clases}>{cuerpo}</section>;
+  if (externo) return <a href={href} target="_blank" rel="noopener noreferrer" className={clases}>{cuerpo}</a>;
+  return <Link href={href} className={clases}>{cuerpo}</Link>;
 }

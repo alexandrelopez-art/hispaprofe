@@ -46,8 +46,10 @@ export default async function MuestrarioPage() {
               "use server";
               await new Promise((r) => setTimeout(r, 1500));
             }}
+            className="flex flex-wrap items-center gap-3"
           >
             <BotonEnviar gerundio="Guardando…">Guardar</BotonEnviar>
+            <BotonEnviar gerundio="Guardando…" deshabilitado>Apagado por regla</BotonEnviar>
           </form>
         </Tarjeta>
 
@@ -57,12 +59,20 @@ export default async function MuestrarioPage() {
             <Campo etiqueta="Correo" name="correo" tipo="correo" />
             <Campo etiqueta="Contraseña" name="contrasena" tipo="contrasena" />
             <Campo etiqueta="Edad" name="edad" tipo="numero" />
+            <Campo etiqueta="Fecha" name="fecha" tipo="fecha" />
+            <Campo etiqueta="Fecha y hora" name="fechahora" tipo="fechahora" />
+            <Campo etiqueta="Hora" name="hora" tipo="hora" />
+            <Campo etiqueta="Enlace" name="enlace" tipo="url" placeholder="https://…" />
+            <Campo etiqueta="Buscar" name="buscar" tipo="busqueda" placeholder="Buscar…" />
             <Campo etiqueta="Notas" name="notas" tipo="area" />
             <Campo
               etiqueta="Nivel"
               name="nivel"
               tipo="elegir"
-              opciones={NIVELES.map((n) => ({ valor: n.valor, nombre: n.nombre }))}
+              opciones={[
+                { valor: "", nombre: "Elige…", deshabilitada: true },
+                ...NIVELES.map((n) => ({ valor: n.valor, nombre: n.nombre })),
+              ]}
             />
             <Campo etiqueta="Con error" name="con-error" error="Ejemplo de error" />
           </div>
@@ -92,6 +102,19 @@ export default async function MuestrarioPage() {
           </div>
         </Tarjeta>
 
+        <Tarjeta titulo="Encabezado">
+          <div className="flex flex-col gap-6">
+            <div className="rounded-2xl border border-dashed border-hp-200 p-4">
+              <Encabezado titulo="Margen normal" lede="mb-8, el de siempre." />
+              <p className="text-sm text-tinta-suave">Contenido debajo.</p>
+            </div>
+            <div className="rounded-2xl border border-dashed border-hp-200 p-4">
+              <Encabezado titulo="Margen corto" lede="mb-3, para pegar algo justo debajo." margen="corto" />
+              <p className="text-sm text-tinta-suave">Contenido debajo.</p>
+            </div>
+          </div>
+        </Tarjeta>
+
         <Tarjeta titulo="Vacio">
           <Vacio accion={<Boton variante="primario" tamano="pequeno">Crear el primero</Boton>}>
             Todavía no hay nada aquí.
@@ -104,6 +127,10 @@ export default async function MuestrarioPage() {
 
         <Tarjeta titulo="Tarjeta como enlace" href="/dashboard">
           <p className="text-sm text-tinta-suave">Toda la tarjeta es un enlace a Inicio.</p>
+        </Tarjeta>
+
+        <Tarjeta titulo="Tarjeta externa" href="https://examenes.cervantes.es" externo>
+          <p className="text-sm text-tinta-suave">Enlace a otro dominio: se abre en pestaña nueva.</p>
         </Tarjeta>
       </div>
     </div>
