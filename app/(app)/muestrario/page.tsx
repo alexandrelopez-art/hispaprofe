@@ -50,6 +50,9 @@ export default async function MuestrarioPage() {
           >
             <BotonEnviar gerundio="Guardando…">Guardar</BotonEnviar>
             <BotonEnviar gerundio="Guardando…" deshabilitado>Apagado por regla</BotonEnviar>
+            <BotonEnviar gerundio="Guardando…" variante="sutil" title="Guarda sin cerrar el formulario">
+              Con title
+            </BotonEnviar>
           </form>
         </Tarjeta>
 
@@ -131,6 +134,18 @@ export default async function MuestrarioPage() {
 
         <Tarjeta titulo="Tarjeta externa" href="https://examenes.cervantes.es" externo>
           <p className="text-sm text-tinta-suave">Enlace a otro dominio: se abre en pestaña nueva.</p>
+        </Tarjeta>
+
+        <Tarjeta titulo="Tarjeta sin relleno">
+          <Tarjeta href="https://examenes.cervantes.es" externo relleno="ninguno" className="overflow-hidden">
+            <div className="h-16 bg-hp-400" />
+            <div className="p-4">
+              <p className="font-bold text-tinta">Título a sangre ↗</p>
+              <p className="mt-1 text-sm text-tinta-suave">
+                {'relleno="ninguno"'} deja que el bloque de arriba llegue a los bordes; el texto trae su propio p-4.
+              </p>
+            </div>
+          </Tarjeta>
         </Tarjeta>
       </div>
     </div>

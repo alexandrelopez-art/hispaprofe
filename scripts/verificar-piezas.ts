@@ -14,7 +14,12 @@ const RAIZ = process.cwd();
 const PATRONES: { nombre: string; pieza: string; regex: RegExp }[] = [
   { nombre: "título a mano", pieza: "Encabezado", regex: /text-3xl font-extrabold/ },
   { nombre: "tarjeta a mano", pieza: "Tarjeta", regex: /rounded-tarjeta border border-hp-100 bg-white/ },
-  { nombre: "botón a mano", pieza: "Boton / BotonEnviar", regex: /rounded-full (bg-hp-[45]00|border(-2)? border-(hp-2|tinta))/ },
+  // La tercera alternativa incluye `text-tinta-suave` a propósito: un
+  // input nativo también puede llevar `border border-hp-200` (es la clase
+  // de Campo), pero el color de texto `text-tinta-suave` solo lo lleva el
+  // botón `sutil` — sin eso, cualquier input con las clases de Campo se
+  // confundía con un botón.
+  { nombre: "botón a mano", pieza: "Boton / BotonEnviar", regex: /rounded-full (bg-hp-[45]00|border-2 border-tinta|border border-hp-200 text-tinta-suave)/ },
   { nombre: "casilla a mano", pieza: "Campo", regex: /const campo =|rounded-full border border-hp-200 bg-white px-4/ },
   { nombre: "nombres de nivel duplicados", pieza: "lib/niveles", regex: /nivelLabel|NOMBRE_NIVEL|const nombreNivel/ },
   { nombre: "rótulo a mano", pieza: "Rotulo", regex: /text-xs font-bold uppercase tracking-wider/ },
@@ -58,7 +63,8 @@ const EXCEPCIONES: { prefijo: string; patron?: string; razon: string }[] = [
   // no añadía nada — y con el tope de excepciones, sí que costaba.
   { prefijo: "app/(app)/profe/importar/importar-cliente.tsx", razon: "toda la pantalla es de \"listas\" (CSV fila a fila, con sus propios botones) — la excepción del propio contrato de Campo — y Tarjeta no está en la lista de piezas que se tocan en los editores grandes" },
   { prefijo: "components/recursos/campos.tsx", razon: "exporta las clases `campo`/`area` que usan los editores de recursos para los campos que viven dentro de una lista con sus propios botones de añadir/quitar — la excepción de \"listas\" del propio contrato de Campo" },
-  { prefijo: "components/orales/", razon: "toque ligero declarado en la Task 6: solo botones, avisos, etiquetas, rótulos y campos sencillos se tocan ahí, así que Tarjeta y algún que otro falso positivo (una nota «/20», una variable llamada `campo`) se quedan nativos" },
+  { prefijo: "components/orales/panel.tsx", razon: "los 4 hallazgos son falsos positivos: 1 × «título a mano» es la nota «/20» (no un h1) y 3 × «casilla a mano» son `const campo = campoDeReloj[...]`, una variable de qué reloj está corriendo (no una clase de <input>)" },
+  { prefijo: "components/orales/cronometro.tsx", razon: "components/orales/* es de toque ligero: Tarjeta no está en la lista de piezas que se tocan ahí (solo botones, avisos, etiquetas, rótulos y campos sencillos), así que la caja del cronómetro se queda con sus clases nativas" },
 
   // ─── Task 2: tres botones que comparten un único <form> con varias
   // acciones (formAction) — ver el comentario en el propio fichero ──────────

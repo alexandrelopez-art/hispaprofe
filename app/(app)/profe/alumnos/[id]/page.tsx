@@ -364,10 +364,6 @@ export default async function AlumnoPage({
                                 // muy estrecha y sin sitio para su etiqueta:
                                 // el input se queda a mano, como permite el
                                 // contrato; el botón sí pasa a BotonEnviar.
-                                // Las clases van con «border» antes que
-                                // «rounded-full» a propósito: mismo
-                                // resultado, pero así no aparenta un botón
-                                // para el script de verificación.
                                 <form
                                   action={otorgarPuntos}
                                   className="flex shrink-0 items-center gap-1"
@@ -388,7 +384,7 @@ export default async function AlumnoPage({
                                     min={0}
                                     defaultValue={registro?.puntos ?? ""}
                                     placeholder="pts"
-                                    className="h-7 w-16 border border-hp-200 rounded-full bg-white px-2 text-center text-xs text-tinta outline-none focus:border-hp-400"
+                                    className="h-7 w-16 rounded-full border border-hp-200 bg-white px-2 text-center text-xs text-tinta outline-none focus:border-hp-400"
                                   />
                                   <BotonEnviar gerundio="Guardando…" variante="sutil" tamano="pequeno">
                                     Guardar

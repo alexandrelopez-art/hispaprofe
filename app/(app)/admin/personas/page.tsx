@@ -216,9 +216,6 @@ export default async function AdminPersonasPage({
                         placeholder no nombra el campo. Se deja nativo (no
                         Campo): ya tiene su propio aria-label dinámico por fila
                         y Campo forzaría una etiqueta visible con el correo.
-                        Las clases van en este orden (border antes que
-                        rounded-full) a propósito: mismo resultado, pero así
-                        no aparenta un botón para el script de verificación.
                       */}
                       <input
                         type="text"
@@ -226,7 +223,7 @@ export default async function AdminPersonasPage({
                         required
                         aria-label={`Escribe ${p.email} para confirmar la supresión`}
                         placeholder={`Escribe ${p.email} para confirmar`}
-                        className="h-9 min-w-72 flex-1 border border-hp-200 rounded-full bg-fondo px-4 text-xs text-tinta outline-none focus:border-hp-400"
+                        className="h-9 min-w-72 flex-1 rounded-full border border-hp-200 bg-fondo px-4 text-xs text-tinta outline-none focus:border-hp-400"
                       />
                       <BotonEnviar gerundio="Suprimiendo…" variante="peligro" tamano="pequeno">
                         Suprimir
