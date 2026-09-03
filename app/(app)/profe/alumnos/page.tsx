@@ -1,18 +1,14 @@
 import { listarEstudiantesElegibles } from "@/lib/estudiantes";
 import { getUsuarioActual } from "@/lib/usuario";
 import { redirect } from "next/navigation";
-import Link from "next/link";
+import { nombreNivel } from "@/lib/niveles";
+import Boton from "@/components/ui/boton";
+import Encabezado from "@/components/ui/encabezado";
+import Etiqueta from "@/components/ui/etiqueta";
+import Tarjeta from "@/components/ui/tarjeta";
+import Vacio from "@/components/ui/vacio";
 
 export const dynamic = "force-dynamic";
-
-const nivelLabel: Record<string, string> = {
-  A1: "A1",
-  A2: "A2",
-  B1: "B1",
-  B2: "B2",
-  C1: "C1",
-  A2_B1_ESCOLAR: "A2/B1 escolar",
-};
 
 function nombreDe(u: {
   firstName: string | null;
@@ -45,45 +41,44 @@ function Ficha({ estudiante }: { estudiante: Estudiante }) {
 
   return (
     <li>
-      <Link
-        href={`/profe/alumnos/${estudiante.id}`}
-        className="flex items-center gap-4 rounded-tarjeta border border-hp-100 bg-white p-4 shadow-suave transition hover:border-hp-300 hover:shadow-tarjeta"
-      >
-        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-hp-100 text-sm font-extrabold text-hp-700">
-          {nombreDe(estudiante).slice(0, 1).toUpperCase()}
-        </span>
+      <Tarjeta href={`/profe/alumnos/${estudiante.id}`}>
+        <div className="flex items-center gap-4">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-hp-100 text-sm font-extrabold text-hp-700">
+            {nombreDe(estudiante).slice(0, 1).toUpperCase()}
+          </span>
 
-        <div className="min-w-0 flex-1">
-          <p className="truncate font-bold text-tinta">
-            {nombreDe(estudiante)}
-          </p>
-          <p className="truncate text-sm text-tinta-suave">
-            {estudiante.email}
-          </p>
-          {grupos.length > 0 && (
-            <p className="mt-1 truncate text-xs font-semibold text-tinta-suave">
-              {grupos.map((g) => g.nombre).join(" · ")}
+          <div className="min-w-0 flex-1">
+            <p className="truncate font-bold text-tinta">
+              {nombreDe(estudiante)}
             </p>
+            <p className="truncate text-sm text-tinta-suave">
+              {estudiante.email}
+            </p>
+            {grupos.length > 0 && (
+              <p className="mt-1 truncate text-xs font-semibold text-tinta-suave">
+                {grupos.map((g) => g.nombre).join(" · ")}
+              </p>
+            )}
+          </div>
+
+          {!estudiante.contrasenaHash && (
+            <Etiqueta tono="sol" className="shrink-0">
+              Sin contraseña
+            </Etiqueta>
           )}
+
+          {estudiante.nivel && (
+            <Etiqueta tono="hp" className="shrink-0">
+              {nombreNivel(estudiante.nivel)}
+            </Etiqueta>
+          )}
+
+          <span className="shrink-0 text-sm font-semibold text-tinta-suave">
+            {estudiante.asignacionesRecibidas.length} secuencia
+            {estudiante.asignacionesRecibidas.length !== 1 ? "s" : ""}
+          </span>
         </div>
-
-        {!estudiante.contrasenaHash && (
-          <span className="shrink-0 rounded-full bg-sol-200 px-2.5 py-0.5 text-[11px] font-bold text-tinta">
-            Sin contraseña
-          </span>
-        )}
-
-        {estudiante.nivel && (
-          <span className="shrink-0 rounded-full bg-hp-400 px-2.5 py-0.5 text-[11px] font-bold text-white">
-            {nivelLabel[estudiante.nivel] ?? estudiante.nivel}
-          </span>
-        )}
-
-        <span className="shrink-0 text-sm font-semibold text-tinta-suave">
-          {estudiante.asignacionesRecibidas.length} secuencia
-          {estudiante.asignacionesRecibidas.length !== 1 ? "s" : ""}
-        </span>
-      </Link>
+      </Tarjeta>
     </li>
   );
 }
@@ -107,19 +102,22 @@ export default async function AlumnosPage() {
 
   return (
     <div className="mx-auto max-w-4xl px-6 py-12">
-      <h1 className="text-3xl font-extrabold tracking-tight text-tinta">
-        Estudiantes
-      </h1>
-      <p className="mt-2 text-tinta-suave">
-        {mios.length} tuyo{mios.length !== 1 ? "s" : ""}
-        {otros.length > 0 && ` · ${otros.length} sin relación contigo`}
-      </p>
+      <Encabezado
+        titulo="Estudiantes"
+        lede={
+          <>
+            {mios.length} tuyo{mios.length !== 1 ? "s" : ""}
+            {otros.length > 0 && ` · ${otros.length} sin relación contigo`}
+          </>
+        }
+        acciones={<Boton href="/profe/alumnos/nuevo">Nuevo estudiante</Boton>}
+      />
 
       {mios.length === 0 ? (
-        <p className="mt-8 rounded-tarjeta border border-dashed border-hp-200 p-10 text-center text-tinta-suave">
+        <Vacio>
           Todavía no tienes estudiantes. Crea un grupo con sus correos, o
           asígnale una secuencia a alguien de la lista de abajo.
-        </p>
+        </Vacio>
       ) : (
         <ul className="mt-8 space-y-3">
           {mios.map((estudiante) => (

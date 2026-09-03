@@ -13,20 +13,19 @@ import { servicioLabel } from "@/lib/servicios";
 import { analizarExpresion, esGrabada } from "@/lib/expresion";
 import { clasesParaCitar } from "@/lib/citas";
 import { fechaHora } from "@/lib/fechas";
+import { nombreNivel } from "@/lib/niveles";
 import Rubrica from "@/components/expresion/rubrica";
 import CitarOral from "./citar-oral";
 import NuevaContrasena from "@/components/nueva-contrasena";
+import BotonEnviar from "@/components/ui/boton-enviar";
+import Campo from "@/components/ui/campo";
+import Encabezado from "@/components/ui/encabezado";
+import Etiqueta from "@/components/ui/etiqueta";
+import Rotulo from "@/components/ui/rotulo";
+import Tarjeta from "@/components/ui/tarjeta";
+import Vacio from "@/components/ui/vacio";
 
 export const dynamic = "force-dynamic";
-
-const nivelLabel: Record<string, string> = {
-  A1: "A1",
-  A2: "A2",
-  B1: "B1",
-  B2: "B2",
-  C1: "C1",
-  A2_B1_ESCOLAR: "A2/B1 escolar",
-};
 
 export default async function AlumnoPage({
   params,
@@ -135,27 +134,16 @@ export default async function AlumnoPage({
 
   return (
     <div className="mx-auto max-w-3xl px-6 py-12">
-      <Link
-        href="/profe/alumnos"
-        className="text-sm font-semibold text-tinta-suave hover:text-hp-500"
-      >
-        ← Estudiantes
-      </Link>
-
-      <div className="mt-4 flex items-center gap-3">
-        <h1 className="text-3xl font-extrabold tracking-tight text-tinta">
-          {nombre}
-        </h1>
-        {estudiante.nivel && (
-          <span className="rounded-full bg-hp-400 px-2.5 py-0.5 text-[11px] font-bold text-white">
-            {nivelLabel[estudiante.nivel] ?? estudiante.nivel}
-          </span>
-        )}
-      </div>
+      <Encabezado
+        titulo={nombre}
+        volver={{ href: "/profe/alumnos", texto: "Estudiantes" }}
+        acciones={
+          estudiante.nivel && <Etiqueta tono="hp">{nombreNivel(estudiante.nivel)}</Etiqueta>
+        }
+      />
 
       {!suprimido && (
-        <section className="mt-6 rounded-tarjeta border border-hp-100 bg-white p-5 shadow-suave">
-          <h2 className="text-xs font-bold uppercase tracking-wider text-tinta-suave">Acceso</h2>
+        <Tarjeta titulo="Acceso" className="mt-6">
           <p className="mt-2 text-sm text-tinta">
             {!estudiante.contrasenaHash
               ? "Todavía no tiene contraseña: no puede entrar."
@@ -168,7 +156,7 @@ export default async function AlumnoPage({
           <div className="mt-3">
             <NuevaContrasena usuarioId={estudiante.id} />
           </div>
-        </section>
+        </Tarjeta>
       )}
 
       <p className="mt-1 text-tinta-suave">
@@ -193,9 +181,7 @@ export default async function AlumnoPage({
       </h2>
 
       {asignaciones.length === 0 ? (
-        <p className="mt-3 rounded-tarjeta border border-dashed border-hp-200 p-8 text-center text-tinta-suave">
-          Sin secuencias asignadas todavía.
-        </p>
+        <Vacio>Sin secuencias asignadas todavía.</Vacio>
       ) : (
         <ul className="mt-3 space-y-3">
           {asignaciones.map((asignacion) => {
@@ -218,238 +204,242 @@ export default async function AlumnoPage({
               usuario.role === "ADMIN" || asignacion.profesorId === usuario.id;
 
             return (
-              <li
-                key={asignacion.id}
-                className="rounded-tarjeta border border-hp-100 bg-white p-5 shadow-suave"
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0">
-                    <p className="text-[11px] font-bold uppercase tracking-wider text-tinta-suave">
-                      {servicioLabel[asignacion.recorrido.tipo] ??
-                        asignacion.recorrido.tipo}
-                    </p>
-                    <Link
-                      href={`/recorridos/${asignacion.recorrido.id}`}
-                      className="font-bold text-tinta hover:text-hp-500"
-                    >
-                      {asignacion.recorrido.titulo}
-                    </Link>
-                    {asignacion.nota && (
-                      <p className="mt-1 text-sm text-tinta-suave">
-                        {asignacion.nota}
-                      </p>
+              <li key={asignacion.id}>
+                <Tarjeta>
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0">
+                      <Rotulo>
+                        {servicioLabel[asignacion.recorrido.tipo] ??
+                          asignacion.recorrido.tipo}
+                      </Rotulo>
+                      <Link
+                        href={`/recorridos/${asignacion.recorrido.id}`}
+                        className="font-bold text-tinta hover:text-hp-500"
+                      >
+                        {asignacion.recorrido.titulo}
+                      </Link>
+                      {asignacion.nota && (
+                        <p className="mt-1 text-sm text-tinta-suave">
+                          {asignacion.nota}
+                        </p>
+                      )}
+                    </div>
+
+                    <form action={archivarAsignacion}>
+                      <input
+                        type="hidden"
+                        name="asignacionId"
+                        value={asignacion.id}
+                      />
+                      <BotonEnviar
+                        gerundio="Archivando…"
+                        variante="sutil"
+                        tamano="pequeno"
+                        className="shrink-0"
+                      >
+                        Archivar
+                      </BotonEnviar>
+                    </form>
+                  </div>
+
+                  <div className="mt-4 flex items-center gap-3">
+                    <div className="h-2 flex-1 overflow-hidden rounded-full bg-hp-50">
+                      <div
+                        className="h-full rounded-full bg-bloque2"
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                    <span className="shrink-0 text-xs font-bold text-tinta-suave">
+                      {hechos}/{total} pasos
+                    </span>
+                    {puntosTotales > 0 && (
+                      <Etiqueta tono="sol" className="shrink-0">
+                        {puntosTotales} pts
+                      </Etiqueta>
                     )}
                   </div>
 
-                  <form action={archivarAsignacion}>
-                    <input
-                      type="hidden"
-                      name="asignacionId"
-                      value={asignacion.id}
-                    />
-                    <button
-                      type="submit"
-                      className="shrink-0 rounded-full border border-hp-200 px-3 py-1 text-xs font-bold text-tinta-suave transition-colors hover:border-bloque3 hover:text-tinta"
-                    >
-                      Archivar
-                    </button>
-                  </form>
-                </div>
+                  <details className="mt-3">
+                    <summary className="cursor-pointer text-xs font-bold text-tinta-suave hover:text-hp-500">
+                      Ver pasos, otorgar puntos y citar orales
+                    </summary>
+                    <ul className="mt-3 space-y-1.5">
+                      {asignacion.recorrido.pasos.map((paso) => {
+                        const registro = porPaso.get(paso.id);
+                        const expresion = paso.ejercicios[0]
+                          ? analizarExpresion(paso.ejercicios[0].ejercicio.datos)
+                          : null;
+                        // La oral de clase es la que se hace con el profesor
+                        // delante: no deja entrega y se cita. La grabada llega
+                        // entregada, así que en esta fila se comporta igual que
+                        // una escrita.
+                        const oralDeClase =
+                          expresion?.modalidad === "oral" && !esGrabada(expresion);
+                        /*
+                          Qué control lleva la fila, y solo uno:
 
-                <div className="mt-4 flex items-center gap-3">
-                  <div className="h-2 flex-1 overflow-hidden rounded-full bg-hp-50">
-                    <div
-                      className="h-full rounded-full bg-bloque2"
-                      style={{ width: `${pct}%` }}
-                    />
-                  </div>
-                  <span className="shrink-0 text-xs font-bold text-tinta-suave">
-                    {hechos}/{total} pasos
-                  </span>
-                  {puntosTotales > 0 && (
-                    <span className="shrink-0 rounded-full bg-sol-200 px-2.5 py-0.5 text-xs font-bold text-tinta">
-                      {puntosTotales} pts
-                    </span>
-                  )}
-                </div>
-
-                <details className="mt-3">
-                  <summary className="cursor-pointer text-xs font-bold text-tinta-suave hover:text-hp-500">
-                    Ver pasos, otorgar puntos y citar orales
-                  </summary>
-                  <ul className="mt-3 space-y-1.5">
-                    {asignacion.recorrido.pasos.map((paso) => {
-                      const registro = porPaso.get(paso.id);
-                      const expresion = paso.ejercicios[0]
-                        ? analizarExpresion(paso.ejercicios[0].ejercicio.datos)
-                        : null;
-                      // La oral de clase es la que se hace con el profesor
-                      // delante: no deja entrega y se cita. La grabada llega
-                      // entregada, así que en esta fila se comporta igual que
-                      // una escrita.
-                      const oralDeClase =
-                        expresion?.modalidad === "oral" && !esGrabada(expresion);
-                      /*
-                        Qué control lleva la fila, y solo uno:
-
-                        - la rúbrica cuando hay algo que puntuar con ella: un
-                          oral de clase siempre, y una escrita —o una oral
-                          grabada— solo si el alumno entregó; `valorar` rechaza
-                          a propósito una escrita sin texto y una grabada sin
-                          audio, así que el enlace llevaría a un callejón sin
-                          salida;
-                        - el campo de puntos a mano en todo lo demás, incluida
-                          la escrita sin entrega: la redacción hecha en papel,
-                          en clase, se sigue puntuando como cualquier paso del
-                          proyecto.
-                      */
-                      const conRubrica = oralDeClase || Boolean(registro?.entrega);
-                      // Un oral de clase sin registro no tiene fila a la que
-                      // enlazar, pero sí se puede corregir: `valorar` hace
-                      // `upsert`, así que la fila nace al guardar la rúbrica. Se
-                      // monta aquí mismo, plegada, en vez de dejar el paso sin
-                      // puerta. Una grabada nunca cae aquí: solo lleva rúbrica
-                      // si entregó, y entonces ya tiene registro.
-                      const rubricaEnLinea = conRubrica && !registro && mia;
-                      return (
-                        <li
-                          key={paso.id}
-                          className="rounded-lg bg-fondo px-3 py-1.5"
-                        >
-                          <div className="flex items-center gap-2">
-                            <span
-                              className={`shrink-0 text-sm ${
-                                registro ? "text-hp-500" : "text-hp-200"
-                              }`}
-                            >
-                              {registro ? "✓" : "○"}
-                            </span>
-                            <Link
-                              href={`/pasos/${paso.id}`}
-                              className="min-w-0 flex-1 truncate text-sm text-tinta hover:text-hp-500"
-                            >
-                              {paso.orden}. {paso.titulo}
-                            </Link>
-                            {registro?.verificadoEl && (
+                          - la rúbrica cuando hay algo que puntuar con ella: un
+                            oral de clase siempre, y una escrita —o una oral
+                            grabada— solo si el alumno entregó; `valorar` rechaza
+                            a propósito una escrita sin texto y una grabada sin
+                            audio, así que el enlace llevaría a un callejón sin
+                            salida;
+                          - el campo de puntos a mano en todo lo demás, incluida
+                            la escrita sin entrega: la redacción hecha en papel,
+                            en clase, se sigue puntuando como cualquier paso del
+                            proyecto.
+                        */
+                        const conRubrica = oralDeClase || Boolean(registro?.entrega);
+                        // Un oral de clase sin registro no tiene fila a la que
+                        // enlazar, pero sí se puede corregir: `valorar` hace
+                        // `upsert`, así que la fila nace al guardar la rúbrica. Se
+                        // monta aquí mismo, plegada, en vez de dejar el paso sin
+                        // puerta. Una grabada nunca cae aquí: solo lleva rúbrica
+                        // si entregó, y entonces ya tiene registro.
+                        const rubricaEnLinea = conRubrica && !registro && mia;
+                        return (
+                          <li
+                            key={paso.id}
+                            className="rounded-lg bg-fondo px-3 py-1.5"
+                          >
+                            <div className="flex items-center gap-2">
                               <span
-                                className="shrink-0 text-xs"
-                                title="Puntos verificados por el profesor"
+                                className={`shrink-0 text-sm ${
+                                  registro ? "text-hp-500" : "text-hp-200"
+                                }`}
                               >
-                                ★
+                                {registro ? "✓" : "○"}
                               </span>
-                            )}
-                            {/*
-                              Una asignación de otro profesor solo enseña el
-                              estado: corregir la abriría en una pantalla que
-                              contesta `notFound()`, y puntuarla a mano no es
-                              suyo. El rótulo se queda porque el estado sí es
-                              información.
-                            */}
-                            {!mia ? (
-                              <span className="shrink-0 text-xs text-tinta-suave">
-                                {registro?.verificadoEl
-                                  ? `${registro.puntos ?? 0} pts`
-                                  : registro
-                                    ? "Sin corregir"
-                                    : oralDeClase
-                                      ? "Sin evaluar"
-                                      : expresion
-                                        ? "Sin entregar"
-                                        : "Pendiente"}
-                              </span>
-                            ) : conRubrica ? (
-                              // Los puntos de una rúbrica no se escriben a
-                              // mano: el enlace lleva a la pantalla que sabe
-                              // puntuarla. Sin fila todavía no hay adónde
-                              // enlazar, y ahí entra la rúbrica en línea de
-                              // abajo, que no repite rótulo aquí.
-                              registro ? (
-                                <Link
-                                  href={`/profe/entregas/${registro.id}`}
-                                  className="shrink-0 text-xs font-semibold text-tinta-suave underline hover:text-hp-500"
-                                >
-                                  {registro.verificadoEl
-                                    ? "Ver la corrección"
-                                    : "Corregir"}
-                                </Link>
-                              ) : null
-                            ) : (
-                              <form
-                                action={otorgarPuntos}
-                                className="flex shrink-0 items-center gap-1"
+                              <Link
+                                href={`/pasos/${paso.id}`}
+                                className="min-w-0 flex-1 truncate text-sm text-tinta hover:text-hp-500"
                               >
-                                <input
-                                  type="hidden"
-                                  name="asignacionId"
-                                  value={asignacion.id}
-                                />
-                                <input
-                                  type="hidden"
-                                  name="pasoId"
-                                  value={paso.id}
-                                />
-                                <input
-                                  type="number"
-                                  name="puntos"
-                                  min={0}
-                                  defaultValue={registro?.puntos ?? ""}
-                                  placeholder="pts"
-                                  className="h-7 w-16 rounded-full border border-hp-200 bg-white px-2 text-center text-xs text-tinta outline-none focus:border-hp-400"
-                                />
-                                <button
-                                  type="submit"
-                                  className="h-7 rounded-full border border-hp-200 px-2 text-[11px] font-bold text-tinta-suave transition-colors hover:border-hp-400 hover:text-hp-600"
+                                {paso.orden}. {paso.titulo}
+                              </Link>
+                              {registro?.verificadoEl && (
+                                <span
+                                  className="shrink-0 text-xs"
+                                  title="Puntos verificados por el profesor"
                                 >
-                                  Guardar
-                                </button>
-                              </form>
-                            )}
-                          </div>
-
-                          {/*
-                            Solo la de clase se cita: una grabada no ocupa
-                            hueco en ninguna. El tope de verdad lo pone
-                            `puedeCitarse` en el servidor, pero `clasesParaCitar`
-                            no mira la modalidad y seguiría ofreciendo clases,
-                            así que aquí quedaría un desplegable que solo sirve
-                            para recibir un no.
-                          */}
-                          {oralDeClase && mia && (
-                            <CitarOral
-                              asignacionId={asignacion.id}
-                              pasoId={paso.id}
-                              citada={
-                                citaDe.get(`${asignacion.id}:${paso.id}`) ?? null
-                              }
-                              clases={clasesCitables}
-                            />
-                          )}
-
-                          {expresion && rubricaEnLinea && (
-                            <details className="mt-2">
-                              <summary className="cursor-pointer text-xs font-bold text-tinta-suave hover:text-hp-500">
-                                Corregir el oral
-                              </summary>
+                                  ★
+                                </span>
+                              )}
                               {/*
-                                Plegada por defecto: la fila del paso no puede
-                                crecer con una rúbrica abierta por cada oral de
-                                la secuencia.
+                                Una asignación de otro profesor solo enseña el
+                                estado: corregir la abriría en una pantalla que
+                                contesta `notFound()`, y puntuarla a mano no es
+                                suyo. El rótulo se queda porque el estado sí es
+                                información.
                               */}
-                              <div className="mt-2">
-                                <Rubrica
-                                  asignacionId={asignacion.id}
-                                  pasoId={paso.id}
-                                  criterios={expresion.criterios}
-                                  valoracion={null}
-                                />
-                              </div>
-                            </details>
-                          )}
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </details>
+                              {!mia ? (
+                                <span className="shrink-0 text-xs text-tinta-suave">
+                                  {registro?.verificadoEl
+                                    ? `${registro.puntos ?? 0} pts`
+                                    : registro
+                                      ? "Sin corregir"
+                                      : oralDeClase
+                                        ? "Sin evaluar"
+                                        : expresion
+                                          ? "Sin entregar"
+                                          : "Pendiente"}
+                                </span>
+                              ) : conRubrica ? (
+                                // Los puntos de una rúbrica no se escriben a
+                                // mano: el enlace lleva a la pantalla que sabe
+                                // puntuarla. Sin fila todavía no hay adónde
+                                // enlazar, y ahí entra la rúbrica en línea de
+                                // abajo, que no repite rótulo aquí.
+                                registro ? (
+                                  <Link
+                                    href={`/profe/entregas/${registro.id}`}
+                                    className="shrink-0 text-xs font-semibold text-tinta-suave underline hover:text-hp-500"
+                                  >
+                                    {registro.verificadoEl
+                                      ? "Ver la corrección"
+                                      : "Corregir"}
+                                  </Link>
+                                ) : null
+                              ) : (
+                                // Campo con botón dentro, en una fila muy
+                                // estrecha y sin sitio para su etiqueta: se
+                                // queda a mano, como permite el contrato.
+                                <form
+                                  action={otorgarPuntos}
+                                  className="flex shrink-0 items-center gap-1"
+                                >
+                                  <input
+                                    type="hidden"
+                                    name="asignacionId"
+                                    value={asignacion.id}
+                                  />
+                                  <input
+                                    type="hidden"
+                                    name="pasoId"
+                                    value={paso.id}
+                                  />
+                                  <input
+                                    type="number"
+                                    name="puntos"
+                                    min={0}
+                                    defaultValue={registro?.puntos ?? ""}
+                                    placeholder="pts"
+                                    className="h-7 w-16 rounded-full border border-hp-200 bg-white px-2 text-center text-xs text-tinta outline-none focus:border-hp-400"
+                                  />
+                                  <button
+                                    type="submit"
+                                    className="h-7 rounded-full border border-hp-200 px-2 text-[11px] font-bold text-tinta-suave transition-colors hover:border-hp-400 hover:text-hp-600"
+                                  >
+                                    Guardar
+                                  </button>
+                                </form>
+                              )}
+                            </div>
+
+                            {/*
+                              Solo la de clase se cita: una grabada no ocupa
+                              hueco en ninguna. El tope de verdad lo pone
+                              `puedeCitarse` en el servidor, pero `clasesParaCitar`
+                              no mira la modalidad y seguiría ofreciendo clases,
+                              así que aquí quedaría un desplegable que solo sirve
+                              para recibir un no.
+                            */}
+                            {oralDeClase && mia && (
+                              <CitarOral
+                                asignacionId={asignacion.id}
+                                pasoId={paso.id}
+                                citada={
+                                  citaDe.get(`${asignacion.id}:${paso.id}`) ?? null
+                                }
+                                clases={clasesCitables}
+                              />
+                            )}
+
+                            {expresion && rubricaEnLinea && (
+                              <details className="mt-2">
+                                <summary className="cursor-pointer text-xs font-bold text-tinta-suave hover:text-hp-500">
+                                  Corregir el oral
+                                </summary>
+                                {/*
+                                  Plegada por defecto: la fila del paso no puede
+                                  crecer con una rúbrica abierta por cada oral de
+                                  la secuencia.
+                                */}
+                                <div className="mt-2">
+                                  <Rubrica
+                                    asignacionId={asignacion.id}
+                                    pasoId={paso.id}
+                                    criterios={expresion.criterios}
+                                    valoracion={null}
+                                  />
+                                </div>
+                              </details>
+                            )}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </details>
+                </Tarjeta>
               </li>
             );
           })}
@@ -462,50 +452,38 @@ export default async function AlumnoPage({
             Asignar una secuencia
           </h2>
 
-          <form
-            action={asignarSecuencia}
-            className="mt-3 rounded-tarjeta border border-hp-100 bg-white p-5 shadow-suave"
-          >
-            <input type="hidden" name="estudianteId" value={estudiante.id} />
+          <Tarjeta className="mt-3">
+            <form action={asignarSecuencia}>
+              <input type="hidden" name="estudianteId" value={estudiante.id} />
 
-            <label className="block text-sm font-semibold text-tinta">
-              Secuencia
-              <select
+              <Campo
+                etiqueta="Secuencia"
                 name="recorridoId"
+                tipo="elegir"
                 required
                 defaultValue=""
-                className="mt-1 h-10 w-full rounded-full border border-hp-200 bg-white px-4 text-sm text-tinta outline-none focus:border-hp-400"
-              >
-                <option value="" disabled>
-                  Elige una secuencia
-                </option>
-                {secuencias.map((secuencia) => (
-                  <option key={secuencia.id} value={secuencia.id}>
-                    {servicioLabel[secuencia.tipo] ?? secuencia.tipo} ·{" "}
-                    {nivelLabel[secuencia.nivel] ?? secuencia.nivel} ·{" "}
-                    {secuencia.titulo}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="mt-4 block text-sm font-semibold text-tinta">
-              Nota para el estudiante (opcional)
-              <input
-                type="text"
-                name="nota"
-                placeholder="Por ejemplo: hazlo antes del jueves"
-                className="mt-1 h-10 w-full rounded-full border border-hp-200 bg-white px-4 text-sm font-normal text-tinta outline-none focus:border-hp-400"
+                opciones={[
+                  { valor: "", nombre: "Elige una secuencia" },
+                  ...secuencias.map((secuencia) => ({
+                    valor: secuencia.id,
+                    nombre: `${servicioLabel[secuencia.tipo] ?? secuencia.tipo} · ${nombreNivel(secuencia.nivel)} · ${secuencia.titulo}`,
+                  })),
+                ]}
               />
-            </label>
 
-            <button
-              type="submit"
-              className="mt-5 h-10 rounded-full bg-hp-400 px-5 text-sm font-bold text-white transition-colors hover:bg-hp-500"
-            >
-              Asignar
-            </button>
-          </form>
+              <Campo
+                etiqueta="Nota para el estudiante (opcional)"
+                name="nota"
+                tipo="texto"
+                placeholder="Por ejemplo: hazlo antes del jueves"
+                className="mt-4"
+              />
+
+              <BotonEnviar gerundio="Asignando…" className="mt-5">
+                Asignar
+              </BotonEnviar>
+            </form>
+          </Tarjeta>
         </>
       )}
     </div>

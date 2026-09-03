@@ -2,6 +2,9 @@
 
 import { useMemo, useState } from "react";
 import { importarPuntos } from "@/lib/acciones";
+import Aviso from "@/components/ui/aviso";
+import Boton from "@/components/ui/boton";
+import Campo from "@/components/ui/campo";
 
 type Estudiante = {
   id: string;
@@ -23,6 +26,8 @@ type Fila = {
   estudianteId: string; // "" = sin emparejar
 };
 
+// Solo para los controles de la lista de la fila 3: van dentro de una lista
+// que se repite por cada fila del CSV, y ahí `Campo` no se convierte.
 const campo =
   "h-10 rounded-full border border-hp-200 bg-white px-4 text-sm text-tinta outline-none focus:border-hp-400";
 
@@ -208,35 +213,38 @@ export default function ImportarCliente({
           1 · ¿A qué paso corresponde?
         </h2>
         <div className="mt-3 flex flex-wrap gap-3">
-          <select
+          <Campo
+            etiqueta="Secuencia"
+            name="secuenciaId"
+            tipo="elegir"
             value={secuenciaId}
             onChange={(e) => {
               setSecuenciaId(e.target.value);
               setPasoId("");
             }}
-            className={`${campo} min-w-64 flex-1`}
-          >
-            <option value="">Elige la secuencia</option>
-            {secuencias.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.titulo}
-              </option>
-            ))}
-          </select>
+            className="min-w-64 flex-1"
+            opciones={[
+              { valor: "", nombre: "Elige la secuencia" },
+              ...secuencias.map((s) => ({ valor: s.id, nombre: s.titulo })),
+            ]}
+          />
 
-          <select
+          <Campo
+            etiqueta="Paso"
+            name="pasoId"
+            tipo="elegir"
             value={pasoId}
             onChange={(e) => setPasoId(e.target.value)}
             disabled={!secuencia}
-            className={`${campo} min-w-64 flex-1 disabled:opacity-50`}
-          >
-            <option value="">Elige el paso</option>
-            {secuencia?.pasos.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.orden}. {p.titulo}
-              </option>
-            ))}
-          </select>
+            className="min-w-64 flex-1"
+            opciones={[
+              { valor: "", nombre: "Elige el paso" },
+              ...(secuencia?.pasos.map((p) => ({
+                valor: p.id,
+                nombre: `${p.orden}. ${p.titulo}`,
+              })) ?? []),
+            ]}
+          />
         </div>
       </section>
 
@@ -252,14 +260,14 @@ export default function ImportarCliente({
           className="mt-3 block text-sm text-tinta-suave file:mr-3 file:rounded-full file:border-0 file:bg-hp-400 file:px-4 file:py-2 file:text-sm file:font-bold file:text-white hover:file:bg-hp-500"
         />
         {error && (
-          <p className="mt-3 rounded-xl bg-bloque3/20 px-4 py-2 text-sm text-tinta">
+          <Aviso tono="error" className="mt-3">
             {error}
-          </p>
+          </Aviso>
         )}
         {hecho && (
-          <p className="mt-3 rounded-xl bg-bloque2/25 px-4 py-2 text-sm font-semibold text-tinta">
+          <Aviso tono="ok" className="mt-3">
             Puntos importados. Los ves en la ficha de cada estudiante.
-          </p>
+          </Aviso>
         )}
       </section>
 
@@ -328,17 +336,17 @@ export default function ImportarCliente({
             ))}
           </ul>
 
-          <button
+          <Boton
             onClick={() => void confirmar()}
             disabled={
               !secuenciaId || !pasoId || emparejadas === 0 || enviando
             }
-            className="mt-5 h-10 rounded-full bg-hp-400 px-5 text-sm font-bold text-white transition-colors hover:bg-hp-500 disabled:opacity-50"
+            className="mt-5"
           >
             {enviando
               ? "Importando..."
               : `Otorgar puntos a ${emparejadas} estudiante${emparejadas !== 1 ? "s" : ""}`}
-          </button>
+          </Boton>
           {(!secuenciaId || !pasoId) && (
             <p className="mt-2 text-xs text-tinta-suave">
               Falta elegir la secuencia y el paso arriba.

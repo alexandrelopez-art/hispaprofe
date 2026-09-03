@@ -13,17 +13,16 @@ import type { CursoClassroom } from "@/lib/google";
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { servicioLabel } from "@/lib/servicios";
+import { nombreNivel } from "@/lib/niveles";
+import Aviso from "@/components/ui/aviso";
+import BotonEnviar from "@/components/ui/boton-enviar";
+import Campo from "@/components/ui/campo";
+import Encabezado from "@/components/ui/encabezado";
+import Etiqueta from "@/components/ui/etiqueta";
+import Tarjeta from "@/components/ui/tarjeta";
+import Vacio from "@/components/ui/vacio";
 
 export const dynamic = "force-dynamic";
-
-const nivelLabel: Record<string, string> = {
-  A1: "A1",
-  A2: "A2",
-  B1: "B1",
-  B2: "B2",
-  C1: "C1",
-  A2_B1_ESCOLAR: "A2/B1 escolar",
-};
 
 function nombreDe(u: {
   firstName: string | null;
@@ -99,23 +98,12 @@ export default async function GrupoPage({
 
   return (
     <div className="mx-auto max-w-3xl px-6 py-12">
-      <Link
-        href="/profe/grupos"
-        className="text-sm font-semibold text-tinta-suave hover:text-hp-500"
-      >
-        ← Grupos
-      </Link>
+      <Encabezado
+        titulo={grupo.nombre}
+        volver={{ href: "/profe/grupos", texto: "Grupos" }}
+        acciones={grupo.nivel && <Etiqueta tono="hp">{nombreNivel(grupo.nivel)}</Etiqueta>}
+      />
 
-      <div className="mt-4 flex items-center gap-3">
-        <h1 className="text-3xl font-extrabold tracking-tight text-tinta">
-          {grupo.nombre}
-        </h1>
-        {grupo.nivel && (
-          <span className="rounded-full bg-hp-400 px-2.5 py-0.5 text-[11px] font-bold text-white">
-            {nivelLabel[grupo.nivel] ?? grupo.nivel}
-          </span>
-        )}
-      </div>
       <p className="mt-1 text-tinta-suave">
         {grupo.miembros.length} estudiante
         {grupo.miembros.length !== 1 ? "s" : ""}
@@ -144,19 +132,21 @@ export default async function GrupoPage({
                 </div>
 
                 {!miembro.estudiante.contrasenaHash && (
-                  <span className="shrink-0 rounded-full bg-sol-200 px-2.5 py-0.5 text-[11px] font-bold text-tinta">
+                  <Etiqueta tono="sol" className="shrink-0">
                     Sin contraseña
-                  </span>
+                  </Etiqueta>
                 )}
 
                 <form action={quitarDeGrupo}>
                   <input type="hidden" name="miembroId" value={miembro.id} />
-                  <button
-                    type="submit"
-                    className="shrink-0 rounded-full border border-hp-200 px-3 py-1 text-xs font-bold text-tinta-suave transition-colors hover:border-bloque3 hover:text-tinta"
+                  <BotonEnviar
+                    gerundio="Quitando…"
+                    variante="peligro"
+                    tamano="pequeno"
+                    className="shrink-0"
                   >
                     Quitar
-                  </button>
+                  </BotonEnviar>
                 </form>
               </li>
             ))}
@@ -165,9 +155,7 @@ export default async function GrupoPage({
       )}
 
       {googleConfigurado() && (
-        <section className="mt-10 rounded-tarjeta border border-hp-100 bg-white p-5 shadow-suave">
-          <h2 className="text-lg font-bold text-tinta">Google Classroom</h2>
-
+        <Tarjeta titulo="Google Classroom" className="mt-10">
           {!cuenta ? (
             <p className="mt-2 text-sm text-tinta-suave">
               Conecta tu cuenta desde{" "}
@@ -203,22 +191,16 @@ export default async function GrupoPage({
               <div className="mt-3 flex flex-wrap gap-2">
                 <form action={sincronizarGrupo}>
                   <input type="hidden" name="grupoId" value={grupo.id} />
-                  <button
-                    type="submit"
-                    className="h-10 rounded-full bg-hp-400 px-5 text-sm font-bold text-white transition-colors hover:bg-hp-500"
-                  >
+                  <BotonEnviar gerundio="Sincronizando…">
                     Sincronizar ahora
-                  </button>
+                  </BotonEnviar>
                 </form>
 
                 <form action={desvincularGrupo}>
                   <input type="hidden" name="grupoId" value={grupo.id} />
-                  <button
-                    type="submit"
-                    className="h-10 rounded-full border-2 border-hp-200 px-5 text-sm font-bold text-tinta-suave transition-colors hover:border-bloque3 hover:text-tinta"
-                  >
+                  <BotonEnviar gerundio="Desvinculando…" variante="sutil">
                     Desvincular
-                  </button>
+                  </BotonEnviar>
                 </form>
               </div>
 
@@ -228,9 +210,9 @@ export default async function GrupoPage({
               </p>
             </div>
           ) : falloClassroom ? (
-            <p className="mt-2 rounded-xl bg-sol-100 px-4 py-2 text-sm text-tinta">
+            <Aviso tono="error" className="mt-2">
               {falloClassroom}
-            </p>
+            </Aviso>
           ) : cursos.length === 0 ? (
             <p className="mt-2 text-sm text-tinta-suave">
               No encontré cursos activos donde figures como profesor.
@@ -239,107 +221,85 @@ export default async function GrupoPage({
             <form action={vincularGrupoConCurso} className="mt-3">
               <input type="hidden" name="grupoId" value={grupo.id} />
 
-              <label className="block text-sm font-semibold text-tinta">
-                Curso
-                <select
-                  name="cursoId"
-                  required
-                  defaultValue=""
-                  className="mt-1 h-10 w-full rounded-full border border-hp-200 bg-white px-4 text-sm font-normal text-tinta outline-none focus:border-hp-400"
-                >
-                  <option value="" disabled>
-                    Elige un curso
-                  </option>
-                  {cursos.map((curso) => (
-                    <option key={curso.id} value={curso.id}>
-                      {curso.name}
-                      {curso.section ? ` · ${curso.section}` : ""}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <Campo
+                etiqueta="Curso"
+                name="cursoId"
+                tipo="elegir"
+                required
+                defaultValue=""
+                opciones={[
+                  { valor: "", nombre: "Elige un curso" },
+                  ...cursos.map((curso) => ({
+                    valor: curso.id,
+                    nombre: `${curso.name}${curso.section ? ` · ${curso.section}` : ""}`,
+                  })),
+                ]}
+              />
 
-              <button
-                type="submit"
-                className="mt-4 h-10 rounded-full bg-hp-400 px-5 text-sm font-bold text-white transition-colors hover:bg-hp-500"
-              >
+              <BotonEnviar gerundio="Vinculando…" className="mt-4">
                 Vincular y traer la lista
-              </button>
+              </BotonEnviar>
             </form>
           )}
-        </section>
+        </Tarjeta>
       )}
 
       <h2 className="mt-10 text-lg font-bold text-tinta">Añadir estudiantes</h2>
-      <form
-        action={anadirCorreosAGrupo}
-        className="mt-3 rounded-tarjeta border border-hp-100 bg-white p-5 shadow-suave"
-      >
-        <input type="hidden" name="grupoId" value={grupo.id} />
-        <textarea
-          name="correos"
-          rows={3}
-          required
-          placeholder="Pega más correos aquí"
-          className="w-full rounded-2xl border border-hp-200 bg-white px-4 py-3 font-mono text-sm text-tinta outline-none focus:border-hp-400"
-        />
-        <button
-          type="submit"
-          className="mt-3 h-10 rounded-full bg-hp-400 px-5 text-sm font-bold text-white transition-colors hover:bg-hp-500"
-        >
-          Añadir al grupo
-        </button>
-      </form>
+      <Tarjeta className="mt-3">
+        <form action={anadirCorreosAGrupo}>
+          <input type="hidden" name="grupoId" value={grupo.id} />
+          <Campo
+            etiqueta="Correos"
+            name="correos"
+            tipo="area"
+            rows={3}
+            required
+            placeholder="Pega más correos aquí"
+          />
+          <BotonEnviar gerundio="Añadiendo…" className="mt-3">
+            Añadir al grupo
+          </BotonEnviar>
+        </form>
+      </Tarjeta>
 
       <h2 className="mt-10 text-lg font-bold text-tinta">
         Asignar una secuencia al grupo
       </h2>
       {grupo.miembros.length === 0 ? (
-        <p className="mt-3 rounded-tarjeta border border-dashed border-hp-200 p-8 text-center text-tinta-suave">
-          Añade estudiantes antes de asignar.
-        </p>
+        <Vacio>Añade estudiantes antes de asignar.</Vacio>
       ) : (
-        <form
-          action={asignarSecuenciaAGrupo}
-          className="mt-3 rounded-tarjeta border border-hp-100 bg-white p-5 shadow-suave"
-        >
-          <input type="hidden" name="grupoId" value={grupo.id} />
+        <Tarjeta className="mt-3">
+          <form action={asignarSecuenciaAGrupo}>
+            <input type="hidden" name="grupoId" value={grupo.id} />
 
-          <label className="block text-sm font-semibold text-tinta">
-            Secuencia
-            <select
+            <Campo
+              etiqueta="Secuencia"
               name="recorridoId"
+              tipo="elegir"
               required
               defaultValue=""
-              className="mt-1 h-10 w-full rounded-full border border-hp-200 bg-white px-4 text-sm font-normal text-tinta outline-none focus:border-hp-400"
-            >
-              <option value="" disabled>
-                Elige una secuencia
-              </option>
-              {secuencias.map((secuencia) => (
-                <option key={secuencia.id} value={secuencia.id}>
-                  {servicioLabel[secuencia.tipo] ?? secuencia.tipo} ·{" "}
-                  {nivelLabel[secuencia.nivel] ?? secuencia.nivel} ·{" "}
-                  {secuencia.titulo}
-                </option>
-              ))}
-            </select>
-          </label>
+              opciones={[
+                { valor: "", nombre: "Elige una secuencia" },
+                ...secuencias.map((secuencia) => ({
+                  valor: secuencia.id,
+                  nombre: `${servicioLabel[secuencia.tipo] ?? secuencia.tipo} · ${nombreNivel(secuencia.nivel)} · ${secuencia.titulo}`,
+                })),
+              ]}
+            />
 
-          <input
-            type="text"
-            name="nota"
-            placeholder="Nota para el grupo (opcional)"
-            className="mt-4 h-10 w-full rounded-full border border-hp-200 bg-white px-4 text-sm text-tinta outline-none focus:border-hp-400"
-          />
+            <Campo
+              etiqueta="Nota"
+              name="nota"
+              tipo="texto"
+              placeholder="Nota para el grupo (opcional)"
+              className="mt-4"
+            />
 
-          <button
-            type="submit"
-            className="mt-4 h-10 rounded-full bg-hp-400 px-5 text-sm font-bold text-white transition-colors hover:bg-hp-500"
-          >
-            Asignar a los {grupo.miembros.length}
-          </button>
-        </form>
+            <BotonEnviar gerundio="Asignando…" className="mt-4">
+              Asignar a los {grupo.miembros.length}
+            </BotonEnviar>
+          </form>
+        </Tarjeta>
       )}
     </div>
   );

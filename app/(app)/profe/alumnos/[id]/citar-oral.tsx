@@ -3,6 +3,9 @@
 import { useActionState } from "react";
 import Link from "next/link";
 import { citarOral, descitarOral, type EstadoExpresion } from "@/lib/acciones-expresion";
+import Aviso from "@/components/ui/aviso";
+import BotonEnviar from "@/components/ui/boton-enviar";
+import Campo from "@/components/ui/campo";
 
 const formatoFecha = new Intl.DateTimeFormat("es-ES", {
   weekday: "short",
@@ -32,9 +35,7 @@ export default function CitarOral({
 
   return (
     <div className="mt-2">
-      {error && (
-        <p className="mb-2 rounded-tarjeta bg-sol-100 px-3 py-2 text-xs text-tinta">{error}</p>
-      )}
+      {error && <Aviso tono="error" className="mb-2">{error}</Aviso>}
 
       {citada ? (
         <form action={quitar} className="flex flex-wrap items-center gap-2">
@@ -43,6 +44,8 @@ export default function CitarOral({
           <span className="text-xs text-tinta-suave">
             Citado para el {formatoFecha.format(citada.empiezaEl)}
           </span>
+          {/* Se queda nativo: es un enlace subrayado, no tiene el aspecto de
+              botón que BotonEnviar siempre pinta. */}
           <button
             type="submit"
             className="text-xs font-semibold text-tinta-suave underline hover:text-hp-500"
@@ -62,28 +65,24 @@ export default function CitarOral({
         <form action={citar} className="flex flex-wrap items-center gap-2">
           <input type="hidden" name="asignacionId" value={asignacionId} />
           <input type="hidden" name="pasoId" value={pasoId} />
-          <select
+          <Campo
+            etiqueta="Citar el oral en"
             name="claseId"
+            tipo="elegir"
             required
             defaultValue=""
-            className="h-8 rounded-full border border-hp-200 px-3 text-xs text-tinta outline-none focus:border-hp-400"
-          >
-            <option value="" disabled>
-              Citar el oral en…
-            </option>
-            {clases.map((c) => (
-              <option key={c.id} value={c.id}>
-                {formatoFecha.format(c.empiezaEl)}
-                {c.donde ? ` · ${c.donde}` : ""}
-              </option>
-            ))}
-          </select>
-          <button
-            type="submit"
-            className="h-8 rounded-full border border-hp-200 px-3 text-xs font-bold text-tinta hover:border-hp-400"
-          >
+            className="min-w-40 flex-1"
+            opciones={[
+              { valor: "", nombre: "Citar el oral en…" },
+              ...clases.map((c) => ({
+                valor: c.id,
+                nombre: `${formatoFecha.format(c.empiezaEl)}${c.donde ? ` · ${c.donde}` : ""}`,
+              })),
+            ]}
+          />
+          <BotonEnviar gerundio="Citando…" variante="sutil" tamano="pequeno">
             Citar
-          </button>
+          </BotonEnviar>
         </form>
       )}
     </div>
