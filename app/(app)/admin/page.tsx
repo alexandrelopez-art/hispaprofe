@@ -1,15 +1,16 @@
 import { prisma } from "@/lib/prisma";
+import Aviso from "@/components/ui/aviso";
+import Rotulo from "@/components/ui/rotulo";
+import Tarjeta from "@/components/ui/tarjeta";
 
 export const dynamic = "force-dynamic";
 
 function Dato({ n, etiqueta }: { n: number | string; etiqueta: string }) {
   return (
-    <div className="rounded-tarjeta border border-hp-100 bg-white p-5 shadow-suave">
+    <Tarjeta>
       <p className="text-3xl font-extrabold text-tinta">{n}</p>
-      <p className="mt-1 text-xs font-bold uppercase tracking-wider text-tinta-suave">
-        {etiqueta}
-      </p>
-    </div>
+      <Rotulo className="mt-1">{etiqueta}</Rotulo>
+    </Tarjeta>
   );
 }
 
@@ -47,11 +48,11 @@ export default async function AdminResumenPage() {
         />
       </div>
 
-      <p className="mt-6 rounded-xl bg-sol-100 px-4 py-3 text-sm text-tinta">
+      <Aviso tono="aviso" className="mt-6">
         Las imágenes y los audios se guardan dentro de la base de datos, no en un
         servicio aparte. Vigila ese último número: si crece mucho, la copia de
         seguridad crece con él.
-      </p>
+      </Aviso>
     </>
   );
 }

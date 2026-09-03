@@ -1,7 +1,8 @@
 import { getUsuarioActual } from "@/lib/usuario";
 import { esAdmin } from "@/lib/roles";
 import { notFound } from "next/navigation";
-import Link from "next/link";
+import Boton from "@/components/ui/boton";
+import Encabezado from "@/components/ui/encabezado";
 
 export const dynamic = "force-dynamic";
 
@@ -21,19 +22,14 @@ export default async function AdminLayout({
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-12">
-      <h1 className="text-3xl font-extrabold tracking-tight text-tinta">
-        Administración
-      </h1>
+      <Encabezado titulo="Administración" />
 
-      <nav className="mt-6 flex flex-wrap gap-2">
+      {/* Sin marca de pestaña activa: el nav de origen tampoco la tenía. */}
+      <nav className="-mt-6 mb-6 flex flex-wrap gap-2">
         {pestanas.map((p) => (
-          <Link
-            key={p.href}
-            href={p.href}
-            className="rounded-full border-2 border-hp-200 px-4 py-1.5 text-sm font-bold text-hp-600 transition-colors hover:border-hp-400"
-          >
+          <Boton key={p.href} href={p.href} variante="sutil" tamano="pequeno">
             {p.texto}
-          </Link>
+          </Boton>
         ))}
       </nav>
 

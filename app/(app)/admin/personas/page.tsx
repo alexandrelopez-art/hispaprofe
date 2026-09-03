@@ -10,6 +10,10 @@ import {
 } from "@/lib/acciones-admin";
 import type { Prisma } from "@/lib/generated/prisma/client";
 import NuevaContrasena from "@/components/nueva-contrasena";
+import BotonEnviar from "@/components/ui/boton-enviar";
+import Campo from "@/components/ui/campo";
+import Etiqueta, { type TonoEtiqueta } from "@/components/ui/etiqueta";
+import Tarjeta from "@/components/ui/tarjeta";
 
 export const dynamic = "force-dynamic";
 
@@ -19,10 +23,10 @@ const rolLabel: Record<string, string> = {
   STUDENT: "Estudiante",
 };
 
-const rolStyle: Record<string, string> = {
-  ADMIN: "bg-bloque3/25 text-tinta ring-bloque3/50",
-  PROFESOR: "bg-hp-100 text-hp-700 ring-hp-200",
-  STUDENT: "bg-fondo text-tinta-suave ring-hp-100",
+const rolTono: Record<string, TonoEtiqueta> = {
+  ADMIN: "bloque3",
+  PROFESOR: "hp",
+  STUDENT: "neutro",
 };
 
 function nombreDe(u: {
@@ -71,44 +75,42 @@ export default async function AdminPersonasPage({
 
   return (
     <>
-      <section className="mt-8 rounded-tarjeta border border-hp-100 bg-white p-5 shadow-suave">
-        <h2 className="text-lg font-bold text-tinta">Invitar a un profesor</h2>
-        <p className="mt-1 text-sm text-tinta-suave">
+      <Tarjeta titulo="Invitar a un profesor" className="mt-8">
+        <p className="text-sm text-tinta-suave">
           Si ya tiene cuenta, se le sube el rol. Si no, se le crea la ficha y se
           la encontrará hecha al entrar por primera vez. No se envía ningún
           correo: avisarle sigue siendo cosa tuya.
         </p>
-        <form action={invitarProfesor} className="mt-4 flex flex-wrap gap-3">
-          <input
-            type="email"
+        <form action={invitarProfesor} className="mt-4 flex flex-wrap items-end gap-3">
+          {/* Antes solo tenía placeholder; la etiqueta «Correo» es nueva,
+              para que un lector de pantalla tenga nombre. */}
+          <Campo
+            etiqueta="Correo"
             name="email"
+            tipo="correo"
             required
             placeholder="correo@ejemplo.com"
-            className="h-10 min-w-64 flex-1 rounded-full border border-hp-200 bg-fondo px-4 text-sm text-tinta outline-none focus:border-hp-400"
+            className="min-w-64 flex-1"
           />
-          <button
-            type="submit"
-            className="h-10 rounded-full bg-hp-400 px-5 text-sm font-bold text-white transition-colors hover:bg-hp-500"
-          >
-            Invitar
-          </button>
+          <BotonEnviar gerundio="Invitando…">Invitar</BotonEnviar>
         </form>
-      </section>
+      </Tarjeta>
 
-      <form className="mt-8 flex flex-wrap gap-3">
-        <input
-          type="search"
-          name="q"
-          defaultValue={q}
-          placeholder="Buscar por nombre o correo"
-          className="h-10 min-w-56 flex-1 rounded-full border border-hp-200 bg-white px-4 text-sm text-tinta outline-none focus:border-hp-400"
-        />
-        <button
-          type="submit"
-          className="h-10 rounded-full border-2 border-hp-200 px-5 text-sm font-bold text-hp-600 transition-colors hover:border-hp-400"
-        >
+      <form className="mt-8 flex flex-wrap items-end gap-3">
+        {/* Campo no cubre type="search" todavía (mismo hueco que url/fecha):
+            se deja el <input> nativo con las clases de Campo. La etiqueta
+            «Buscar» es nueva, para que un lector de pantalla tenga nombre. */}
+        <label className="block min-w-56 flex-1 text-sm font-semibold text-tinta">
           Buscar
-        </button>
+          <input
+            type="search"
+            name="q"
+            defaultValue={q}
+            placeholder="Buscar por nombre o correo"
+            className="mt-1 h-10 w-full rounded-full border border-hp-200 bg-white px-4 text-sm font-normal text-tinta outline-none focus:border-hp-400"
+          />
+        </label>
+        <BotonEnviar gerundio="Buscando…" variante="sutil">Buscar</BotonEnviar>
       </form>
 
       <p className="mt-4 text-sm text-tinta-suave">
@@ -128,129 +130,111 @@ export default async function AdminPersonasPage({
           const suprimido = p.suprimidoEl !== null;
 
           return (
-            <li
-              key={p.id}
-              className={`flex flex-wrap items-center gap-3 rounded-xl border border-hp-100 bg-white px-4 py-3 shadow-suave ${
-                bloqueado ? "opacity-60" : ""
-              }`}
-            >
-              <div className="min-w-0 flex-1">
-                <p className="truncate font-semibold text-tinta">
-                  {suprimido ? "Ficha suprimida" : nombreDe(p)}
-                  {soyYo && (
-                    <span className="ml-2 text-xs font-bold text-tinta-suave">
-                      (tú)
-                    </span>
+            <li key={p.id}>
+              <Tarjeta className={bloqueado ? "opacity-60" : ""}>
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-semibold text-tinta">
+                      {suprimido ? "Ficha suprimida" : nombreDe(p)}
+                      {soyYo && (
+                        <span className="ml-2 text-xs font-bold text-tinta-suave">
+                          (tú)
+                        </span>
+                      )}
+                    </p>
+                    <p className="truncate text-xs text-tinta-suave">
+                      {suprimido ? "sin datos" : p.email}
+                      {p.nivel && ` · ${p.nivel}`}
+                      {!p.contrasenaHash && " · sin contraseña"}
+                    </p>
+                  </div>
+
+                  {bloqueado && (
+                    <Etiqueta tono="neutro" className="shrink-0">
+                      {suprimido ? "Suprimido" : "Bloqueado"}
+                    </Etiqueta>
                   )}
-                </p>
-                <p className="truncate text-xs text-tinta-suave">
-                  {suprimido ? "sin datos" : p.email}
-                  {p.nivel && ` · ${p.nivel}`}
-                  {!p.contrasenaHash && " · sin contraseña"}
-                </p>
-              </div>
 
-              {bloqueado && (
-                <span className="shrink-0 rounded-md bg-fondo px-2 py-0.5 text-xs font-semibold text-tinta-suave ring-1 ring-inset ring-hp-100">
-                  {suprimido ? "Suprimido" : "Bloqueado"}
-                </span>
-              )}
+                  <Etiqueta tono={rolTono[p.role] ?? "neutro"} className="shrink-0">
+                    {rolLabel[p.role] ?? p.role}
+                  </Etiqueta>
 
-              <span
-                className={`shrink-0 rounded-md px-2 py-0.5 text-xs font-semibold ring-1 ring-inset ${
-                  rolStyle[p.role] ?? "bg-fondo text-tinta ring-hp-100"
-                }`}
-              >
-                {rolLabel[p.role] ?? p.role}
-              </span>
-
-              <div className="flex shrink-0 gap-2">
-                {/*
-                  Toda lápida se queda como STUDENT a propósito, así que sin
-                  el `!suprimido` este botón se le pinta encima a todas.
-                */}
-                {p.role === "STUDENT" && !suprimido && (
-                  <form action={hacerProfesor}>
-                    <input type="hidden" name="usuarioId" value={p.id} />
-                    <button
-                      type="submit"
-                      className="h-9 rounded-full bg-hp-400 px-4 text-xs font-bold text-white transition-colors hover:bg-hp-500"
-                    >
-                      Hacer profesor
-                    </button>
-                  </form>
-                )}
-                {puedeBajar && (
-                  <form action={quitarProfesor}>
-                    <input type="hidden" name="usuarioId" value={p.id} />
-                    <button
-                      type="submit"
-                      className="h-9 rounded-full border-2 border-hp-200 px-4 text-xs font-bold text-hp-600 transition-colors hover:border-hp-400"
-                    >
-                      Quitar rol
-                    </button>
-                  </form>
-                )}
-                {!soyYo && !suprimido && !bloqueado && (
-                  <form action={bloquearPersona}>
-                    <input type="hidden" name="usuarioId" value={p.id} />
-                    <button
-                      type="submit"
-                      className="h-9 rounded-full border-2 border-hp-200 px-4 text-xs font-bold text-tinta-suave transition-colors hover:border-bloque3 hover:text-tinta"
-                    >
-                      Bloquear
-                    </button>
-                  </form>
-                )}
-                {bloqueado && !suprimido && (
-                  <form action={desbloquearPersona}>
-                    <input type="hidden" name="usuarioId" value={p.id} />
-                    <button
-                      type="submit"
-                      className="h-9 rounded-full border-2 border-hp-200 px-4 text-xs font-bold text-hp-600 transition-colors hover:border-hp-400"
-                    >
-                      Desbloquear
-                    </button>
-                  </form>
-                )}
-                {p.id !== yo?.id && !suprimido && <NuevaContrasena usuarioId={p.id} compacto />}
-              </div>
-
-              {bloqueado && !suprimido && (
-                <details className="w-full">
-                  <summary className="cursor-pointer text-xs font-bold text-tinta-suave hover:text-hp-500">
-                    Suprimir esta ficha
-                  </summary>
-                  <p className="mt-2 text-xs text-tinta-suave">
-                    Se van su nombre, su correo, su cuenta, sus grupos, sus
-                    deberes y todo su progreso. Sus clases se quedan, con sus
-                    horas y su importe, como «Estudiante suprimido».{" "}
-                    <strong className="text-tinta">Esto no se puede deshacer.</strong>
-                  </p>
-                  <form action={suprimirPersona} className="mt-3 flex flex-wrap gap-2">
-                    <input type="hidden" name="usuarioId" value={p.id} />
+                  <div className="flex shrink-0 gap-2">
                     {/*
-                      El único freno de la única acción irreversible no puede
-                      ser, para un lector de pantalla, una caja sin nombre: el
-                      placeholder no nombra el campo.
+                      Toda lápida se queda como STUDENT a propósito, así que sin
+                      el `!suprimido` este botón se le pinta encima a todas.
                     */}
-                    <input
-                      type="text"
-                      name="confirmacion"
-                      required
-                      aria-label={`Escribe ${p.email} para confirmar la supresión`}
-                      placeholder={`Escribe ${p.email} para confirmar`}
-                      className="h-9 min-w-72 flex-1 rounded-full border border-hp-200 bg-fondo px-4 text-xs text-tinta outline-none focus:border-hp-400"
-                    />
-                    <button
-                      type="submit"
-                      className="h-9 rounded-full bg-bloque3 px-4 text-xs font-bold text-tinta transition-opacity hover:opacity-80"
-                    >
-                      Suprimir
-                    </button>
-                  </form>
-                </details>
-              )}
+                    {p.role === "STUDENT" && !suprimido && (
+                      <form action={hacerProfesor}>
+                        <input type="hidden" name="usuarioId" value={p.id} />
+                        <BotonEnviar gerundio="Cambiando…" tamano="pequeno">
+                          Hacer profesor
+                        </BotonEnviar>
+                      </form>
+                    )}
+                    {puedeBajar && (
+                      <form action={quitarProfesor}>
+                        <input type="hidden" name="usuarioId" value={p.id} />
+                        <BotonEnviar gerundio="Cambiando…" variante="sutil" tamano="pequeno">
+                          Quitar rol
+                        </BotonEnviar>
+                      </form>
+                    )}
+                    {!soyYo && !suprimido && !bloqueado && (
+                      <form action={bloquearPersona}>
+                        <input type="hidden" name="usuarioId" value={p.id} />
+                        <BotonEnviar gerundio="Bloqueando…" variante="peligro" tamano="pequeno">
+                          Bloquear
+                        </BotonEnviar>
+                      </form>
+                    )}
+                    {bloqueado && !suprimido && (
+                      <form action={desbloquearPersona}>
+                        <input type="hidden" name="usuarioId" value={p.id} />
+                        <BotonEnviar gerundio="Desbloqueando…" variante="sutil" tamano="pequeno">
+                          Desbloquear
+                        </BotonEnviar>
+                      </form>
+                    )}
+                    {p.id !== yo?.id && !suprimido && <NuevaContrasena usuarioId={p.id} compacto />}
+                  </div>
+                </div>
+
+                {bloqueado && !suprimido && (
+                  <details className="mt-3 w-full">
+                    <summary className="cursor-pointer text-xs font-bold text-tinta-suave hover:text-hp-500">
+                      Suprimir esta ficha
+                    </summary>
+                    <p className="mt-2 text-xs text-tinta-suave">
+                      Se van su nombre, su correo, su cuenta, sus grupos, sus
+                      deberes y todo su progreso. Sus clases se quedan, con sus
+                      horas y su importe, como «Estudiante suprimido».{" "}
+                      <strong className="text-tinta">Esto no se puede deshacer.</strong>
+                    </p>
+                    <form action={suprimirPersona} className="mt-3 flex flex-wrap gap-2">
+                      <input type="hidden" name="usuarioId" value={p.id} />
+                      {/*
+                        El único freno de la única acción irreversible no puede
+                        ser, para un lector de pantalla, una caja sin nombre: el
+                        placeholder no nombra el campo. Se deja nativo (no
+                        Campo): ya tiene su propio aria-label dinámico por fila
+                        y Campo forzaría una etiqueta visible con el correo.
+                      */}
+                      <input
+                        type="text"
+                        name="confirmacion"
+                        required
+                        aria-label={`Escribe ${p.email} para confirmar la supresión`}
+                        placeholder={`Escribe ${p.email} para confirmar`}
+                        className="h-9 min-w-72 flex-1 rounded-full border border-hp-200 bg-fondo px-4 text-xs text-tinta outline-none focus:border-hp-400"
+                      />
+                      <BotonEnviar gerundio="Suprimiendo…" variante="peligro" tamano="pequeno">
+                        Suprimir
+                      </BotonEnviar>
+                    </form>
+                  </details>
+                )}
+              </Tarjeta>
             </li>
           );
         })}

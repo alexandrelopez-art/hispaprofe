@@ -1,6 +1,9 @@
 import { prisma } from "@/lib/prisma";
-import Link from "next/link";
 import { servicioLabel } from "@/lib/servicios";
+import Aviso from "@/components/ui/aviso";
+import Etiqueta from "@/components/ui/etiqueta";
+import Tarjeta from "@/components/ui/tarjeta";
+import Vacio from "@/components/ui/vacio";
 
 export const dynamic = "force-dynamic";
 
@@ -36,48 +39,39 @@ export default async function AdminSecuenciasPage() {
       </p>
 
       {huerfanas > 0 && (
-        <p className="mt-3 rounded-xl bg-sol-100 px-4 py-3 text-sm text-tinta">
+        <Aviso tono="aviso" className="mt-3">
           {huerfanas} sin autor. Son las sembradas antes de que existiera ese
           campo; no es un error, pero nadie figura como su dueño.
-        </p>
+        </Aviso>
       )}
 
       {secuencias.length === 0 ? (
-        <p className="mt-4 rounded-tarjeta border border-dashed border-hp-200 p-10 text-center text-tinta-suave">
-          Todavía no hay ninguna secuencia.
-        </p>
+        <Vacio className="mt-4">Todavía no hay ninguna secuencia.</Vacio>
       ) : (
         <ul className="mt-4 space-y-2">
           {secuencias.map((s) => (
             <li key={s.id}>
-              <Link
-                href={`/recorridos/${s.id}`}
-                className="flex flex-wrap items-center gap-3 rounded-xl border border-hp-100 bg-white px-4 py-3 shadow-suave transition hover:border-hp-300"
-              >
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-semibold text-tinta">{s.titulo}</p>
-                  <p className="truncate text-xs text-tinta-suave">
-                    {servicioLabel[s.tipo] ?? s.tipo} · {s.nivel} ·{" "}
-                    {s.autor ? nombreDe(s.autor) : "sin autor"}
-                  </p>
+              <Tarjeta href={`/recorridos/${s.id}`}>
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-semibold text-tinta">{s.titulo}</p>
+                    <p className="truncate text-xs text-tinta-suave">
+                      {servicioLabel[s.tipo] ?? s.tipo} · {s.nivel} ·{" "}
+                      {s.autor ? nombreDe(s.autor) : "sin autor"}
+                    </p>
+                  </div>
+
+                  <span className="shrink-0 text-xs font-semibold text-tinta-suave">
+                    {s._count.pasos} paso{s._count.pasos !== 1 ? "s" : ""} ·{" "}
+                    {s._count.asignaciones} asignada
+                    {s._count.asignaciones !== 1 ? "s" : ""}
+                  </span>
+
+                  <Etiqueta tono={s.publicado ? "verde" : "neutro"} className="shrink-0">
+                    {s.publicado ? "Publicada" : "Borrador"}
+                  </Etiqueta>
                 </div>
-
-                <span className="shrink-0 text-xs font-semibold text-tinta-suave">
-                  {s._count.pasos} paso{s._count.pasos !== 1 ? "s" : ""} ·{" "}
-                  {s._count.asignaciones} asignada
-                  {s._count.asignaciones !== 1 ? "s" : ""}
-                </span>
-
-                <span
-                  className={`shrink-0 rounded-md px-2 py-0.5 text-xs font-semibold ring-1 ring-inset ${
-                    s.publicado
-                      ? "bg-bloque2/25 text-tinta ring-bloque2/50"
-                      : "bg-fondo text-tinta-suave ring-hp-100"
-                  }`}
-                >
-                  {s.publicado ? "Publicada" : "Borrador"}
-                </span>
-              </Link>
+              </Tarjeta>
             </li>
           ))}
         </ul>
