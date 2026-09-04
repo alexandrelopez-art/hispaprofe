@@ -113,7 +113,7 @@ export default async function ExamenPage({ params }: { params: Promise<{ id: str
               <TarjetaTarea
                 key={t.id}
                 tarea={paraTarjeta(t)}
-                delMapa={tareaDelMapa("A2_B1_ESCOLAR", t.prueba, t.numero)!}
+                delMapa={tareaDelMapa(examen.nivel, t.prueba, t.numero)!}
                 paginas={paginasParaAsignar}
                 examenId={examen.id}
               />
@@ -127,7 +127,7 @@ export default async function ExamenPage({ params }: { params: Promise<{ id: str
               <TarjetaTarea
                 key={t.id}
                 tarea={paraTarjeta(t)}
-                delMapa={tareaDelMapa("A2_B1_ESCOLAR", t.prueba, t.numero)!}
+                delMapa={tareaDelMapa(examen.nivel, t.prueba, t.numero)!}
                 paginas={paginasParaAsignar}
                 examenId={examen.id}
               />

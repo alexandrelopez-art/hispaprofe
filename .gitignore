@@ -51,3 +51,6 @@ next-env.d.ts
 # Copias de trabajo aisladas. Solo el directorio de worktrees: lo demás de
 # .claude (ajustes, permisos) sí va al repo.
 /.claude/worktrees
+
+# El worker de pdf.js (lo copia postinstall desde pdfjs-dist, ver package.json)
+/public/pdf.worker.min.mjs
