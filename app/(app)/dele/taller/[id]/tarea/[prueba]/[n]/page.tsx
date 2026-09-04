@@ -85,6 +85,7 @@ export default async function TareaPage({ params }: { params: Promise<{ id: stri
           )}
         </div>
         <RevisionTarea
+          key={tarea.updatedAt.toISOString()}
           tareaId={tarea.id}
           motor={delMapa.motor === "relacionar" ? "relacionar" : "opcion"}
           datosIniciales={tarea.ejercicio.datos}

@@ -92,7 +92,14 @@ export default function RevisionTarea({ tareaId, motor, datosIniciales, bloqueIn
         <div className="flex flex-wrap gap-2">
           <Boton variante="primario" onClick={() => guardar()} disabled={pendiente || !sucio}>{pendiente ? "Guardando…" : "Guardar"}</Boton>
           <Boton variante="secundario" onClick={revisar} disabled={pendiente || estado === "REVISADA" || sucio || motivos.length > 0}>Marcar revisada</Boton>
-          <Boton variante="sutil" onClick={volverARellenar} disabled={pendiente || !hayClave} title={hayClave ? undefined : "Falta la clave de la API"}>Volver a rellenar con IA</Boton>
+          <Boton
+            variante="sutil"
+            onClick={volverARellenar}
+            disabled={pendiente || !hayClave || sucio}
+            title={!hayClave ? "Falta la clave de la API" : sucio ? "Guarda o descarta tus cambios antes" : undefined}
+          >
+            Volver a rellenar con IA
+          </Boton>
           {tieneClave && (
             <Boton variante="sutil" onClick={descartarClave} disabled={pendiente}>La clave del cuadernillo está mal</Boton>
           )}
