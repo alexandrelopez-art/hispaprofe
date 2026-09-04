@@ -650,6 +650,24 @@ async function main() {
   afirmar(asignado.ok === true && asignado.cuantos === 1, "asignarExamen a un particular asigna a uno");
   const asigs = await prisma.asignacion.findMany({ where: { estudianteId: alumno.id } });
   afirmar(asigs.length === 2 && asigs.every((a) => a.venceEl?.toISOString().startsWith("2026-12-01")), "dos asignaciones con la fecha límite");
+
+  // Reasignar sin fecha (fix de revisión, punto 3): el venceEl anterior sobrevive.
+  const reasignadoSinFecha = await asignarExamen(examenId!, { tipo: "alumno", id: alumno.id }, profeId!, null);
+  afirmar(reasignadoSinFecha.ok === true, "reasignar sin fecha también funciona");
+  const asigsTrasReasignar = await prisma.asignacion.findMany({ where: { estudianteId: alumno.id } });
+  afirmar(asigsTrasReasignar.every((a) => a.venceEl?.toISOString().startsWith("2026-12-01")), "reasignar sin fecha conserva el venceEl anterior");
+
+  // asignarExamen pasa por estudianteAsignable (fix de revisión, punto 1 — Important):
+  // un estudiante suprimido no recibe ninguna Asignacion nueva.
+  const suprimido = await prisma.user.create({
+    data: { email: `${marca}-suprimido@prueba.local`, firstName: "Suprimido", lastName: "de prueba", role: "STUDENT", suprimidoEl: new Date() },
+    select: { id: true },
+  });
+  usuarioIds.push(suprimido.id);
+  const negadoSuprimido = await asignarExamen(examenId!, { tipo: "alumno", id: suprimido.id }, profeId!, null);
+  afirmar(negadoSuprimido.ok === false, "asignarExamen se niega con un estudiante suprimido");
+  afirmar((await prisma.asignacion.count({ where: { estudianteId: suprimido.id } })) === 0, "y no le crea ninguna asignación");
+
   afirmar((await asignarExamen(examenId!, { tipo: "grupo", id: "no-existe" }, profeId!, null)).ok === false, "un grupo vacío o inexistente no asigna");
 
   await retirarExamen(examenId!);

@@ -5,7 +5,7 @@ import { motivosParaNoPublicar } from "@/lib/taller/publicar";
 import { NOMBRE_ESTADO_EXAMEN, TONO_ESTADO_EXAMEN } from "@/lib/taller/estados";
 import { tareaDe as tareaDelMapa } from "@/lib/dele";
 import { hayClaveDeIA } from "@/lib/taller/rellenar";
-import { exigirProfesor } from "@/lib/profesor";
+import { getUsuarioActual } from "@/lib/usuario";
 import { listarEstudiantesElegibles } from "@/lib/estudiantes";
 import { prisma } from "@/lib/prisma";
 import type { TareaParaTarjeta } from "@/components/taller/tarjeta-tarea";
@@ -56,7 +56,8 @@ export default async function ExamenPage({ params }: { params: Promise<{ id: str
   const examen = await examenDe(id);
   if (!examen) notFound();
 
-  const usuario = await exigirProfesor();
+  const usuario = await getUsuarioActual();
+  if (!usuario) notFound();
   const paginasParaAsignar = examen.paginas.map((p) => ({ id: p.id, orden: p.orden }));
   const lectura = examen.tareas.filter((t) => t.prueba === "CE");
   const auditiva = examen.tareas.filter((t) => t.prueba === "CO");

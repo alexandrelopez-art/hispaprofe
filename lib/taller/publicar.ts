@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { asignarA } from "@/lib/acciones";
+import { estudianteAsignable } from "@/lib/estudiantes";
 import { examenDe, type ExamenCompleto } from "@/lib/taller/consultas";
 
 type ImagenPedida = { archivoId: string | null };
@@ -66,8 +67,18 @@ export async function asignarExamen(id: string, destino: Destino, profesorId: st
       ? (await prisma.miembroGrupo.findMany({ where: { grupoId: destino.id }, select: { estudianteId: true } })).map((m) => m.estudianteId)
       : [destino.id];
   if (estudianteIds.length === 0) return { ok: false, error: "Ese grupo no tiene estudiantes." };
-  for (const recorridoId of [examen.lecturaId, examen.auditivaId]) {
-    await asignarA(estudianteIds, recorridoId, profesorId, "", venceEl);
+  // La misma guarda que ya usan los otros llamadores de `asignarA`
+  // (`asignarSecuenciaAVarios`, `lib/acciones.ts`): quien se suprimió no
+  // vuelve a acumular una `Asignacion` solo porque su id llegó en un
+  // `FormData` fabricado — `destinos` en la mesa ya lo filtra, pero la
+  // acción de servidor no puede depender solo de eso.
+  const asignables: string[] = [];
+  for (const estudianteId of estudianteIds) {
+    if (await estudianteAsignable(estudianteId)) asignables.push(estudianteId);
   }
-  return { ok: true, cuantos: estudianteIds.length };
+  if (asignables.length === 0) return { ok: false, error: "Ese estudiante no se puede asignar." };
+  for (const recorridoId of [examen.lecturaId, examen.auditivaId]) {
+    await asignarA(asignables, recorridoId, profesorId, "", venceEl);
+  }
+  return { ok: true, cuantos: asignables.length };
 }
