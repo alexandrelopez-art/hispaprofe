@@ -12,7 +12,7 @@ import { tareaDe } from "@/lib/taller/consultas";
 import { trozoDeClaves } from "@/lib/taller/cuadernillo";
 import { hayClaveDeIA, pedirTarea, SinClaveError } from "@/lib/taller/rellenar";
 import { guardarRelleno } from "@/lib/taller/guardar-relleno";
-import { guardarTarea, marcarRevisada, quitarImagenPedida } from "@/lib/taller/revision";
+import { descartarClaveOficial, guardarTarea, marcarRevisada, quitarImagenPedida } from "@/lib/taller/revision";
 
 export type EstadoTaller = { error?: string; ok?: string };
 export type EstadoGuardado = { error?: string; ok?: string; avisos?: string[] };
@@ -163,6 +163,17 @@ export async function marcarRevisadaAccion(tareaId: string): Promise<EstadoGuard
   revalidatePath(`/dele/taller/${tarea.examenId}/tarea/${tarea.prueba}/${tarea.numero}`);
   if (!r.ok) return { error: r.motivos.join(" ") };
   return { ok: "Revisada." };
+}
+
+export async function descartarClaveOficialAccion(tareaId: string): Promise<EstadoGuardado> {
+  await exigirProfesor();
+  const tarea = await tareaDe(tareaId);
+  if (!tarea) return { error: "Esa tarea ya no existe." };
+  const r = await descartarClaveOficial(tareaId);
+  revalidatePath(`/dele/taller/${tarea.examenId}`);
+  revalidatePath(`/dele/taller/${tarea.examenId}/tarea/${tarea.prueba}/${tarea.numero}`);
+  if (!r.ok) return { error: r.error };
+  return { ok: "La clave del cuadernillo ya no se comprueba en esta tarea.", avisos: r.avisos };
 }
 
 export async function quitarImagenPedidaAccion(formData: FormData): Promise<void> {

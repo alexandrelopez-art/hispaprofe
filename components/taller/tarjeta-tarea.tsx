@@ -40,7 +40,7 @@ export default function TarjetaTarea({ tarea, delMapa, paginas, examenId, childr
       </form>
       <div className="mt-3 flex flex-wrap gap-2">
         {children}
-        <Boton href={`/pasos/${tarea.pasoId}`} variante="sutil" tamano="pequeno">Abrir</Boton>
+        <Boton href={`/dele/taller/${examenId}/tarea/${tarea.prueba}/${tarea.numero}`} variante="sutil" tamano="pequeno">Abrir</Boton>
       </div>
     </Tarjeta>
   );

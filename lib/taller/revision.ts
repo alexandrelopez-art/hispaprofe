@@ -47,6 +47,12 @@ export async function guardarTarea(tareaId: string, datos: unknown, bloque: stri
     ...contrastarClaveGuardada(datos, tarea.claveOficial, delMapa.motor as "opcion" | "relacionar"),
   ];
   const volvioARellenada = tarea.estado === "REVISADA";
+  // Una tarea VACIA cuyos datos ya validan (revisarDatos + el tipo, arriba)
+  // es una tarea que el profesor acaba de rellenar a mano, sin pasar por
+  // «Rellenar con IA»: sin este ascenso se quedaba en VACIA para siempre
+  // —nada más la mueve— y motivosParaNoRevisar la seguía rechazando con
+  // «La tarea está vacía», aunque ya tuviera sus preguntas y respuestas.
+  const rellenadaAMano = tarea.estado === "VACIA";
   const texto = bloque?.trim() ? bloque.trim() : null;
 
   await prisma.$transaction(async (tx) => {
@@ -55,7 +61,11 @@ export async function guardarTarea(tareaId: string, datos: unknown, bloque: stri
     if (texto) await tx.bloque.create({ data: { pasoId: tarea.pasoId, tipo: "TEXTO", texto, orden: 1 } });
     await tx.tareaDeExamen.update({
       where: { id: tareaId },
-      data: { avisos, ...(volvioARellenada ? { estado: "RELLENADA", revisadaEl: null } : {}) },
+      data: {
+        avisos,
+        ...(volvioARellenada ? { estado: "RELLENADA", revisadaEl: null } : {}),
+        ...(rellenadaAMano ? { estado: "RELLENADA", rellenadaEl: new Date() } : {}),
+      },
     });
   });
   return { ok: true, avisos, volvioARellenada };
@@ -98,4 +108,23 @@ export async function quitarImagenPedida(tareaId: string, indice: number): Promi
   const tarea = await prisma.tareaDeExamen.findUniqueOrThrow({ where: { id: tareaId }, select: { imagenesPedidas: true } });
   const lista = ((tarea.imagenesPedidas as ImagenPedida[] | null) ?? []).filter((_, i) => i !== indice);
   await prisma.tareaDeExamen.update({ where: { id: tareaId }, data: { imagenesPedidas: lista } });
+}
+
+export type ResultadoDescartarClave = { ok: true; avisos: string[] } | { ok: false; error: string };
+
+/**
+ * El profesor decide que la clave del cuadernillo está mal para esta tarea:
+ * se deja de comprobar. Quita `claveOficial` y recalcula los avisos solo
+ * con `avisosDelMapa` (ítems, opciones, sobrantes) sobre lo que hay
+ * guardado ahora mismo — sin el contraste de clave, que es justo lo que se
+ * está descartando.
+ */
+export async function descartarClaveOficial(tareaId: string): Promise<ResultadoDescartarClave> {
+  const tarea = await tareaDe(tareaId);
+  if (!tarea) return { ok: false, error: "Esa tarea ya no existe." };
+  const delMapa = tareaDelMapa(tarea.examen.nivel, tarea.prueba, tarea.numero);
+  if (!delMapa) return { ok: false, error: "El mapa no describe esta tarea." };
+  const avisos = avisosDelMapa(delMapa, tarea.ejercicio.datos);
+  await prisma.tareaDeExamen.update({ where: { id: tareaId }, data: { claveOficial: Prisma.DbNull, avisos } });
+  return { ok: true, avisos };
 }

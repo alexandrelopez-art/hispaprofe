@@ -9,9 +9,12 @@
  * la clave oficial, con dos fixtures fijos — sin llamar a la API real) y la
  * revisión (`tareaPorNumero`, guardar con re-validación y la clave contra lo
  * editado, y marcar revisada con sus guardas: vacía, avisos, ítems sin
- * respuesta, imágenes por subir, auditiva sin grabación). También verifica,
- * sin tocar la base, `quitarPregunta`/`siguienteId` del editor de opción
- * (la seguridad del cloze frente a "Quitar" + "Añadir pregunta").
+ * respuesta, imágenes por subir, auditiva sin grabación), `descartarClaveOficial`
+ * («la clave del cuadernillo está mal» quita el contraste y su aviso) y que
+ * `guardarTarea` sobre una tarea VACIA con datos válidos la deja RELLENADA
+ * (rellenar a mano, sin pasar por la IA). También verifica, sin tocar la
+ * base, `quitarPregunta`/`siguienteId` del editor de opción (la seguridad
+ * del cloze frente a "Quitar" + "Añadir pregunta").
  * Crea sus propios datos y los borra al terminar.
  * Ejecutar con:  npx tsx scripts/verificar-taller.ts
  */
@@ -439,7 +442,7 @@ async function main() {
   );
 
   // ─── La revisión ────────────────────────────────────────────────────
-  const { guardarTarea, marcarRevisada, motivosParaNoRevisar, quitarImagenPedida } = await import("@/lib/taller/revision");
+  const { descartarClaveOficial, guardarTarea, marcarRevisada, motivosParaNoRevisar, quitarImagenPedida } = await import("@/lib/taller/revision");
   const { tareaPorNumero } = await import("@/lib/taller/consultas");
 
   const porNumero = await tareaPorNumero(examenId!, "CE", 3);
@@ -473,6 +476,15 @@ async function main() {
   const conCorrectaCambiada = { ...ejercicioBueno, preguntas: ejercicioBueno.preguntas.map((p, i) => (i === 0 ? { ...p, correctas: [(p.correctas[0] + 1) % 3] } : p)) };
   const contrastado = await guardarTarea(tareaCE3.id, conCorrectaCambiada, null);
   afirmar(contrastado.ok === true && contrastado.avisos.some((a) => a.includes("clave oficial")), "cambiar una correcta contra la clave oficial deja aviso");
+
+  // Encargo tras la revisión de la Task 1: «la clave del cuadernillo está
+  // mal» — el profesor la descarta y el aviso de contraste desaparece.
+  const descartada = await descartarClaveOficial(tareaCE3.id);
+  afirmar(descartada.ok === true, "descartarClaveOficial: ok");
+  const trasDescartar = await tareaDe(tareaCE3.id);
+  afirmar(trasDescartar!.claveOficial === null, "descartarClaveOficial deja claveOficial en null");
+  afirmar(!(trasDescartar!.avisos as string[]).some((a) => a.includes("clave oficial")), "descartarClaveOficial quita el aviso de la clave oficial");
+
   await guardarTarea(tareaCE3.id, bueno.ejercicio, "Texto.");
 
   // Marcar revisada: las guardas.
@@ -498,6 +510,30 @@ async function main() {
 
   const reeditada = await guardarTarea(tareaCE3.id, bueno.ejercicio, "Otro texto.");
   afirmar(reeditada.ok === true && reeditada.volvioARellenada && (await tareaDe(tareaCE3.id))!.estado === "RELLENADA", "editar una revisada la devuelve a RELLENADA");
+
+  // Encargo tras la revisión de la Task 1: rellenar a mano una tarea VACIA
+  // (sin pasar por «Rellenar con IA») también la deja lista para revisar.
+  // CO 1 del mapa: `opcion`, listaComun false, 7 ítems de 3 opciones.
+  const datosCO1Validos: DatosOpcion = {
+    ejercicio: "opcion",
+    consigna: "Escucha y responde.",
+    multiple: false,
+    presentacion: "botones",
+    escuchas: 2,
+    preguntas: Array.from({ length: 7 }, (_, i) => ({
+      id: `p${i + 1}`,
+      enunciado: `Pregunta ${i + 1}`,
+      opciones: ["A", "B", "C"],
+      correctas: [0],
+    })),
+  };
+  const tareaCO1AntesDeRellenar = await tareaDe(tareaCO1.id);
+  afirmar(tareaCO1AntesDeRellenar!.estado === "VACIA", "CO 1 sigue VACIA antes de rellenarla a mano");
+  const rellenadaAMano = await guardarTarea(tareaCO1.id, datosCO1Validos, null);
+  afirmar(rellenadaAMano.ok === true, "guardarTarea sobre CO 1 (VACIA) con datos válidos: ok");
+  const tareaCO1TrasRellenar = await tareaDe(tareaCO1.id);
+  afirmar(tareaCO1TrasRellenar!.estado === "RELLENADA", "guardarTarea sobre una tarea VACIA con datos válidos la deja RELLENADA");
+  afirmar(tareaCO1TrasRellenar!.rellenadaEl !== null, "y le pone rellenadaEl");
 
   let sinClave: unknown = null;
   try {
