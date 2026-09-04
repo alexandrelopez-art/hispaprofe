@@ -25,22 +25,50 @@ export function avisosDelMapa(tarea: Parameters<typeof avisoDeItems>[0], datos: 
   return avisos;
 }
 
-/** La clave oficial contra lo marcado: por letra en opción, por título en relacionar. */
+/** El aviso de que la clave oficial no se pudo leer contra nada del ejercicio. */
+const CLAVE_NO_CONTRASTADA = "La clave oficial no se pudo contrastar con lo leído.";
+
+/**
+ * La clave oficial contra lo marcado: por letra en opción, por título en
+ * relacionar.
+ *
+ * Antes de comparar item a item, comprueba que hay **con qué** comparar: si
+ * ninguna clave de `claveOficial` coincide con un id del ejercicio —lo
+ * natural si la IA copió la numeración del cuadernillo (1-25) en vez de los
+ * ids del motor (p1-p7)— o, en `relacionar`, si `textosConLetra` viene
+ * vacío (sin él no hay con qué traducir una letra a un título), antes esto
+ * devolvía `[]` en silencio: la clave oficial podía contradecir todas y
+ * cada una de las respuestas marcadas y el profesor recibía «Rellenada.»
+ * sin un solo aviso, la red de seguridad más importante del módulo caída
+ * sin decirlo.
+ */
 export function contrastarClave(respuesta: RespuestaIA, motor: "opcion" | "relacionar"): string[] {
   if (!respuesta.claveOficial) return [];
-  const fallan: string[] = [];
+  const idsDeClave = Object.keys(respuesta.claveOficial);
+  if (idsDeClave.length === 0) return [];
   const d = respuesta.ejercicio as { preguntas?: { id: string; correctas: number[] }[]; parejas?: { id: string; derecha: string }[] };
+
   if (motor === "opcion") {
-    for (const p of d.preguntas ?? []) {
+    const preguntas = d.preguntas ?? [];
+    const idsDelEjercicio = new Set(preguntas.map((p) => p.id));
+    if (!idsDeClave.some((id) => idsDelEjercicio.has(id))) return [CLAVE_NO_CONTRASTADA];
+    const fallan: string[] = [];
+    for (const p of preguntas) {
       const letra = respuesta.claveOficial[p.id];
       if (letra && LETRAS.indexOf(letra.toUpperCase()) !== p.correctas[0]) fallan.push(p.id);
     }
-  } else {
-    const porLetra = new Map(respuesta.textosConLetra.map((t) => [t.letra.toUpperCase(), t.texto]));
-    for (const r of d.parejas ?? []) {
-      const letra = respuesta.claveOficial[r.id];
-      if (letra && porLetra.size && porLetra.get(letra.toUpperCase()) !== r.derecha) fallan.push(r.id);
-    }
+    return fallan.length ? [`La clave oficial no cuadra con lo leído en: ${fallan.join(", ")}.`] : [];
+  }
+
+  if (respuesta.textosConLetra.length === 0) return [CLAVE_NO_CONTRASTADA];
+  const parejas = d.parejas ?? [];
+  const idsDelEjercicio = new Set(parejas.map((r) => r.id));
+  if (!idsDeClave.some((id) => idsDelEjercicio.has(id))) return [CLAVE_NO_CONTRASTADA];
+  const porLetra = new Map(respuesta.textosConLetra.map((t) => [t.letra.toUpperCase(), t.texto]));
+  const fallan: string[] = [];
+  for (const r of parejas) {
+    const letra = respuesta.claveOficial[r.id];
+    if (letra && porLetra.get(letra.toUpperCase()) !== r.derecha) fallan.push(r.id);
   }
   return fallan.length ? [`La clave oficial no cuadra con lo leído en: ${fallan.join(", ")}.`] : [];
 }

@@ -21,7 +21,7 @@ import { asignarPaginas, borrarPagina, registrarPagina, reordenarPaginas, repart
 import { textoDePdf, trozoDeClaves } from "@/lib/taller/cuadernillo";
 import { esquemaDeHerramienta, textoDelEncargo, type RespuestaIA } from "@/lib/taller/encargo-ia";
 import { pedirTarea, SinClaveError } from "@/lib/taller/rellenar";
-import { guardarRelleno } from "@/lib/taller/guardar-relleno";
+import { contrastarClave, guardarRelleno } from "@/lib/taller/guardar-relleno";
 import fixtureBueno from "./fixtures/taller-respuesta-ia.json";
 import fixtureMalo from "./fixtures/taller-respuesta-ia-mal.json";
 
@@ -273,6 +273,14 @@ async function main() {
   const bueno = fixtureBueno as unknown as RespuestaIA;
   const malo = fixtureMalo as unknown as RespuestaIA;
 
+  // B-6 de la revisión: `guardarRelleno` borra solo `tipo: "TEXTO"`, pero
+  // nada probaba que un `Bloque AUDIO` ya colgado del mismo paso —lo que va
+  // a colgar la sesión C— sobreviviera. Se crea a mano antes del fixture
+  // bueno y se comprueba que sigue ahí después.
+  const audioAntes = await prisma.bloque.create({
+    data: { pasoId: tareaCE3.pasoId, tipo: "AUDIO", url: "https://ejemplo.invalido/audio.mp3", orden: 2 },
+  });
+
   const resultadoBueno = await guardarRelleno(tareaCE3.id, bueno);
   afirmar(resultadoBueno.ok === true, "guardarRelleno con el fixture bueno: ok");
   afirmar(resultadoBueno.ok === true && resultadoBueno.avisos.length === 0, "el fixture bueno no deja avisos");
@@ -280,8 +288,9 @@ async function main() {
   afirmar(trasBueno!.estado === "RELLENADA", "tras el fixture bueno, la tarea queda RELLENADA");
   afirmar(trasBueno!.rellenadaEl !== null, "tras el fixture bueno, rellenadaEl queda escrito");
   afirmar(isDeepStrictEqual(trasBueno!.ejercicio.datos, bueno.ejercicio), "Ejercicio.datos queda igual al fixture bueno");
-  const bloquesTrasBueno = await prisma.bloque.findMany({ where: { pasoId: trasBueno!.pasoId, tipo: "TEXTO" } });
-  afirmar(bloquesTrasBueno.length === 1, "el fixture bueno deja un Bloque TEXTO en el paso");
+  const bloquesTrasBueno = await prisma.bloque.findMany({ where: { pasoId: trasBueno!.pasoId } });
+  afirmar(bloquesTrasBueno.filter((b) => b.tipo === "TEXTO").length === 1, "el fixture bueno deja un Bloque TEXTO en el paso");
+  afirmar(bloquesTrasBueno.some((b) => b.id === audioAntes.id), "el fixture bueno no borra el Bloque AUDIO que ya estaba en el paso");
   afirmar(cuantosItems(trasBueno!.ejercicio.datos) === 6, "cuantosItems da 6 con el fixture bueno");
 
   const resultadoMalo = await guardarRelleno(tareaCE3.id, malo);
@@ -295,6 +304,37 @@ async function main() {
   const trasRoto = await tareaDe(tareaCE3.id);
   afirmar(trasRoto!.estado === "RELLENADA", "tras el intento roto, la tarea sigue RELLENADA (del fixture malo)");
   afirmar(isDeepStrictEqual(trasRoto!.ejercicio.datos, malo.ejercicio), "Ejercicio.datos no cambia con un `ejercicio` que no vale");
+
+  // B-3 de la revisión: `contrastarClave` no avisaba cuando la clave
+  // oficial no tenía con qué contrastar (ids que no casan, o `relacionar`
+  // sin `textosConLetra`) — devolvía `[]` en silencio.
+  const claveConIdsQueNoCasan: RespuestaIA = {
+    ...bueno,
+    claveOficial: Object.fromEntries(Object.entries(bueno.claveOficial!).map(([id, letra]) => [id.replace("p", ""), letra])),
+  };
+  afirmar(
+    contrastarClave(claveConIdsQueNoCasan, "opcion").some((a) => a.includes("no se pudo contrastar")),
+    "contrastarClave avisa cuando ningún id de la clave oficial casa con una pregunta",
+  );
+
+  const relacionarSinTextosConLetra: RespuestaIA = {
+    bloque: null,
+    ejercicio: {
+      ejercicio: "relacionar",
+      consigna: "Relaciona.",
+      parejas: [{ id: "r1", izquierda: "Le gusta el fútbol.", derecha: "El deporte en el colegio" }],
+      sobrantes: [],
+      escuchas: 2,
+    },
+    textosConLetra: [],
+    imagenesPedidas: [],
+    dudas: [],
+    claveOficial: { r1: "A" },
+  };
+  afirmar(
+    contrastarClave(relacionarSinTextosConLetra, "relacionar").some((a) => a.includes("no se pudo contrastar")),
+    "contrastarClave avisa en relacionar sin textosConLetra, aunque el id sí case",
+  );
 
   let sinClave: unknown = null;
   try {
@@ -310,13 +350,21 @@ async function main() {
   }
   afirmar(sinClave instanceof SinClaveError, "pedirTarea sin ANTHROPIC_API_KEY rechaza con SinClaveError, sin llamar a la API");
 
-  const esquemaCE1 = esquemaDeHerramienta(tareaDelMapa("A2_B1_ESCOLAR", "CE", 1)!) as { properties: { ejercicio?: { type?: string } }; required?: string[] };
+  const esquemaCE1 = esquemaDeHerramienta(tareaDelMapa("A2_B1_ESCOLAR", "CE", 1)!) as { properties: { ejercicio?: { type?: string; properties?: Record<string, unknown> } }; required?: string[] };
   afirmar(esquemaCE1.properties.ejercicio?.type === "object", "esquemaDeHerramienta de CE1: `properties.ejercicio` es `type: object`");
   afirmar(!!esquemaCE1.required?.includes("ejercicio"), "esquemaDeHerramienta de CE1: `required` incluye `ejercicio`");
+  // B-1 de la revisión: `z.toJSONSchema` mete "$schema" en la raíz de lo
+  // que genera, y ese objeto se empotraba tal cual como subesquema de
+  // `ejercicio` — JSON Schema 2020-12 solo admite "$schema" en la raíz de
+  // un recurso, y el SDK no lo detecta.
+  afirmar(!JSON.stringify(esquemaCE1).includes('"$schema"'), "esquemaDeHerramienta de CE1: sin \"$schema\" anidado");
+  afirmar(Object.keys(esquemaCE1.properties.ejercicio?.properties ?? {}).length > 0, "esquemaDeHerramienta de CE1: `properties.ejercicio.properties` no está vacío");
 
-  const esquemaCE3 = esquemaDeHerramienta(tareaDelMapa("A2_B1_ESCOLAR", "CE", 3)!) as { properties: { ejercicio?: { type?: string } }; required?: string[] };
-  afirmar(esquemaCE3.properties.ejercicio?.type === "object", "esquemaDeHerramienta de CE3: `properties.ejercicio` es `type: object`");
-  afirmar(!!esquemaCE3.required?.includes("ejercicio"), "esquemaDeHerramienta de CE3: `required` incluye `ejercicio`");
+  const esquemaCE4 = esquemaDeHerramienta(tareaDelMapa("A2_B1_ESCOLAR", "CE", 4)!) as { properties: { ejercicio?: { type?: string; properties?: Record<string, unknown> } }; required?: string[] };
+  afirmar(esquemaCE4.properties.ejercicio?.type === "object", "esquemaDeHerramienta de CE4: `properties.ejercicio` es `type: object`");
+  afirmar(!!esquemaCE4.required?.includes("ejercicio"), "esquemaDeHerramienta de CE4: `required` incluye `ejercicio`");
+  afirmar(!JSON.stringify(esquemaCE4).includes('"$schema"'), "esquemaDeHerramienta de CE4: sin \"$schema\" anidado");
+  afirmar(Object.keys(esquemaCE4.properties.ejercicio?.properties ?? {}).length > 0, "esquemaDeHerramienta de CE4: `properties.ejercicio.properties` no está vacío");
 
   const textoCE4 = textoDelEncargo(tareaDelMapa("A2_B1_ESCOLAR", "CE", 4)!, "CE", examen!.numero, null);
   afirmar(textoCE4.includes("{{p1}}"), "textoDelEncargo de CE4 (cloze) menciona la marca {{p1}}");
@@ -324,6 +372,16 @@ async function main() {
   const textoCO1 = textoDelEncargo(tareaDelMapa("A2_B1_ESCOLAR", "CO", 1)!, "CO", examen!.numero, null);
   afirmar(textoCO1.includes("imagenesPedidas"), "textoDelEncargo de CO1 menciona imagenesPedidas");
   afirmar(textoCO1.includes("null"), "textoDelEncargo de CO1 menciona null (bloque de la auditiva)");
+
+  // B-2 de la revisión: el texto crudo del cuadernillo (sin la cabecera por
+  // tarea) tiene que salir letra a letra igual sea cual sea la tarea o la
+  // prueba, para poder ir marcado como el bloque cacheado de `system`.
+  const textoSinteticoParaClaves = "EXAMEN 5 – … contenido del examen … SOLUCIONES A B C … EXAMEN 6 –";
+  const clavesCE1 = trozoDeClaves(textoSinteticoParaClaves, 5, "CE", 1);
+  const clavesCO4 = trozoDeClaves(textoSinteticoParaClaves, 5, "CO", 4);
+  afirmar(clavesCE1.texto === clavesCO4.texto, "trozoDeClaves: el texto crudo es idéntico entre tareas del mismo examen");
+  afirmar(clavesCE1.cabecera !== clavesCO4.cabecera, "trozoDeClaves: la cabecera sí cambia por prueba y tarea");
+  afirmar(!clavesCE1.texto.includes("tarea 1"), "trozoDeClaves: el texto crudo no lleva la cabecera de la tarea");
 
   console.log("\nTodo en orden.");
 }

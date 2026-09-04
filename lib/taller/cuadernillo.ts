@@ -38,24 +38,32 @@ const LIMITE = 40_000;
  * preguntas. Para no tragarse de paso las soluciones (o el rótulo) del
  * examen siguiente, cada bloque se corta en el primer «EXAMEN N» que
  * encuentre después, o a los 3.000 caracteres si no hay ninguno antes.
+ *
+ * `texto` sale **sin** la cabecera de la tarea («Examen N, prueba…, tarea
+ * M.») a propósito: ese campo va marcado para la caché de prompts
+ * (`lib/taller/rellenar.ts`), y tiene que salir letra a letra igual en las
+ * ocho llamadas del mismo examen para que la caché pueda acertar —no
+ * depende de `prueba` ni de `tarea`, solo de `numero`. La cabecera, que sí
+ * cambia por tarea, va aparte en `cabecera` para que quien arma el encargo
+ * la meta en el mensaje de usuario, fuera del bloque cacheado.
  */
 export function trozoDeClaves(
   texto: string,
   numero: number,
   prueba: "CE" | "CO",
   tarea: number,
-): { texto: string; recortado: boolean } {
+): { texto: string; cabecera: string; recortado: boolean } {
+  const nombre = prueba === "CE" ? "LECTURA" : "AUDITIVA";
+  const cabecera = `Examen ${numero}, prueba de comprensión ${nombre.toLowerCase()}, tarea ${tarea}.`;
   const inicio = texto.search(new RegExp(`EXAMEN\\s+${numero}\\b`, "i"));
-  if (inicio < 0) return { texto: texto.slice(0, LIMITE), recortado: true };
+  if (inicio < 0) return { texto: texto.slice(0, LIMITE), cabecera, recortado: true };
   const resto = texto.slice(inicio);
   const fin = resto.slice(10).search(new RegExp(`EXAMEN\\s+${numero + 1}\\b`, "i"));
   const delExamen = fin < 0 ? resto : resto.slice(0, fin + 10);
   const soluciones = [...texto.matchAll(/SOLUCIONES[\s\S]*?(?=EXAMEN\s+\d+\b|$)/g)]
     .map((m) => m[0].slice(0, 3000))
     .join("\n\n");
-  const nombre = prueba === "CE" ? "LECTURA" : "AUDITIVA";
-  const cabecera = `Examen ${numero}, prueba de comprensión ${nombre.toLowerCase()}, tarea ${tarea}.\n\n`;
-  return { texto: (cabecera + delExamen + "\n\n" + soluciones).slice(0, LIMITE), recortado: false };
+  return { texto: (delExamen + "\n\n" + soluciones).slice(0, LIMITE), cabecera, recortado: false };
 }
 
 export async function guardarCuadernillo(examenId: string, bytes: Uint8Array): Promise<{ caracteres: number }> {

@@ -92,20 +92,38 @@ export async function subirCuadernilloAccion(_prev: EstadoTaller, formData: Form
   return { ok: `Cuadernillo guardado (${caracteres.toLocaleString("es")} caracteres).` };
 }
 
+/** Lo que `Base64ImageSource` del SDK admite como `media_type`. */
+const TIPOS_DE_IMAGEN_ACEPTADOS = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
+
 export async function rellenarConIAAccion(tareaId: string): Promise<EstadoTaller> {
   await exigirProfesor();
-  const tarea = await tareaDe(tareaId);
-  if (!tarea) return { error: "Esa tarea ya no existe." };
-  const delMapa = tareaDelMapa(tarea.examen.nivel, tarea.prueba, tarea.numero);
-  if (!delMapa) return { error: "El mapa no describe esta tarea." };
-  if (tarea.paginaIds.length === 0) return { error: "Marca antes en qué páginas está esta tarea." };
-  const paginas = tarea.examen.paginas.filter((p) => tarea.paginaIds.includes(p.id));
-  const archivos = await prisma.archivo.findMany({ where: { id: { in: paginas.map((p) => p.archivoId) } } });
-  const porId = new Map(archivos.map((a) => [a.id, a]));
-  const imagenes = paginas.map((p) => porId.get(p.archivoId)).filter((a) => a !== undefined)
-    .map((a) => ({ bytes: new Uint8Array(a.datos), tipo: (a.tipo as "image/jpeg" | "image/png" | "image/webp") }));
-  const claves = tarea.examen.clavesTexto ? trozoDeClaves(tarea.examen.clavesTexto, tarea.examen.numero, tarea.prueba, tarea.numero) : null;
+  // Todo lo de aquí abajo va dentro del `try`, no solo la llamada a la IA:
+  // un tropiezo de Prisma en `tareaDe` o en `archivo.findMany` salía antes
+  // como un rechazo sin capturar, y en «Rellenar las ocho»
+  // (`components/taller/rellenar-todas.tsx`) eso cortaba el bucle entero en
+  // vez de anotar el error de esa tarea y seguir con la siguiente.
   try {
+    const tarea = await tareaDe(tareaId);
+    if (!tarea) return { error: "Esa tarea ya no existe." };
+    const delMapa = tareaDelMapa(tarea.examen.nivel, tarea.prueba, tarea.numero);
+    if (!delMapa) return { error: "El mapa no describe esta tarea." };
+    if (tarea.paginaIds.length === 0) return { error: "Marca antes en qué páginas está esta tarea." };
+    const paginas = tarea.examen.paginas.filter((p) => tarea.paginaIds.includes(p.id));
+    const archivos = await prisma.archivo.findMany({ where: { id: { in: paginas.map((p) => p.archivoId) } } });
+    const porId = new Map(archivos.map((a) => [a.id, a]));
+    // `app/api/archivos/route.ts` acepta más tipos de imagen (y el SVG) de
+    // los que la API de Anthropic admite como `media_type`: mejor decirlo
+    // aquí, en español, que dejar que la API lo rechace con un 400 en
+    // inglés dentro del aviso rojo del profesor.
+    for (let i = 0; i < paginas.length; i++) {
+      const archivo = porId.get(paginas[i].archivoId);
+      if (archivo && !TIPOS_DE_IMAGEN_ACEPTADOS.has(archivo.tipo)) {
+        return { error: `La página ${i + 1} no es una imagen que la IA pueda leer (JPEG, PNG, WebP o GIF).` };
+      }
+    }
+    const imagenes = paginas.map((p) => porId.get(p.archivoId)).filter((a) => a !== undefined)
+      .map((a) => ({ bytes: new Uint8Array(a.datos), tipo: a.tipo as "image/jpeg" | "image/png" | "image/webp" | "image/gif" }));
+    const claves = tarea.examen.clavesTexto ? trozoDeClaves(tarea.examen.clavesTexto, tarea.examen.numero, tarea.prueba, tarea.numero) : null;
     const respuesta = await pedirTarea({ tarea: delMapa, prueba: tarea.prueba, numeroExamen: tarea.examen.numero, paginas: imagenes, claves });
     const resultado = await guardarRelleno(tareaId, respuesta);
     revalidatePath(`/dele/taller/${tarea.examenId}`);
