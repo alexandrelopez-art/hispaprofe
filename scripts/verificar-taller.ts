@@ -10,11 +10,15 @@
  * revisión (`tareaPorNumero`, guardar con re-validación y la clave contra lo
  * editado, y marcar revisada con sus guardas: vacía, avisos, ítems sin
  * respuesta, imágenes por subir, auditiva sin grabación), `descartarClaveOficial`
- * («la clave del cuadernillo está mal» quita el contraste y su aviso) y que
+ * («la clave del cuadernillo está mal» quita el contraste y su aviso), que
  * `guardarTarea` sobre una tarea VACIA con datos válidos la deja RELLENADA
- * (rellenar a mano, sin pasar por la IA). También verifica, sin tocar la
- * base, `quitarPregunta`/`siguienteId` del editor de opción (la seguridad
- * del cloze frente a "Quitar" + "Añadir pregunta").
+ * (rellenar a mano, sin pasar por la IA) y que se niega a reescribir un
+ * ejercicio con trabajo real de un estudiante ya guardado (C-1 de la
+ * revisión final, con una Asignacion y un PasoCompletado de prueba).
+ * También verifica, sin tocar la base, `quitarPregunta`/`siguienteId`/
+ * `quitarOpcion` del editor de opción (la seguridad del cloze frente a
+ * "Quitar" + "Añadir pregunta", y que quitar una opción desplaza o vacía
+ * `correctas` sin dejar menos de dos).
  * Crea sus propios datos y los borra al terminar.
  * Ejecutar con:  npx tsx scripts/verificar-taller.ts
  */
@@ -30,7 +34,7 @@ import { textoDePdf, trozoDeClaves } from "@/lib/taller/cuadernillo";
 import { esquemaDeHerramienta, textoDelEncargo, type RespuestaIA } from "@/lib/taller/encargo-ia";
 import { pedirTarea, SinClaveError } from "@/lib/taller/rellenar";
 import { contrastarClave, guardarRelleno } from "@/lib/taller/guardar-relleno";
-import { quitarPregunta, siguienteId, type DatosOpcion } from "@/components/taller/editor-tarea-opcion";
+import { quitarOpcion, quitarPregunta, siguienteId, type DatosOpcion } from "@/components/taller/editor-tarea-opcion";
 import fixtureBueno from "./fixtures/taller-respuesta-ia.json";
 import fixtureMalo from "./fixtures/taller-respuesta-ia-mal.json";
 
@@ -50,7 +54,7 @@ async function contar() {
   // `pasoEjercicio`, `paginaDeExamen` ni `tareaDeExamen`, que este script
   // también escribe. La limpieza ya los dejaba en su sitio (comprobado a
   // mano antes de este arreglo), pero la promesa del mensaje no tenía red.
-  const [examen, recorrido, ejercicio, user, archivo, paso, bloque, pasoEjercicio, paginaDeExamen, tareaDeExamen] = await Promise.all([
+  const [examen, recorrido, ejercicio, user, archivo, paso, bloque, pasoEjercicio, paginaDeExamen, tareaDeExamen, asignacion, pasoCompletado] = await Promise.all([
     prisma.examen.count(),
     prisma.recorrido.count(),
     prisma.ejercicio.count(),
@@ -61,8 +65,14 @@ async function contar() {
     prisma.pasoEjercicio.count(),
     prisma.paginaDeExamen.count(),
     prisma.tareaDeExamen.count(),
+    // C-1 de la revisión final: el script monta una Asignacion y un
+    // PasoCompletado para probar que guardarTarea se niega con trabajo ya
+    // guardado — la disciplina de «la base vuelve a como estaba» tiene
+    // que vigilar también estas dos tablas.
+    prisma.asignacion.count(),
+    prisma.pasoCompletado.count(),
   ]);
-  return { examen, recorrido, ejercicio, user, archivo, paso, bloque, pasoEjercicio, paginaDeExamen, tareaDeExamen };
+  return { examen, recorrido, ejercicio, user, archivo, paso, bloque, pasoEjercicio, paginaDeExamen, tareaDeExamen, asignacion, pasoCompletado };
 }
 
 /**
@@ -100,6 +110,10 @@ let profeId: string | null = null;
 let examenId: string | null = null;
 let recorridoSueltoId: string | null = null;
 const archivoIds: string[] = [];
+// C-1 de la revisión final.
+let estudianteId: string | null = null;
+let asignacionId: string | null = null;
+let pasoCompletadoId: string | null = null;
 
 async function main() {
   // ─── Cloze: quitarPregunta y siguienteId (puras, sin base de datos) ────
@@ -130,6 +144,31 @@ async function main() {
       { id: "p2", enunciado: "", correctas: [] as number[] },
     ];
     afirmar(siguienteId(preguntasSinP3, "A {{p1}} B {{p2}} C {{p3}}") === "p4", "siguienteId salta la marca huérfana {{p3}} y devuelve p4, no p3");
+
+    // I-3 de la revisión final: quitarOpcion desplaza (o vacía) `correctas`
+    // cuando se quita una opción de una pregunta con opciones propias.
+    const conTresOpciones: DatosOpcion = {
+      ejercicio: "opcion", consigna: "c", multiple: false, presentacion: "botones",
+      preguntas: [{ id: "p1", enunciado: "e", opciones: ["a", "b", "c"], correctas: [2] }],
+    };
+    const trasQuitarOpcionAnterior = quitarOpcion(conTresOpciones, 0, 0);
+    afirmar(
+      JSON.stringify(trasQuitarOpcionAnterior.preguntas[0].correctas) === JSON.stringify([1]),
+      "quitarOpcion desplaza correctas cuando se quita una opción anterior a la correcta ([2] con la opción 0 fuera → [1])",
+    );
+    const trasQuitarLaCorrecta = quitarOpcion(conTresOpciones, 0, 2);
+    afirmar(
+      trasQuitarLaCorrecta.preguntas[0].correctas.length === 0,
+      "quitarOpcion vacía correctas cuando se quita justo la opción marcada",
+    );
+    const conDosOpciones: DatosOpcion = {
+      ejercicio: "opcion", consigna: "c", multiple: false, presentacion: "botones",
+      preguntas: [{ id: "p1", enunciado: "e", opciones: ["a", "b"], correctas: [0] }],
+    };
+    afirmar(
+      quitarOpcion(conDosOpciones, 0, 0).preguntas[0].opciones?.length === 2,
+      "quitarOpcion no hace nada si eso dejaría menos de dos opciones",
+    );
   }
 
   const profe = await prisma.user.create({
@@ -511,6 +550,46 @@ async function main() {
   const reeditada = await guardarTarea(tareaCE3.id, bueno.ejercicio, "Otro texto.");
   afirmar(reeditada.ok === true && reeditada.volvioARellenada && (await tareaDe(tareaCE3.id))!.estado === "RELLENADA", "editar una revisada la devuelve a RELLENADA");
 
+  // C-1 de la revisión final: guardarTarea no debe reescribir un ejercicio
+  // que un estudiante ya respondió — la respuesta guardada apunta a los
+  // ids de las preguntas actuales, y cambiarlos por dentro la dejaría
+  // apuntando a ids que ya no significan lo mismo. Se monta el mínimo que
+  // hace falta para que `tieneTrabajo` (lib/recursos.ts, vía
+  // `puedeEditarse`) vea trabajo real: un estudiante, una Asignacion sobre
+  // la lectura del examen (el recorrido de CE) y un PasoCompletado con
+  // `respuestas` sobre el paso de CE 3.
+  const estudiante = await prisma.user.create({
+    data: { email: `${marca}-estudiante@prueba.local`, firstName: "Est", lastName: "de prueba", role: "STUDENT" },
+    select: { id: true },
+  });
+  estudianteId = estudiante.id;
+  const asignacion = await prisma.asignacion.create({
+    data: { estudianteId: estudiante.id, profesorId: profe.id, recorridoId: examen!.lecturaId },
+  });
+  asignacionId = asignacion.id;
+  const completado = await prisma.pasoCompletado.create({
+    data: { asignacionId: asignacion.id, pasoId: tareaCE3.pasoId, respuestas: { p1: "0" } },
+  });
+  pasoCompletadoId = completado.id;
+
+  const bloqueadaPorTrabajo = await guardarTarea(tareaCE3.id, bueno.ejercicio, "Con trabajo del estudiante ya guardado.");
+  afirmar(bloqueadaPorTrabajo.ok === false, "guardarTarea se niega si ya hay trabajo del estudiante guardado");
+  afirmar(
+    bloqueadaPorTrabajo.ok === false && bloqueadaPorTrabajo.error.includes("Alguien ya lo respondió"),
+    "y da el motivo de puedeEditarse, no uno genérico",
+  );
+  afirmar(isDeepStrictEqual((await tareaDe(tareaCE3.id))!.ejercicio.datos, bueno.ejercicio), "y no cambia nada al negarse");
+
+  await prisma.pasoCompletado.delete({ where: { id: completado.id } });
+  pasoCompletadoId = null;
+  const trasBorrarCompletado = await guardarTarea(tareaCE3.id, bueno.ejercicio, "Sin trabajo del estudiante ya.");
+  afirmar(trasBorrarCompletado.ok === true, "y vuelve a guardar en cuanto se borra ese PasoCompletado");
+
+  await prisma.asignacion.delete({ where: { id: asignacion.id } });
+  asignacionId = null;
+  await prisma.user.delete({ where: { id: estudiante.id } });
+  estudianteId = null;
+
   // Encargo tras la revisión de la Task 1: rellenar a mano una tarea VACIA
   // (sin pasar por «Rellenar con IA») también la deja lista para revisar.
   // CO 1 del mapa: `opcion`, listaComun false, 7 ítems de 3 opciones.
@@ -595,6 +674,17 @@ async function main() {
 }
 
 async function limpiar() {
+  // C-1 de la revisión final: PasoCompletado y Asignacion tienen que
+  // borrarse antes que el examen — PasoCompletado.pasoId y
+  // Asignacion.recorridoId son claves ajenas hacia filas que el bloque de
+  // abajo borra (el Paso de la tarea y el Recorrido de lectura), y Prisma
+  // no deja borrar lo que todavía se referencia. En el camino feliz ya
+  // están a null (se borraron a mano en `main`); esto es la red para
+  // cuando una afirmación revienta a mitad del bloque de C-1.
+  if (pasoCompletadoId) await prisma.pasoCompletado.deleteMany({ where: { id: pasoCompletadoId } });
+  if (asignacionId) await prisma.asignacion.deleteMany({ where: { id: asignacionId } });
+  if (estudianteId) await prisma.user.deleteMany({ where: { id: estudianteId } });
+
   if (examenId) {
     const ex = await prisma.examen.findUnique({ where: { id: examenId }, include: { tareas: true } });
     if (ex) {
@@ -628,8 +718,8 @@ async function ejecutar() {
 
   await limpiar();
   const despues = await contar();
-  console.log(`\nAntes:   examen=${antes.examen} recorrido=${antes.recorrido} ejercicio=${antes.ejercicio} user=${antes.user} archivo=${antes.archivo} paso=${antes.paso} bloque=${antes.bloque} pasoEjercicio=${antes.pasoEjercicio} paginaDeExamen=${antes.paginaDeExamen} tareaDeExamen=${antes.tareaDeExamen}`);
-  console.log(`Después: examen=${despues.examen} recorrido=${despues.recorrido} ejercicio=${despues.ejercicio} user=${despues.user} archivo=${despues.archivo} paso=${despues.paso} bloque=${despues.bloque} pasoEjercicio=${despues.pasoEjercicio} paginaDeExamen=${despues.paginaDeExamen} tareaDeExamen=${despues.tareaDeExamen}`);
+  console.log(`\nAntes:   examen=${antes.examen} recorrido=${antes.recorrido} ejercicio=${antes.ejercicio} user=${antes.user} archivo=${antes.archivo} paso=${antes.paso} bloque=${antes.bloque} pasoEjercicio=${antes.pasoEjercicio} paginaDeExamen=${antes.paginaDeExamen} tareaDeExamen=${antes.tareaDeExamen} asignacion=${antes.asignacion} pasoCompletado=${antes.pasoCompletado}`);
+  console.log(`Después: examen=${despues.examen} recorrido=${despues.recorrido} ejercicio=${despues.ejercicio} user=${despues.user} archivo=${despues.archivo} paso=${despues.paso} bloque=${despues.bloque} pasoEjercicio=${despues.pasoEjercicio} paginaDeExamen=${despues.paginaDeExamen} tareaDeExamen=${despues.tareaDeExamen} asignacion=${despues.asignacion} pasoCompletado=${despues.pasoCompletado}`);
 
   // El fallo de una afirmación de `main` no debe quedar tapado por este
   // chequeo: se relanza primero, y solo si `main` fue bien se comprueba que
@@ -646,7 +736,9 @@ async function ejecutar() {
       antes.bloque === despues.bloque &&
       antes.pasoEjercicio === despues.pasoEjercicio &&
       antes.paginaDeExamen === despues.paginaDeExamen &&
-      antes.tareaDeExamen === despues.tareaDeExamen,
+      antes.tareaDeExamen === despues.tareaDeExamen &&
+      antes.asignacion === despues.asignacion &&
+      antes.pasoCompletado === despues.pasoCompletado,
     "la base queda exactamente como se encontró",
   );
 }

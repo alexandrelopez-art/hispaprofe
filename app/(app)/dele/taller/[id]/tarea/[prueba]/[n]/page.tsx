@@ -4,11 +4,9 @@ import { tareaPorNumero } from "@/lib/taller/consultas";
 import { motivosParaNoRevisar } from "@/lib/taller/revision";
 import { NOMBRE_ESTADO_TAREA, TONO_ESTADO_TAREA } from "@/lib/taller/estados";
 import { hayClaveDeIA } from "@/lib/taller/rellenar";
-import { quitarImagenPedidaAccion } from "@/lib/acciones-taller";
 import RevisionTarea from "@/components/taller/revision-tarea";
 import type { Duda } from "@/components/taller/dudas";
 import Aviso from "@/components/ui/aviso";
-import BotonEnviar from "@/components/ui/boton-enviar";
 import Encabezado from "@/components/ui/encabezado";
 import Etiqueta from "@/components/ui/etiqueta";
 import Rotulo from "@/components/ui/rotulo";
@@ -35,6 +33,10 @@ export default async function TareaPage({ params }: { params: Promise<{ id: stri
   const dudas = (tarea.dudas as Duda[] | null) ?? [];
   const pedidas = ((tarea.imagenesPedidas as { pregunta: string; opcion: number | null; para: string; archivoId: string | null }[] | null) ?? []);
   const motivos = motivosParaNoRevisar(tarea);
+  // I-4 de la revisión final: el taller ya no enlaza a `/pasos/[pasoId]`
+  // desde ningún otro sitio (la tarjeta «Abrir» de la mesa de trabajo
+  // manda aquí), y es donde se sube la grabación de una auditiva.
+  const faltaGrabacion = tarea.prueba === "CO" && !tarea.paso.bloques.some((b) => b.tipo === "AUDIO");
   const vecina = (k: number) => (k >= 1 && k <= 4 ? `/dele/taller/${id}/tarea/${prueba}/${k}` : null);
 
   return (
@@ -64,28 +66,18 @@ export default async function TareaPage({ params }: { params: Promise<{ id: stri
               <p className="text-xs text-tinta-suave">Pulsa una página para verla a tamaño completo en otra pestaña.</p>
             </div>
           )}
-          {pedidas.length > 0 && (
-            <Tarjeta className="mt-6" titulo="Imágenes que pide esta tarea" relleno="compacto">
-              <ul className="space-y-2 text-sm">
-                {pedidas.map((img, i) => (
-                  <li key={i} className="flex items-center justify-between gap-3">
-                    <span>{img.pregunta}{img.opcion !== null ? ` · opción ${"ABCDEFGHIJ"[img.opcion] ?? img.opcion + 1}` : ""}: {img.para}{img.archivoId ? " (subida)" : ""}</span>
-                    {!img.archivoId && (
-                      <form action={quitarImagenPedidaAccion}>
-                        <input type="hidden" name="tareaId" value={tarea.id} />
-                        <input type="hidden" name="indice" value={i} />
-                        <BotonEnviar gerundio="Quitando…" variante="sutil" tamano="pequeno">No hace falta</BotonEnviar>
-                      </form>
-                    )}
-                  </li>
-                ))}
-              </ul>
-              <p className="mt-2 text-xs text-tinta-suave">Subirlas llega en la siguiente entrega. Si una no hace falta, quítala.</p>
-            </Tarjeta>
-          )}
         </div>
         <RevisionTarea
-          key={tarea.updatedAt.toISOString()}
+          // Minor (a) de la revisión final: no `updatedAt` a secas — ese
+          // campo también cambia con «Guardar» y «Marcar revisada», que no
+          // deben remontar el editor (el estado del cliente ya es igual al
+          // del servidor tras guardar, y remontar ahí solo borraba el
+          // acuse de «Guardado.»). Estas tres piezas sí cambian con las
+          // acciones que sí tienen que remontar: `rellenadaEl` con
+          // «Volver a rellenar con IA», `claveOficial === null` con «La
+          // clave del cuadernillo está mal», y el número de `pedidas` con
+          // «No hace falta».
+          key={`${tarea.rellenadaEl?.toISOString() ?? "-"}|${tarea.claveOficial === null}|${pedidas.length}`}
           tareaId={tarea.id}
           motor={delMapa.motor === "relacionar" ? "relacionar" : "opcion"}
           datosIniciales={tarea.ejercicio.datos}
@@ -95,6 +87,9 @@ export default async function TareaPage({ params }: { params: Promise<{ id: stri
           motivos={motivos}
           hayClave={hayClaveDeIA()}
           tieneClave={tarea.claveOficial !== null}
+          pedidas={pedidas}
+          faltaGrabacion={faltaGrabacion}
+          pasoId={tarea.pasoId}
           anterior={vecina(numero - 1)}
           siguiente={vecina(numero + 1)}
         />

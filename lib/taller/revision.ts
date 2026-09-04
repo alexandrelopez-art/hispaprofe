@@ -1,7 +1,7 @@
 import { Prisma } from "@/lib/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { tareaDe as tareaDelMapa } from "@/lib/dele";
-import { revisarDatos } from "@/lib/recursos";
+import { puedeEditarse, revisarDatos } from "@/lib/recursos";
 import { avisosDelMapa, contrastarClave } from "@/lib/taller/guardar-relleno";
 import { tareaDe, type TareaCompleta } from "@/lib/taller/consultas";
 
@@ -42,6 +42,14 @@ export async function guardarTarea(tareaId: string, datos: unknown, bloque: stri
   if ("error" in revision) return { ok: false, error: revision.error };
   if (revision.tipo !== tarea.ejercicio.tipo) return { ok: false, error: "El ejercicio es de otro tipo del que espera la tarea." };
 
+  // C-1 de la revisión final: la misma guarda que ya usan las dos acciones
+  // de Recursos que escriben `Ejercicio.datos` — si un estudiante ya
+  // respondió, entregó o le corrigieron este ejercicio, reescribirlo por
+  // dentro (sobre todo quitar o reordenar preguntas) deja las respuestas
+  // guardadas apuntando a ids que ya no significan lo mismo.
+  const motivo = await puedeEditarse(tarea.ejercicio.id);
+  if (motivo) return { ok: false, error: motivo };
+
   const avisos = [
     ...avisosDelMapa(delMapa, datos),
     ...contrastarClaveGuardada(datos, tarea.claveOficial, delMapa.motor as "opcion" | "relacionar"),
@@ -58,7 +66,10 @@ export async function guardarTarea(tareaId: string, datos: unknown, bloque: stri
   await prisma.$transaction(async (tx) => {
     await tx.ejercicio.update({ where: { id: tarea.ejercicio.id }, data: { datos: datos as Prisma.InputJsonValue } });
     await tx.bloque.deleteMany({ where: { pasoId: tarea.pasoId, tipo: "TEXTO" } });
-    if (texto) await tx.bloque.create({ data: { pasoId: tarea.pasoId, tipo: "TEXTO", texto, orden: 1 } });
+    // M-2 de la revisión final: orden 0, no 1 — nunca choca con el AUDIO
+    // que sube la ficha del paso (crearBloque le da `max + 1`, y en un
+    // paso vacío eso es 1).
+    if (texto) await tx.bloque.create({ data: { pasoId: tarea.pasoId, tipo: "TEXTO", texto, orden: 0 } });
     await tx.tareaDeExamen.update({
       where: { id: tareaId },
       data: {
@@ -89,7 +100,7 @@ export function motivosParaNoRevisar(tarea: TareaCompleta): string[] {
   const pendientes = ((tarea.imagenesPedidas as ImagenPedida[] | null) ?? []).filter((i) => !i.archivoId).length;
   if (pendientes) motivos.push(`${pendientes} imagen(es) por subir.`);
   if (tarea.prueba === "CO" && !tarea.paso.bloques.some((b) => b.tipo === "AUDIO")) {
-    motivos.push("Falta la grabación de la tarea (se sube desde la ficha del paso).");
+    motivos.push("Falta la grabación de la tarea: súbela desde la ficha del paso (enlace abajo).");
   }
   return motivos;
 }
@@ -103,11 +114,27 @@ export async function marcarRevisada(tareaId: string): Promise<{ ok: true } | { 
   return { ok: true };
 }
 
-/** Quita una petición de imagen que el profesor decide que no hace falta. */
-export async function quitarImagenPedida(tareaId: string, indice: number): Promise<void> {
+export type ResultadoQuitarImagen = { ok: true } | { ok: false; error: string };
+
+/**
+ * Quita una petición de imagen que el profesor decide que no hace falta.
+ *
+ * I-1/M-3 de la revisión final: `indice` viene del cliente (ya no de un
+ * `FormData`, donde `Number(null) === 0` colaba un borrado de la primera
+ * imagen sin querer), pero puede llegar desfasado si la lista cambió entre
+ * medias (por ejemplo, «Volver a rellenar con IA» la sustituyó entera) —
+ * así que se comprueba el rango contra la lista actual, no la que tenía el
+ * cliente cuando pintó el botón.
+ */
+export async function quitarImagenPedida(tareaId: string, indice: number): Promise<ResultadoQuitarImagen> {
   const tarea = await prisma.tareaDeExamen.findUniqueOrThrow({ where: { id: tareaId }, select: { imagenesPedidas: true } });
-  const lista = ((tarea.imagenesPedidas as ImagenPedida[] | null) ?? []).filter((_, i) => i !== indice);
+  const actual = (tarea.imagenesPedidas as ImagenPedida[] | null) ?? [];
+  if (!Number.isInteger(indice) || indice < 0 || indice >= actual.length) {
+    return { ok: false, error: "Esa imagen ya no está en la lista." };
+  }
+  const lista = actual.filter((_, i) => i !== indice);
   await prisma.tareaDeExamen.update({ where: { id: tareaId }, data: { imagenesPedidas: lista } });
+  return { ok: true };
 }
 
 export type ResultadoDescartarClave = { ok: true; avisos: string[] } | { ok: false; error: string };

@@ -1,7 +1,7 @@
 import { Prisma } from "@/lib/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { avisoDeItems, sobrantesDe, tareaDe as tareaDelMapa } from "@/lib/dele";
-import { revisarDatos } from "@/lib/recursos";
+import { puedeEditarse, revisarDatos } from "@/lib/recursos";
 import type { RespuestaIA } from "@/lib/taller/encargo-ia";
 import { tareaDe } from "@/lib/taller/consultas";
 
@@ -83,13 +83,22 @@ export async function guardarRelleno(tareaId: string, respuesta: RespuestaIA): P
   if ("error" in revision) return { ok: false, error: `La IA devolvió un ejercicio que no vale: ${revision.error}` };
   if (revision.tipo !== tarea.ejercicio.tipo) return { ok: false, error: "La IA devolvió un ejercicio de otro tipo." };
 
+  // C-1 de la revisión final: si un estudiante ya respondió, entregó o le
+  // corrigieron este ejercicio, reescribirlo dejaría las respuestas
+  // guardadas apuntando a ids que ya no significan lo mismo.
+  const motivo = await puedeEditarse(tarea.ejercicio.id);
+  if (motivo) return { ok: false, error: motivo };
+
   const avisos = [...avisosDelMapa(delMapa, respuesta.ejercicio), ...contrastarClave(respuesta, delMapa.motor as "opcion" | "relacionar")];
 
   await prisma.$transaction(async (tx) => {
     await tx.ejercicio.update({ where: { id: tarea.ejercicio.id }, data: { datos: respuesta.ejercicio as Prisma.InputJsonValue } });
     await tx.bloque.deleteMany({ where: { pasoId: tarea.pasoId, tipo: "TEXTO" } });
     if (respuesta.bloque) {
-      await tx.bloque.create({ data: { pasoId: tarea.pasoId, tipo: "TEXTO", texto: respuesta.bloque, orden: 1 } });
+      // M-2 de la revisión final: orden 0, no 1 — así nunca choca con el
+      // AUDIO que sube la ficha del paso (crearBloque le da `max + 1`, y
+      // en un paso vacío eso es 1).
+      await tx.bloque.create({ data: { pasoId: tarea.pasoId, tipo: "TEXTO", texto: respuesta.bloque, orden: 0 } });
     }
     await tx.tareaDeExamen.update({
       where: { id: tareaId },

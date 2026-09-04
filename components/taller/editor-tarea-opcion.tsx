@@ -13,6 +13,8 @@ export type DatosOpcion = {
 };
 
 const LETRAS = "ABCDEFGHIJ";
+/** El esquema (`opcionSchema`) no deja menos de dos opciones. */
+const MINIMO_OPCIONES = 2;
 
 /**
  * El próximo id `pN` libre: ni lo usa ya una pregunta, ni queda como marca
@@ -45,6 +47,41 @@ export function quitarPregunta(d: DatosOpcion, i: number): DatosOpcion {
   const preguntas = d.preguntas.filter((_, j) => j !== i);
   if (d.texto === undefined || !quitada) return { ...d, preguntas };
   return { ...d, preguntas, texto: d.texto.split(`{{${quitada.id}}}`).join("____") };
+}
+
+/**
+ * Quita la opción `k` de una pregunta (`preguntaIndice`) o de la lista
+ * común (`preguntaIndice === null`). No hace nada si eso dejaría menos de
+ * dos opciones — el mínimo que exige `opcionSchema`.
+ *
+ * I-3 de la revisión final: sin esto, una tarea que la IA leyó con un
+ * número de opciones distinto del que pide el mapa se quedaba bloqueada
+ * para siempre en esta pantalla (el aviso rojo no se podía arreglar
+ * editando, solo volviendo a rellenar con IA y cruzando los dedos). Al
+ * quitar una opción, cualquier `correctas` que apuntara justo a `k` deja
+ * de apuntar a nada (esa respuesta hay que volver a marcarla — no hay
+ * forma segura de adivinar cuál de las que quedan era la buena), y los
+ * índices mayores que `k` bajan uno, porque el array se desplaza.
+ */
+export function quitarOpcion(d: DatosOpcion, preguntaIndice: number | null, k: number): DatosOpcion {
+  const ajustarCorrectas = (correctas: number[]) =>
+    correctas.filter((c) => c !== k).map((c) => (c > k ? c - 1 : c));
+
+  if (preguntaIndice === null) {
+    if ((d.opcionesComunes?.length ?? 0) <= MINIMO_OPCIONES) return d;
+    const opcionesComunes = d.opcionesComunes!.filter((_, j) => j !== k);
+    // La lista común la comparten todas las preguntas: cada una tiene que
+    // ajustar sus propias `correctas` contra el mismo desplazamiento.
+    const preguntas = d.preguntas.map((p) => ({ ...p, correctas: ajustarCorrectas(p.correctas) }));
+    return { ...d, opcionesComunes, preguntas };
+  }
+
+  const pregunta = d.preguntas[preguntaIndice];
+  if (!pregunta?.opciones || pregunta.opciones.length <= MINIMO_OPCIONES) return d;
+  const opciones = pregunta.opciones.filter((_, j) => j !== k);
+  const correctas = ajustarCorrectas(pregunta.correctas);
+  const preguntas = d.preguntas.map((p, i) => (i === preguntaIndice ? { ...p, opciones, correctas } : p));
+  return { ...d, preguntas };
 }
 
 function nuevaPregunta(d: DatosOpcion): Pregunta {
@@ -80,11 +117,15 @@ export default function EditorTareaOpcion({ datos, alCambiar, dudas }: { datos: 
           <Rotulo>Opciones comunes a todas las preguntas</Rotulo>
           <div className="mt-2 space-y-2">
             {d.opcionesComunes!.map((o, i) => (
-              <Campo key={i} etiqueta={`Opción ${LETRAS[i] ?? i + 1}`} value={o}
-                onChange={(e) => cambiar({ opcionesComunes: d.opcionesComunes!.map((x, j) => (j === i ? e.target.value : x)) })}
-                duda={dudaDe(dudas, `opcionesComunes[${i}]`) ?? undefined} />
+              <div key={i} className="flex items-end gap-2">
+                <Campo etiqueta={`Opción ${LETRAS[i] ?? i + 1}`} className="flex-1" value={o}
+                  onChange={(e) => cambiar({ opcionesComunes: d.opcionesComunes!.map((x, j) => (j === i ? e.target.value : x)) })}
+                  duda={dudaDe(dudas, `opcionesComunes[${i}]`) ?? undefined} />
+                <Boton variante="peligro" tamano="pequeno" onClick={() => alCambiar(quitarOpcion(d, null, i))} disabled={d.opcionesComunes!.length <= MINIMO_OPCIONES}>Quitar</Boton>
+              </div>
             ))}
           </div>
+          <Boton variante="sutil" tamano="pequeno" className="mt-3" onClick={() => cambiar({ opcionesComunes: [...d.opcionesComunes!, ""] })}>Añadir opción</Boton>
         </Tarjeta>
       )}
       <ol className="space-y-4">
@@ -104,9 +145,12 @@ export default function EditorTareaOpcion({ datos, alCambiar, dudas }: { datos: 
                         {LETRAS[k] ?? k + 1}
                       </label>
                       {p.opciones ? (
-                        <Campo etiqueta={`Opción ${LETRAS[k] ?? k + 1}`} className="flex-1" value={o}
-                          onChange={(e) => cambiarPregunta(i, { opciones: p.opciones!.map((x, j) => (j === k ? e.target.value : x)) })}
-                          duda={dudaDe(dudas, `${p.id}.opciones[${k}]`) ?? undefined} />
+                        <>
+                          <Campo etiqueta={`Opción ${LETRAS[k] ?? k + 1}`} className="flex-1" value={o}
+                            onChange={(e) => cambiarPregunta(i, { opciones: p.opciones!.map((x, j) => (j === k ? e.target.value : x)) })}
+                            duda={dudaDe(dudas, `${p.id}.opciones[${k}]`) ?? undefined} />
+                          <Boton variante="peligro" tamano="pequeno" className="mt-1" onClick={() => alCambiar(quitarOpcion(d, i, k))} disabled={p.opciones!.length <= MINIMO_OPCIONES}>Quitar</Boton>
+                        </>
                       ) : (
                         <span className="mt-2 text-sm text-tinta">{o || "(sin texto)"}</span>
                       )}
@@ -114,6 +158,9 @@ export default function EditorTareaOpcion({ datos, alCambiar, dudas }: { datos: 
                   ))}
                 </fieldset>
                 <div className="mt-3 flex flex-wrap gap-2">
+                  {p.opciones && (
+                    <Boton variante="sutil" tamano="pequeno" onClick={() => cambiarPregunta(i, { opciones: [...p.opciones!, ""] })}>Añadir opción</Boton>
+                  )}
                   <Boton variante="sutil" tamano="pequeno" onClick={() => mover(i, -1)} disabled={i === 0} title="Subir">↑</Boton>
                   <Boton variante="sutil" tamano="pequeno" onClick={() => mover(i, 1)} disabled={i === d.preguntas.length - 1} title="Bajar">↓</Boton>
                   <Boton variante="peligro" tamano="pequeno" onClick={() => alCambiar(quitarPregunta(d, i))} disabled={d.preguntas.length <= 1}>Quitar</Boton>

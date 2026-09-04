@@ -176,13 +176,13 @@ export async function descartarClaveOficialAccion(tareaId: string): Promise<Esta
   return { ok: "La clave del cuadernillo ya no se comprueba en esta tarea.", avisos: r.avisos };
 }
 
-export async function quitarImagenPedidaAccion(formData: FormData): Promise<void> {
+export async function quitarImagenPedidaAccion(tareaId: string, indice: number): Promise<EstadoGuardado> {
   await exigirProfesor();
-  const tareaId = String(formData.get("tareaId") ?? "");
-  const indice = Number(formData.get("indice"));
   const tarea = await tareaDe(tareaId);
-  if (!tarea || !Number.isInteger(indice)) return;
-  await quitarImagenPedida(tareaId, indice);
+  if (!tarea) return { error: "Esa tarea ya no existe." };
+  const r = await quitarImagenPedida(tareaId, indice);
   revalidatePath(`/dele/taller/${tarea.examenId}`);
   revalidatePath(`/dele/taller/${tarea.examenId}/tarea/${tarea.prueba}/${tarea.numero}`);
+  if (!r.ok) return { error: r.error };
+  return { ok: "Imagen quitada de la lista." };
 }
