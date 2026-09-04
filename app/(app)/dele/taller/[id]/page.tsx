@@ -2,10 +2,14 @@ import { notFound } from "next/navigation";
 import { repartirEnOrdenAccion } from "@/lib/acciones-taller";
 import { examenDe } from "@/lib/taller/consultas";
 import { tareaDe as tareaDelMapa } from "@/lib/dele";
+import { hayClaveDeIA } from "@/lib/taller/rellenar";
 import type { TareaParaTarjeta } from "@/components/taller/tarjeta-tarea";
 import TarjetaTarea from "@/components/taller/tarjeta-tarea";
+import BotonRellenar from "@/components/taller/boton-rellenar";
+import RellenarTodas from "@/components/taller/rellenar-todas";
 import Cuadernillo from "@/components/taller/cuadernillo";
 import Paginas from "@/components/taller/paginas";
+import Aviso from "@/components/ui/aviso";
 import BotonEnviar from "@/components/ui/boton-enviar";
 import Encabezado from "@/components/ui/encabezado";
 import Etiqueta from "@/components/ui/etiqueta";
@@ -66,6 +70,11 @@ export default async function ExamenPage({ params }: { params: Promise<{ id: str
     (n, t) => n + ((t.imagenesPedidas as { archivoId?: string }[] | null) ?? []).filter((i) => !i.archivoId).length,
     0,
   );
+  const hayClave = hayClaveDeIA();
+  const tareasParaRellenar = [
+    ...lectura.map((t) => ({ id: t.id, nombre: `Lectura · Tarea ${t.numero}` })),
+    ...auditiva.map((t) => ({ id: t.id, nombre: `Auditiva · Tarea ${t.numero}` })),
+  ];
 
   return (
     <div className="mx-auto max-w-4xl px-6 py-12">
@@ -73,8 +82,19 @@ export default async function ExamenPage({ params }: { params: Promise<{ id: str
         titulo={examen.titulo}
         lede={examen.fuente}
         volver={{ href: "/dele/taller", texto: "Taller" }}
-        acciones={<Etiqueta tono={TONO[examen.estado] ?? "neutro"}>{NOMBRE[examen.estado] ?? examen.estado}</Etiqueta>}
+        acciones={
+          <>
+            <Etiqueta tono={TONO[examen.estado] ?? "neutro"}>{NOMBRE[examen.estado] ?? examen.estado}</Etiqueta>
+            <RellenarTodas tareas={tareasParaRellenar} hayClave={hayClave} />
+          </>
+        }
       />
+
+      {!hayClave && (
+        <Aviso tono="aviso" className="mb-6">
+          Falta la clave de la API de Anthropic: ponla en Vercel como ANTHROPIC_API_KEY para poder rellenar con IA.
+        </Aviso>
+      )}
 
       <Tarjeta className="mt-6">
         <Paginas examenId={examen.id} paginas={examen.paginas} />
@@ -116,7 +136,9 @@ export default async function ExamenPage({ params }: { params: Promise<{ id: str
                 delMapa={tareaDelMapa(examen.nivel, t.prueba, t.numero)!}
                 paginas={paginasParaAsignar}
                 examenId={examen.id}
-              />
+              >
+                <BotonRellenar tareaId={t.id} hayClave={hayClave} yaRellenada={t.estado !== "VACIA"} />
+              </TarjetaTarea>
             ))}
           </div>
         </div>
@@ -130,7 +152,9 @@ export default async function ExamenPage({ params }: { params: Promise<{ id: str
                 delMapa={tareaDelMapa(examen.nivel, t.prueba, t.numero)!}
                 paginas={paginasParaAsignar}
                 examenId={examen.id}
-              />
+              >
+                <BotonRellenar tareaId={t.id} hayClave={hayClave} yaRellenada={t.estado !== "VACIA"} />
+              </TarjetaTarea>
             ))}
           </div>
         </div>

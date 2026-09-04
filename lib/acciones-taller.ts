@@ -7,6 +7,11 @@ import { prisma } from "@/lib/prisma";
 import { crearExamen } from "@/lib/taller/esqueleto";
 import { asignarPaginas, borrarPagina, registrarPagina, reordenarPaginas, repartirEnOrden } from "@/lib/taller/paginas";
 import { guardarCuadernillo } from "@/lib/taller/cuadernillo";
+import { tareaDe as tareaDelMapa } from "@/lib/dele";
+import { tareaDe } from "@/lib/taller/consultas";
+import { trozoDeClaves } from "@/lib/taller/cuadernillo";
+import { hayClaveDeIA, pedirTarea, SinClaveError } from "@/lib/taller/rellenar";
+import { guardarRelleno } from "@/lib/taller/guardar-relleno";
 
 export type EstadoTaller = { error?: string; ok?: string };
 
@@ -85,4 +90,35 @@ export async function subirCuadernilloAccion(_prev: EstadoTaller, formData: Form
   revalidatePath(`/dele/taller/${examenId}`);
   if (caracteres === 0) return { error: "Ese PDF no tiene texto (es un escaneo). El examen sigue sin claves." };
   return { ok: `Cuadernillo guardado (${caracteres.toLocaleString("es")} caracteres).` };
+}
+
+export async function rellenarConIAAccion(tareaId: string): Promise<EstadoTaller> {
+  await exigirProfesor();
+  const tarea = await tareaDe(tareaId);
+  if (!tarea) return { error: "Esa tarea ya no existe." };
+  const delMapa = tareaDelMapa(tarea.examen.nivel, tarea.prueba, tarea.numero);
+  if (!delMapa) return { error: "El mapa no describe esta tarea." };
+  if (tarea.paginaIds.length === 0) return { error: "Marca antes en qué páginas está esta tarea." };
+  const paginas = tarea.examen.paginas.filter((p) => tarea.paginaIds.includes(p.id));
+  const archivos = await prisma.archivo.findMany({ where: { id: { in: paginas.map((p) => p.archivoId) } } });
+  const porId = new Map(archivos.map((a) => [a.id, a]));
+  const imagenes = paginas.map((p) => porId.get(p.archivoId)).filter((a) => a !== undefined)
+    .map((a) => ({ bytes: new Uint8Array(a.datos), tipo: (a.tipo as "image/jpeg" | "image/png" | "image/webp") }));
+  const claves = tarea.examen.clavesTexto ? trozoDeClaves(tarea.examen.clavesTexto, tarea.examen.numero, tarea.prueba, tarea.numero) : null;
+  try {
+    const respuesta = await pedirTarea({ tarea: delMapa, prueba: tarea.prueba, numeroExamen: tarea.examen.numero, paginas: imagenes, claves });
+    const resultado = await guardarRelleno(tareaId, respuesta);
+    revalidatePath(`/dele/taller/${tarea.examenId}`);
+    if (!resultado.ok) return { error: resultado.error };
+    return { ok: resultado.avisos.length ? `Rellenada, con ${resultado.avisos.length} aviso(s) que revisar.` : "Rellenada." };
+  } catch (e) {
+    if (e instanceof SinClaveError) return { error: e.message };
+    console.error("Rellenar con IA:", e);
+    return { error: e instanceof Error ? e.message : "La IA no respondió." };
+  }
+}
+
+export async function hayClaveDeIAAccion(): Promise<boolean> {
+  await exigirProfesor();
+  return hayClaveDeIA();
 }

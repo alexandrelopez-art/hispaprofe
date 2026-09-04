@@ -1,0 +1,54 @@
+{
+  "bloque": "## Una semana en la granja escuela\n\nEl colegio Santa Marta organizó la semana pasada una excursión de tres días a una granja escuela en la sierra de Madrid. Participaron los alumnos de quinto y sexto de primaria, un total de sesenta y dos estudiantes, acompañados por cuatro profesores y dos monitores de la granja.\n\nDurante la estancia, los niños aprendieron a cuidar animales, a hacer pan casero y a reconocer las plantas del huerto. También hicieron una ruta nocturna para observar las estrellas, que fue la actividad favorita de la mayoría, según contaron después en clase. Por las noches dormían en literas dentro de cabañas de madera, seis alumnos por cabaña.\n\nLa profesora Marta Gil, organizadora del viaje, explicó que la excursión forma parte de un proyecto sobre el medio rural que el colegio lleva desarrollando desde hace tres años. «Los alumnos vuelven mucho más autónomos», comentó. El curso que viene, la granja escuela quiere ampliar el programa a una semana completa.",
+  "ejercicio": {
+    "ejercicio": "opcion",
+    "consigna": "Lee el texto y elige la opción correcta (A, B o C) para cada pregunta.",
+    "multiple": false,
+    "presentacion": "botones",
+    "escuchas": 2,
+    "preguntas": [
+      {
+        "id": "p1",
+        "enunciado": "¿Cuántos días duró la excursión?",
+        "opciones": ["Uno.", "Tres.", "Seis."],
+        "correctas": [1]
+      },
+      {
+        "id": "p2",
+        "enunciado": "¿Quiénes participaron en la excursión?",
+        "opciones": ["Solo los alumnos de sexto.", "Los alumnos de quinto y sexto.", "Todo el colegio."],
+        "correctas": [1]
+      },
+      {
+        "id": "p3",
+        "enunciado": "¿Cuál fue la actividad favorita de los alumnos?",
+        "opciones": ["Hacer pan casero.", "Cuidar de los animales.", "La ruta nocturna para ver las estrellas."],
+        "correctas": [2]
+      },
+      {
+        "id": "p4",
+        "enunciado": "¿Cuántos alumnos dormían en cada cabaña?",
+        "opciones": ["Cuatro.", "Seis.", "Ocho."],
+        "correctas": [1]
+      },
+      {
+        "id": "p5",
+        "enunciado": "¿Quién organizó el viaje?",
+        "opciones": ["El director del colegio.", "La profesora Marta Gil.", "Un monitor de la granja."],
+        "correctas": [1]
+      }
+    ]
+  },
+  "textosConLetra": [],
+  "imagenesPedidas": [],
+  "dudas": [
+    { "campo": "p2.opciones[0]", "texto": "No se lee con seguridad si pone «Solo los alumnos de sexto» o «Solo los alumnos de 6º»: la fotografía está algo borrosa en esa línea." }
+  ],
+  "claveOficial": {
+    "p1": "C",
+    "p2": "B",
+    "p3": "C",
+    "p4": "B",
+    "p5": "B"
+  }
+}

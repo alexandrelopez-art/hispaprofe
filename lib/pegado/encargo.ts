@@ -85,7 +85,7 @@ const FORMA: Record<MarcaEjercicio, string[]> = {
 };
 
 /** Las reglas que ese motor puede romper, y lo que pasa si se rompen. */
-const REGLAS: Record<MarcaEjercicio, string[]> = {
+export const REGLAS: Record<MarcaEjercicio, string[]> = {
   opcion: [
     "`correctas` cuenta desde cero. Escribir `[1]` para la primera opción da un ejercicio que nadie puede acertar.",
     "Con `opcionesComunes`, ninguna pregunta lleva su propio `opciones`. Sin ella, todas lo llevan.",
@@ -114,7 +114,7 @@ const REGLAS: Record<MarcaEjercicio, string[]> = {
  * `lib/ejercicios/opcion.ts`), más la que evita el error de bulto: mandar el
  * pasaje en `bloque` y dejar los desplegables sin contexto.
  */
-const REGLAS_CLOZE = [
+export const REGLAS_CLOZE = [
   "Las marcas `{{...}}` del `texto` y los `id` de las preguntas tienen que ser exactamente los mismos: ni una de más ni una de menos.",
   "El pasaje va en `texto` y **no** en `bloque`. Fuera, los desplegables quedan en una lista debajo del texto y el hueco pierde la frase en la que está, que es lo único que se estaba preguntando.",
   "La pregunta **es** el hueco: su `enunciado` es solo el número de su marca —«19.»— porque lo que hay que entender ya está en el pasaje.",

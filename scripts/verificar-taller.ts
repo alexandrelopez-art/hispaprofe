@@ -3,12 +3,15 @@
  * publicar, un paso "Tarea N" por tarea del mapa, un ejercicio vacío del
  * tipo y tamaño que el mapa dicta, y la fila de tarea del taller en `VACIA`.
  * Verifica también las páginas (registrar, reordenar, repartir, borrar,
- * asignar) y el cuadernillo de claves (extraer texto de un PDF, recortar el
- * trozo que le toca a cada tarea).
+ * asignar), el cuadernillo de claves (extraer texto de un PDF, recortar el
+ * trozo que le toca a cada tarea) y «Rellenar con IA» (el esquema de la
+ * herramienta, el encargo, y guardar la respuesta validada contra el mapa y
+ * la clave oficial, con dos fixtures fijos — sin llamar a la API real).
  * Crea sus propios datos y los borra al terminar.
  * Ejecutar con:  npx tsx scripts/verificar-taller.ts
  */
 import "dotenv/config";
+import { isDeepStrictEqual } from "node:util";
 import { prisma } from "@/lib/prisma";
 import { crearExamen } from "@/lib/taller/esqueleto";
 import { examenDe, tareaDe } from "@/lib/taller/consultas";
@@ -16,6 +19,16 @@ import { cuantosItems } from "@/lib/ejercicios/registro";
 import { tareaDe as tareaDelMapa } from "@/lib/dele";
 import { asignarPaginas, borrarPagina, registrarPagina, reordenarPaginas, repartirEnOrden } from "@/lib/taller/paginas";
 import { textoDePdf, trozoDeClaves } from "@/lib/taller/cuadernillo";
+import { esquemaDeHerramienta, textoDelEncargo, type RespuestaIA } from "@/lib/taller/encargo-ia";
+import { pedirTarea, SinClaveError } from "@/lib/taller/rellenar";
+import { guardarRelleno } from "@/lib/taller/guardar-relleno";
+import fixtureBueno from "./fixtures/taller-respuesta-ia.json";
+import fixtureMalo from "./fixtures/taller-respuesta-ia-mal.json";
+
+// Sin clave de la API en todo el script: aquí se prueba `pedirTarea` (que
+// tiene que rechazar sin llamar a nada) y `guardarRelleno` con fixtures
+// fijos, nunca la API real.
+delete process.env.ANTHROPIC_API_KEY;
 
 function afirmar(condicion: boolean, mensaje: string) {
   if (!condicion) throw new Error(`FALLO: ${mensaje}`);
@@ -252,6 +265,65 @@ async function main() {
 
   const textoDelPdf = await textoDePdf(pdfMinimo("Hola taller"));
   afirmar(textoDelPdf.includes("Hola taller"), "textoDePdf lee el texto de un PDF mínimo escrito a mano");
+
+  // ─── Rellenar con IA ────────────────────────────────────────────────
+  // CE tarea 3 del examen ya creado: `opcion`, 6 ítems, 3 opciones cada
+  // uno — la misma forma que los dos fixtures.
+  const tareaCE3 = examen!.tareas.find((t) => t.prueba === "CE" && t.numero === 3)!;
+  const bueno = fixtureBueno as unknown as RespuestaIA;
+  const malo = fixtureMalo as unknown as RespuestaIA;
+
+  const resultadoBueno = await guardarRelleno(tareaCE3.id, bueno);
+  afirmar(resultadoBueno.ok === true, "guardarRelleno con el fixture bueno: ok");
+  afirmar(resultadoBueno.ok === true && resultadoBueno.avisos.length === 0, "el fixture bueno no deja avisos");
+  const trasBueno = await tareaDe(tareaCE3.id);
+  afirmar(trasBueno!.estado === "RELLENADA", "tras el fixture bueno, la tarea queda RELLENADA");
+  afirmar(trasBueno!.rellenadaEl !== null, "tras el fixture bueno, rellenadaEl queda escrito");
+  afirmar(isDeepStrictEqual(trasBueno!.ejercicio.datos, bueno.ejercicio), "Ejercicio.datos queda igual al fixture bueno");
+  const bloquesTrasBueno = await prisma.bloque.findMany({ where: { pasoId: trasBueno!.pasoId, tipo: "TEXTO" } });
+  afirmar(bloquesTrasBueno.length === 1, "el fixture bueno deja un Bloque TEXTO en el paso");
+  afirmar(cuantosItems(trasBueno!.ejercicio.datos) === 6, "cuantosItems da 6 con el fixture bueno");
+
+  const resultadoMalo = await guardarRelleno(tareaCE3.id, malo);
+  afirmar(resultadoMalo.ok === true, "guardarRelleno con el fixture malo también guarda (solo avisa)");
+  afirmar(resultadoMalo.ok === true && resultadoMalo.avisos.length === 2, "el fixture malo deja dos avisos: ítems y clave oficial");
+  const trasMalo = await tareaDe(tareaCE3.id);
+  afirmar(((trasMalo!.dudas as unknown[] | null) ?? []).length === 1, "la duda del fixture malo queda guardada");
+
+  const resultadoRoto = await guardarRelleno(tareaCE3.id, { ...bueno, ejercicio: { ejercicio: "opcion" } });
+  afirmar(resultadoRoto.ok === false, "un `ejercicio` que no cumple el esquema no se guarda");
+  const trasRoto = await tareaDe(tareaCE3.id);
+  afirmar(trasRoto!.estado === "RELLENADA", "tras el intento roto, la tarea sigue RELLENADA (del fixture malo)");
+  afirmar(isDeepStrictEqual(trasRoto!.ejercicio.datos, malo.ejercicio), "Ejercicio.datos no cambia con un `ejercicio` que no vale");
+
+  let sinClave: unknown = null;
+  try {
+    await pedirTarea({
+      tarea: tareaDelMapa("A2_B1_ESCOLAR", "CE", 3)!,
+      prueba: "CE",
+      numeroExamen: examen!.numero,
+      paginas: [],
+      claves: null,
+    });
+  } catch (e) {
+    sinClave = e;
+  }
+  afirmar(sinClave instanceof SinClaveError, "pedirTarea sin ANTHROPIC_API_KEY rechaza con SinClaveError, sin llamar a la API");
+
+  const esquemaCE1 = esquemaDeHerramienta(tareaDelMapa("A2_B1_ESCOLAR", "CE", 1)!) as { properties: { ejercicio?: { type?: string } }; required?: string[] };
+  afirmar(esquemaCE1.properties.ejercicio?.type === "object", "esquemaDeHerramienta de CE1: `properties.ejercicio` es `type: object`");
+  afirmar(!!esquemaCE1.required?.includes("ejercicio"), "esquemaDeHerramienta de CE1: `required` incluye `ejercicio`");
+
+  const esquemaCE3 = esquemaDeHerramienta(tareaDelMapa("A2_B1_ESCOLAR", "CE", 3)!) as { properties: { ejercicio?: { type?: string } }; required?: string[] };
+  afirmar(esquemaCE3.properties.ejercicio?.type === "object", "esquemaDeHerramienta de CE3: `properties.ejercicio` es `type: object`");
+  afirmar(!!esquemaCE3.required?.includes("ejercicio"), "esquemaDeHerramienta de CE3: `required` incluye `ejercicio`");
+
+  const textoCE4 = textoDelEncargo(tareaDelMapa("A2_B1_ESCOLAR", "CE", 4)!, "CE", examen!.numero, null);
+  afirmar(textoCE4.includes("{{p1}}"), "textoDelEncargo de CE4 (cloze) menciona la marca {{p1}}");
+
+  const textoCO1 = textoDelEncargo(tareaDelMapa("A2_B1_ESCOLAR", "CO", 1)!, "CO", examen!.numero, null);
+  afirmar(textoCO1.includes("imagenesPedidas"), "textoDelEncargo de CO1 menciona imagenesPedidas");
+  afirmar(textoCO1.includes("null"), "textoDelEncargo de CO1 menciona null (bloque de la auditiva)");
 
   console.log("\nTodo en orden.");
 }
