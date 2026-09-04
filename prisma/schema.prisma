@@ -116,6 +116,7 @@ model User {
   convocatorias         Convocatoria[] @relation("ProfesorConvocatoria")
   turnosOrales          Turno[]        @relation("EstudianteTurno")
   sesiones              Sesion[]
+  examenes              Examen[]       @relation("AutorExamen")
 }
 
 model Recorrido {
@@ -382,6 +383,96 @@ model PasoEjercicio {
   // `pasoId` con `ejercicioId` como filtro añadido.
   @@unique([pasoId])
   @@index([ejercicioId])
+}
+
+enum EstadoExamen {
+  EN_CONSTRUCCION
+  PUBLICADO
+  ARCHIVADO
+}
+
+enum EstadoTarea {
+  VACIA
+  RELLENADA
+  REVISADA
+}
+
+/// Las dos pruebas que el taller sabe montar. Es `Destreza` recortada: el
+/// taller no monta expresión (todavía), y un enum propio impide que una
+/// tarea nazca con `EO` por error.
+enum PruebaDeExamen {
+  CE
+  CO
+}
+
+/// Un examen del DELE como unidad de trabajo del profesor. Por debajo son dos
+/// `Recorrido` (lectura y auditiva) que el estudiante abre como siempre; el
+/// examen es la capa de arriba: estado, páginas subidas, revisión por tarea.
+model Examen {
+  id           String       @id @default(cuid())
+  titulo       String
+  nivel        Nivel
+  /// De dónde sale: «DELE A2/B1 escolar, libro X, examen 2».
+  fuente       String
+  /// El número que agrupa el catálogo (`Recorrido.examen`).
+  numero       Int
+  estado       EstadoExamen @default(EN_CONSTRUCCION)
+  /// El bloque de la puerta DELE donde se publica: 2 práctica, 3 examen blanco.
+  bloque       Int          @default(2)
+  /// El texto del cuadernillo de claves, extraído del PDF. Nulo si no se subió.
+  clavesTexto  String?
+  lecturaId    String       @unique
+  auditivaId   String       @unique
+  creadoPor    User         @relation("AutorExamen", fields: [creadoPorId], references: [id])
+  creadoPorId  String
+  paginas      PaginaDeExamen[]
+  tareas       TareaDeExamen[]
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@index([nivel, estado])
+  @@index([creadoPorId])
+}
+
+/// Una página del examen subida por el profesor (una imagen, un `Archivo`).
+model PaginaDeExamen {
+  id        String         @id @default(cuid())
+  examen    Examen         @relation(fields: [examenId], references: [id], onDelete: Cascade)
+  examenId  String
+  orden     Int
+  archivoId String
+  createdAt DateTime       @default(now())
+
+  @@index([examenId, orden])
+}
+
+/// Una de las ocho tareas del examen: su paso, su estado de revisión y lo que
+/// dejó la IA. `datos` del ejercicio sigue viviendo en `Ejercicio`.
+model TareaDeExamen {
+  id              String         @id @default(cuid())
+  examen          Examen         @relation(fields: [examenId], references: [id], onDelete: Cascade)
+  examenId        String
+  prueba          PruebaDeExamen
+  numero          Int
+  pasoId          String
+  estado          EstadoTarea    @default(VACIA)
+  /// Ids de `PaginaDeExamen` asignadas a esta tarea, en orden.
+  paginaIds       String[]
+  /// `[{ campo, texto }]`: lo que la IA no leyó con seguridad.
+  dudas           Json?
+  /// `[string]`: lo que no cuadra con el mapa o con la clave.
+  avisos          Json?
+  /// `[{ pregunta, opcion, para, archivoId }]`: imágenes que hacen falta.
+  imagenesPedidas Json?
+  /// `{ [preguntaId]: letra }`: las respuestas del cuadernillo.
+  claveOficial    Json?
+  rellenadaEl     DateTime?
+  revisadaEl      DateTime?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@unique([examenId, prueba, numero])
+  @@index([pasoId])
 }
 
 // Credenciales OAuth del profesor para leer sus cursos de Classroom.
