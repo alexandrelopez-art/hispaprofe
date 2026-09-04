@@ -52,7 +52,7 @@ export async function crearExamen(entrada: EntradaExamen): Promise<string> {
             recorridoId: recorrido.id,
             orden: tarea.numero,
             ciclo: 1,
-            tipo: tipoDePasoDeTarea(tarea),
+            tipo: tipoDePasoDeTarea(),
             destreza: prueba.prueba,
             titulo: `Tarea ${tarea.numero}`,
           },

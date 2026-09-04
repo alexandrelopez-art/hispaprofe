@@ -49,6 +49,16 @@ async function main() {
   const recorridos = await prisma.recorrido.findMany({ where: { id: { in: [examen!.lecturaId, examen!.auditivaId] } }, include: { pasos: true } });
   afirmar(recorridos.length === 2 && recorridos.every((r) => !r.publicado && r.tipo === "PREPARACION_DELE" && r.examen === 99), "dos secuencias sin publicar, del examen 99");
   afirmar(recorridos.every((r) => r.pasos.length === 4), "cuatro pasos por secuencia");
+  // Ligaduras que el esqueleto promete y que un futuro cambio podría romper
+  // sin que nada más lo note: el bloque pedido es el `orden` de la
+  // secuencia (no un `1` fijo), y cada secuencia lleva la destreza que le
+  // toca, no la contraria.
+  afirmar(recorridos.every((r) => r.orden === 2), "las dos secuencias llevan el bloque pedido (2) como orden");
+  afirmar(recorridos.every((r) => r.nivel === "A2_B1_ESCOLAR"), "las dos secuencias son del nivel A2_B1_ESCOLAR");
+  const lectura = recorridos.find((r) => r.id === examen!.lecturaId)!;
+  const auditiva = recorridos.find((r) => r.id === examen!.auditivaId)!;
+  afirmar(lectura.destreza === "CE", "la secuencia de lectura es CE");
+  afirmar(auditiva.destreza === "CO", "la secuencia auditiva es CO");
   for (const t of examen!.tareas) {
     const completa = await tareaDe(t.id);
     const delMapa = tareaDelMapa("A2_B1_ESCOLAR", t.prueba, t.numero)!;
@@ -58,6 +68,9 @@ async function main() {
     const lista = delMapa.motor === "relacionar" ? d.parejas : d.preguntas;
     afirmar(Array.isArray(lista) && lista.length === delMapa.items, `${t.prueba} ${t.numero}: ${delMapa.items} ítems del mapa`);
     afirmar(cuantosItems(completa!.ejercicio.datos) === null, `${t.prueba} ${t.numero}: el esqueleto todavía no valida (está en blanco)`);
+    // Un ejercicio del esqueleto nace sin publicar: es un andamio para
+    // rellenar, no algo listo para que el estudiante lo vea.
+    afirmar(completa!.ejercicio.publicado === false, `${t.prueba} ${t.numero}: el ejercicio nace sin publicar`);
   }
   console.log("\nTodo en orden.");
 }

@@ -2,8 +2,13 @@ import type { TipoPaso } from "@/lib/generated/prisma/enums";
 import type { TareaDele } from "@/lib/dele/mapa";
 import { sobrantesDe } from "@/lib/dele";
 
-/** Una tarea del examen es un paso de tipo actividad, como en los sembrados. */
-export function tipoDePasoDeTarea(_tarea: TareaDele): TipoPaso {
+/**
+ * El tipo de paso de una tarea del examen: siempre actividad, como en los
+ * sembrados. No toma la tarea porque hoy no hay ninguna distinción que
+ * hacer por ella —el taller no monta expresión—; el día que EO/EE entren
+ * aquí, esta función volverá a mirarla.
+ */
+export function tipoDePasoDeTarea(): TipoPaso {
   return "ACTIVIDAD";
 }
 
