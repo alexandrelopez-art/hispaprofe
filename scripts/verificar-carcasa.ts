@@ -34,7 +34,11 @@ afirmar(herramientasDe(dele, "STUDENT").length === 0, "el estudiante no ve herra
 afirmar(herramientasDe(dele, "PROFESOR").length === 4, "el profesor ve cuatro herramientas en DELE");
 afirmar(herramientasDe(clases, "ADMIN").length === 8, "el administrador ve ocho herramientas en Mis clases");
 afirmar(herramientasDe(inicio, "PROFESOR").length === 0, "Inicio no tiene banda");
-afirmar(herramientasDe(dele, "PROFESOR").some((h) => h.pronto && h.nombre === "Taller"), "el taller está marcado como pronto");
+afirmar(herramientasDe(dele, "PROFESOR").some((h) => !h.pronto && h.ruta === "/dele/taller"), "el taller es una herramienta real de la puerta DELE");
+// `herramientasDe(dele, "STUDENT").length === 0` (arriba) ya cubre que el
+// estudiante no ve el taller: la función filtra por rol antes de devolver
+// nada, así que no hace falta una segunda afirmación — la guarda real para
+// quien entre por la URL a mano sigue siendo el layout de `/dele/taller`.
 afirmar(PUERTAS.map((p) => p.nombre).join("·") === "Inicio·DELE·Mis clases·Actividades·Artículos·Biblioteca", "las puertas, en su orden y con su nombre");
 
 const hs = herramientasDe(clases, "PROFESOR");

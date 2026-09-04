@@ -22,7 +22,7 @@ export const PUERTAS: Puerta[] = [
     herramientas: [
       { nombre: "Exámenes", ruta: "/recorridos?servicio=PREPARACION_DELE" },
       { nombre: "Nuevo examen", ruta: "/profe/secuencias/nueva?servicio=PREPARACION_DELE" },
-      { nombre: "Taller", ruta: "/dele/taller", pronto: true },
+      { nombre: "Taller", ruta: "/dele/taller" },
       { nombre: "Recursos", ruta: "/profe/recursos" },
     ],
   },

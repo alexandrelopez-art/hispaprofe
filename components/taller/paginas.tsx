@@ -29,7 +29,11 @@ async function reducir(archivo: Blob, nombre: string): Promise<File> {
 /** Un PDF, a una imagen por página. */
 async function paginasDePdf(archivo: File): Promise<File[]> {
   const pdfjs = await import("pdfjs-dist");
-  pdfjs.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString();
+  // No `new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url)`:
+  // Turbopack no sabe externalizar ese paquete y lo avisa en cada arranque
+  // («Package pdfjs-dist can't be external»). El fichero se copia a
+  // `public/` en el `postinstall` (ver package.json) y se sirve tal cual.
+  pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
   const doc = await pdfjs.getDocument({ data: await archivo.arrayBuffer() }).promise;
   const salida: File[] = [];
   for (let n = 1; n <= doc.numPages; n++) {

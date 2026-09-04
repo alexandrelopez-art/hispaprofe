@@ -12,6 +12,10 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Vendor asset copiado tal cual por `postinstall` (ver package.json y
+    // components/taller/paginas.tsx): es el worker de pdfjs-dist minificado,
+    // no código propio; lintarlo solo produce miles de avisos ajenos.
+    "public/pdf.worker.min.mjs",
   ]),
 ]);
 
