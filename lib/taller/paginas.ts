@@ -1,8 +1,26 @@
 import { prisma } from "@/lib/prisma";
 
-export async function registrarPagina(examenId: string, archivoId: string): Promise<void> {
+/** Lo que `Base64ImageSource` del SDK de Anthropic admite como `media_type`. */
+export const TIPOS_DE_IMAGEN_ACEPTADOS = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
+
+/**
+ * Registra una página nueva, o rehúsa sin crear nada.
+ *
+ * Antes aceptaba cualquier `archivoId` que llegara de la acción, sin mirar
+ * si el `Archivo` existía, si era `privado` o de qué tipo era: dos clics
+ * (registrar una página con el id de un archivo ajeno, luego quitarla)
+ * bastaban para que cualquier `PROFESOR`/`ADMIN` borrara un `Archivo`
+ * cualquiera de la base, incluida la grabación privada de un alumno —
+ * `borrarPagina`, más abajo, borraba el archivo apuntado sin estrechar el
+ * filtro. Aquí se cierra la entrada: solo una imagen propia (no privada, de
+ * un tipo que la IA sepa leer) llega a ser página de un examen.
+ */
+export async function registrarPagina(examenId: string, archivoId: string): Promise<boolean> {
+  const archivo = await prisma.archivo.findUnique({ where: { id: archivoId } });
+  if (!archivo || archivo.privado || !TIPOS_DE_IMAGEN_ACEPTADOS.has(archivo.tipo)) return false;
   const ultimo = await prisma.paginaDeExamen.aggregate({ where: { examenId }, _max: { orden: true } });
   await prisma.paginaDeExamen.create({ data: { examenId, archivoId, orden: (ultimo._max.orden ?? 0) + 1 } });
+  return true;
 }
 
 export async function reordenarPaginas(examenId: string, ids: string[]): Promise<void> {
@@ -11,7 +29,17 @@ export async function reordenarPaginas(examenId: string, ids: string[]): Promise
   );
 }
 
-/** Borra la página y la quita de las tareas que la tuvieran asignada. */
+/**
+ * Borra la página y la quita de las tareas que la tuvieran asignada.
+ *
+ * El `Archivo` apuntado se borra con él solo si nada más lo reclama: ni
+ * está `privado` (con `registrarPagina` cerrada de entrada no debería
+ * llegar ninguno, pero borrar por lo que diga la fila sin comprobarlo de
+ * nuevo aquí sería confiar en que la única puerta de entrada nunca falla),
+ * ni lo referencia ninguna otra `PaginaDeExamen` (el conteo se hace después
+ * de borrar esta fila, dentro de la misma transacción, así que ya no se
+ * cuenta a sí misma).
+ */
 export async function borrarPagina(paginaId: string): Promise<void> {
   const pagina = await prisma.paginaDeExamen.findUnique({ where: { id: paginaId } });
   if (!pagina) return;
@@ -21,7 +49,10 @@ export async function borrarPagina(paginaId: string): Promise<void> {
       await tx.tareaDeExamen.update({ where: { id: t.id }, data: { paginaIds: t.paginaIds.filter((p) => p !== paginaId) } });
     }
     await tx.paginaDeExamen.delete({ where: { id: paginaId } });
-    await tx.archivo.deleteMany({ where: { id: pagina.archivoId } });
+    const otrasReferencias = await tx.paginaDeExamen.count({ where: { archivoId: pagina.archivoId } });
+    if (otrasReferencias === 0) {
+      await tx.archivo.deleteMany({ where: { id: pagina.archivoId, privado: false } });
+    }
   });
 }
 

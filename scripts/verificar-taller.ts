@@ -14,7 +14,7 @@ import "dotenv/config";
 import { isDeepStrictEqual } from "node:util";
 import { prisma } from "@/lib/prisma";
 import { crearExamen } from "@/lib/taller/esqueleto";
-import { examenDe, tareaDe } from "@/lib/taller/consultas";
+import { examenDe, recorridoDeUnExamen, tareaDe } from "@/lib/taller/consultas";
 import { cuantosItems } from "@/lib/ejercicios/registro";
 import { tareaDe as tareaDelMapa } from "@/lib/dele";
 import { asignarPaginas, borrarPagina, registrarPagina, reordenarPaginas, repartirEnOrden } from "@/lib/taller/paginas";
@@ -36,14 +36,24 @@ function afirmar(condicion: boolean, mensaje: string) {
 }
 
 async function contar() {
-  const [examen, recorrido, ejercicio, user, archivo] = await Promise.all([
+  // T1 de la revisión final: la afirmación de más abajo decía «la base
+  // queda exactamente como se encontró» sin mirar `paso`, `bloque`,
+  // `pasoEjercicio`, `paginaDeExamen` ni `tareaDeExamen`, que este script
+  // también escribe. La limpieza ya los dejaba en su sitio (comprobado a
+  // mano antes de este arreglo), pero la promesa del mensaje no tenía red.
+  const [examen, recorrido, ejercicio, user, archivo, paso, bloque, pasoEjercicio, paginaDeExamen, tareaDeExamen] = await Promise.all([
     prisma.examen.count(),
     prisma.recorrido.count(),
     prisma.ejercicio.count(),
     prisma.user.count(),
     prisma.archivo.count(),
+    prisma.paso.count(),
+    prisma.bloque.count(),
+    prisma.pasoEjercicio.count(),
+    prisma.paginaDeExamen.count(),
+    prisma.tareaDeExamen.count(),
   ]);
-  return { examen, recorrido, ejercicio, user, archivo };
+  return { examen, recorrido, ejercicio, user, archivo, paso, bloque, pasoEjercicio, paginaDeExamen, tareaDeExamen };
 }
 
 /**
@@ -79,6 +89,7 @@ function pdfMinimo(texto: string): Uint8Array {
 const marca = `verificar-taller-${process.pid}`;
 let profeId: string | null = null;
 let examenId: string | null = null;
+let recorridoSueltoId: string | null = null;
 const archivoIds: string[] = [];
 
 async function main() {
@@ -122,6 +133,19 @@ async function main() {
     // rellenar, no algo listo para que el estudiante lo vea.
     afirmar(completa!.ejercicio.publicado === false, `${t.prueba} ${t.numero}: el ejercicio nace sin publicar`);
   }
+
+  // ─── C-2 de la revisión final: recorridoDeUnExamen ─────────────────────
+  // `Examen.lecturaId`/`auditivaId` no son claves ajenas, así que
+  // `borrarRecorrido` y la ficha de la secuencia necesitan esta consulta
+  // para saber si un `Recorrido` es, de hecho, el de un examen del taller.
+  afirmar((await recorridoDeUnExamen(lectura.id)) === examenId, "recorridoDeUnExamen devuelve el examen para la lectura del esqueleto");
+  afirmar((await recorridoDeUnExamen(auditiva.id)) === examenId, "recorridoDeUnExamen devuelve el examen para la auditiva del esqueleto");
+  const recorridoSuelto = await prisma.recorrido.create({
+    data: { titulo: `Recorrido suelto ${marca}`, nivel: "A2_B1_ESCOLAR", orden: 1 },
+    select: { id: true },
+  });
+  recorridoSueltoId = recorridoSuelto.id;
+  afirmar((await recorridoDeUnExamen(recorridoSuelto.id)) === null, "recorridoDeUnExamen devuelve null para un recorrido que no es de ningún examen");
 
   // ─── Páginas ────────────────────────────────────────────────────────
   // Sin páginas todavía (k=0 en cada prueba): repartirEnOrden no debe
@@ -194,6 +218,48 @@ async function main() {
   afirmar(!tareaCE1Tras.paginaIds.includes(idsEnOrden[0]), "borrar una página asignada la quita de paginaIds");
   const paginaBorrada = await prisma.paginaDeExamen.findUnique({ where: { id: idsEnOrden[0] } });
   afirmar(paginaBorrada === null, "borrarPagina también borra la fila de la página");
+
+  // ─── C-1 de la revisión final: registrarPagina y borrarPagina protegen el Archivo ──
+  // Un archivo privado (la grabación de un alumno) no puede convertirse en
+  // página de examen.
+  const archivoPrivado = await prisma.archivo.create({
+    data: { nombre: "grabacion.webm", tipo: "audio/webm", tamano: 4, datos: Buffer.from([0, 1, 2, 3]), privado: true, subidoPorId: profe.id },
+    select: { id: true },
+  });
+  archivoIds.push(archivoPrivado.id);
+  const paginasAntesDePrivado = (await paginasEnOrden()).length;
+  const registradaPrivado = await registrarPagina(examenId, archivoPrivado.id);
+  afirmar(registradaPrivado === false, "registrarPagina rechaza un archivo privado");
+  afirmar((await paginasEnOrden()).length === paginasAntesDePrivado, "registrarPagina con un archivo privado no crea página");
+
+  // Un archivo que no es una imagen que la IA sepa leer (audio, aquí) tampoco vale.
+  const archivoAudio = await prisma.archivo.create({
+    data: { nombre: "audio.mp4", tipo: "audio/mp4", tamano: 4, datos: Buffer.from([0, 1, 2, 3]), subidoPorId: profe.id },
+    select: { id: true },
+  });
+  archivoIds.push(archivoAudio.id);
+  const paginasAntesDeAudio = (await paginasEnOrden()).length;
+  const registradaAudio = await registrarPagina(examenId, archivoAudio.id);
+  afirmar(registradaAudio === false, "registrarPagina rechaza un archivo que no es una imagen (audio/mp4)");
+  afirmar((await paginasEnOrden()).length === paginasAntesDeAudio, "registrarPagina con audio/mp4 no crea página");
+
+  // `borrarPagina` no se lleva el Archivo si es privado, aunque nada más lo
+  // referencie: se simula la página a mano con Prisma directamente, porque
+  // `registrarPagina` ya no dejaría llegar hasta aquí un archivo privado.
+  const archivoPrivado2 = await prisma.archivo.create({
+    data: { nombre: "otra-grabacion.webm", tipo: "audio/webm", tamano: 4, datos: Buffer.from([4, 5, 6, 7]), privado: true, subidoPorId: profe.id },
+    select: { id: true },
+  });
+  archivoIds.push(archivoPrivado2.id);
+  const paginaConArchivoPrivado = await prisma.paginaDeExamen.create({
+    data: { examenId, archivoId: archivoPrivado2.id, orden: 999 },
+    select: { id: true },
+  });
+  await borrarPagina(paginaConArchivoPrivado.id);
+  const archivoPrivado2TrasBorrar = await prisma.archivo.findUnique({ where: { id: archivoPrivado2.id } });
+  afirmar(archivoPrivado2TrasBorrar !== null, "borrarPagina no borra el Archivo si es privado");
+  const paginaPrivadaTrasBorrar = await prisma.paginaDeExamen.findUnique({ where: { id: paginaConArchivoPrivado.id } });
+  afirmar(paginaPrivadaTrasBorrar === null, "borrarPagina sí borra la fila de PaginaDeExamen aunque el Archivo sea privado");
 
   // Vacía las páginas actuales del examen (con `borrarPagina`, para que la
   // limpieza de tarea y de archivo quede hecha) y las sustituye por `n`
@@ -369,9 +435,18 @@ async function main() {
   const textoCE4 = textoDelEncargo(tareaDelMapa("A2_B1_ESCOLAR", "CE", 4)!, "CE", examen!.numero, null);
   afirmar(textoCE4.includes("{{p1}}"), "textoDelEncargo de CE4 (cloze) menciona la marca {{p1}}");
 
+  // C-3 de la revisión final: las dos afirmaciones que había aquí antes
+  // («menciona imagenesPedidas» y «menciona null») comprobaban frases
+  // incondicionales del encargo — salían igual en las ocho tareas, CE
+  // incluidas — así que no podían ponerse en rojo con ningún cambio real
+  // del comportamiento que decían vigilar. Estas sí dependen de `prueba`:
+  // el párrafo del estímulo es distinto en CE y en CO.
+  const textoCE3 = textoDelEncargo(tareaDelMapa("A2_B1_ESCOLAR", "CE", 3)!, "CE", examen!.numero, null);
   const textoCO1 = textoDelEncargo(tareaDelMapa("A2_B1_ESCOLAR", "CO", 1)!, "CO", examen!.numero, null);
-  afirmar(textoCO1.includes("imagenesPedidas"), "textoDelEncargo de CO1 menciona imagenesPedidas");
-  afirmar(textoCO1.includes("null"), "textoDelEncargo de CO1 menciona null (bloque de la auditiva)");
+  afirmar(textoCO1.includes("no hay estímulo escrito"), "textoDelEncargo de CO1 dice que no hay estímulo escrito");
+  afirmar(!textoCE3.includes("no hay estímulo escrito"), "textoDelEncargo de CE3 no dice que no hay estímulo escrito");
+  afirmar(textoCE3.includes("va en `bloque`"), "textoDelEncargo de CE3 dice que el estímulo va en `bloque`");
+  afirmar(!textoCO1.includes("va en `bloque`"), "textoDelEncargo de CO1 no dice que el estímulo va en `bloque`");
 
   // B-2 de la revisión: el texto crudo del cuadernillo (sin la cabecera por
   // tarea) tiene que salir letra a letra igual sea cual sea la tarea o la
@@ -405,6 +480,7 @@ async function limpiar() {
   // `Archivo` que creó este script. `borrarPagina` ya quitó uno de en
   // medio; `deleteMany` no protesta por los que ya no están.
   if (archivoIds.length) await prisma.archivo.deleteMany({ where: { id: { in: archivoIds } } });
+  if (recorridoSueltoId) await prisma.recorrido.deleteMany({ where: { id: recorridoSueltoId } });
   if (profeId) await prisma.user.delete({ where: { id: profeId } });
 }
 
@@ -419,8 +495,8 @@ async function ejecutar() {
 
   await limpiar();
   const despues = await contar();
-  console.log(`\nAntes:   examen=${antes.examen} recorrido=${antes.recorrido} ejercicio=${antes.ejercicio} user=${antes.user} archivo=${antes.archivo}`);
-  console.log(`Después: examen=${despues.examen} recorrido=${despues.recorrido} ejercicio=${despues.ejercicio} user=${despues.user} archivo=${despues.archivo}`);
+  console.log(`\nAntes:   examen=${antes.examen} recorrido=${antes.recorrido} ejercicio=${antes.ejercicio} user=${antes.user} archivo=${antes.archivo} paso=${antes.paso} bloque=${antes.bloque} pasoEjercicio=${antes.pasoEjercicio} paginaDeExamen=${antes.paginaDeExamen} tareaDeExamen=${antes.tareaDeExamen}`);
+  console.log(`Después: examen=${despues.examen} recorrido=${despues.recorrido} ejercicio=${despues.ejercicio} user=${despues.user} archivo=${despues.archivo} paso=${despues.paso} bloque=${despues.bloque} pasoEjercicio=${despues.pasoEjercicio} paginaDeExamen=${despues.paginaDeExamen} tareaDeExamen=${despues.tareaDeExamen}`);
 
   // El fallo de una afirmación de `main` no debe quedar tapado por este
   // chequeo: se relanza primero, y solo si `main` fue bien se comprueba que
@@ -432,7 +508,12 @@ async function ejecutar() {
       antes.recorrido === despues.recorrido &&
       antes.ejercicio === despues.ejercicio &&
       antes.user === despues.user &&
-      antes.archivo === despues.archivo,
+      antes.archivo === despues.archivo &&
+      antes.paso === despues.paso &&
+      antes.bloque === despues.bloque &&
+      antes.pasoEjercicio === despues.pasoEjercicio &&
+      antes.paginaDeExamen === despues.paginaDeExamen &&
+      antes.tareaDeExamen === despues.tareaDeExamen,
     "la base queda exactamente como se encontró",
   );
 }

@@ -15,6 +15,7 @@ import {
   puedePublicarse,
   resumenDeBorrado,
 } from "@/lib/recorridos";
+import { recorridoDeUnExamen } from "@/lib/taller/consultas";
 import {
   estadoDePasos,
   sobreCuantosPorPaso,
@@ -24,6 +25,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { servicioLabel } from "@/lib/servicios";
 import { nombreNivel } from "@/lib/niveles";
+import Boton from "@/components/ui/boton";
 import BotonConfirmar from "@/components/ui/boton-confirmar";
 import BotonEnviar from "@/components/ui/boton-enviar";
 import Campo from "@/components/ui/campo";
@@ -67,7 +69,11 @@ export default async function RecorridoDetallePage({
   // (todo `count`, ninguno trae filas enteras), y no hay por qué pagarlos
   // para no enseñar nada.
   const sePuedeBorrar = puedeBorrarRecorrido(usuario, recorrido);
-  const aviso = sePuedeBorrar
+  // Si es la lectura o la auditiva de un examen del taller, ni se calcula
+  // el resumen de borrado (cinco `count` que no van a hacer falta) ni se
+  // ofrece el botón: se retira desde el taller, no desde aquí.
+  const examenDelRecorrido = sePuedeBorrar ? await recorridoDeUnExamen(recorrido.id) : null;
+  const aviso = sePuedeBorrar && !examenDelRecorrido
     ? avisoDeBorrado(recorrido.titulo, await resumenDeBorrado(recorrido.id))
     : null;
 
@@ -196,18 +202,29 @@ export default async function RecorridoDetallePage({
                 </form>
               )}
 
-              {aviso && (
-                <form action={borrarRecorrido}>
-                  <input type="hidden" name="recorridoId" value={recorrido.id} />
-                  <BotonConfirmar
-                    aviso={aviso}
-                    title="Borrar la secuencia entera"
-                    variante="peligro"
-                    tamano="pequeno"
-                  >
-                    Borrar la secuencia
-                  </BotonConfirmar>
-                </form>
+              {examenDelRecorrido ? (
+                <>
+                  <Aviso tono="info">
+                    Esta secuencia es de un examen del taller: se gestiona desde el taller.
+                  </Aviso>
+                  <Boton href={`/dele/taller/${examenDelRecorrido}`} variante="sutil" tamano="pequeno">
+                    Abrir en el taller
+                  </Boton>
+                </>
+              ) : (
+                aviso && (
+                  <form action={borrarRecorrido}>
+                    <input type="hidden" name="recorridoId" value={recorrido.id} />
+                    <BotonConfirmar
+                      aviso={aviso}
+                      title="Borrar la secuencia entera"
+                      variante="peligro"
+                      tamano="pequeno"
+                    >
+                      Borrar la secuencia
+                    </BotonConfirmar>
+                  </form>
+                )
               )}
             </>
           )

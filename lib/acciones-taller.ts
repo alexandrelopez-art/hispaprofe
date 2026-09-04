@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { exigirProfesor } from "@/lib/profesor";
 import { prisma } from "@/lib/prisma";
 import { crearExamen } from "@/lib/taller/esqueleto";
-import { asignarPaginas, borrarPagina, registrarPagina, reordenarPaginas, repartirEnOrden } from "@/lib/taller/paginas";
+import { asignarPaginas, borrarPagina, registrarPagina, reordenarPaginas, repartirEnOrden, TIPOS_DE_IMAGEN_ACEPTADOS } from "@/lib/taller/paginas";
 import { guardarCuadernillo } from "@/lib/taller/cuadernillo";
 import { tareaDe as tareaDelMapa } from "@/lib/dele";
 import { tareaDe } from "@/lib/taller/consultas";
@@ -38,7 +38,8 @@ export async function registrarPaginaAccion(examenId: string, archivoUrl: string
   await examenDelProfesor(examenId);
   const id = archivoUrl.replace(/^\/api\/archivos\//, "");
   if (!id || id === archivoUrl) return { error: "Esa dirección no es de un archivo del sitio." };
-  await registrarPagina(examenId, id);
+  const registrada = await registrarPagina(examenId, id);
+  if (!registrada) return { error: "Ese archivo no es una imagen del examen." };
   revalidatePath(`/dele/taller/${examenId}`);
   return { ok: "Página guardada." };
 }
@@ -91,9 +92,6 @@ export async function subirCuadernilloAccion(_prev: EstadoTaller, formData: Form
   if (caracteres === 0) return { error: "Ese PDF no tiene texto (es un escaneo). El examen sigue sin claves." };
   return { ok: `Cuadernillo guardado (${caracteres.toLocaleString("es")} caracteres).` };
 }
-
-/** Lo que `Base64ImageSource` del SDK admite como `media_type`. */
-const TIPOS_DE_IMAGEN_ACEPTADOS = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
 
 export async function rellenarConIAAccion(tareaId: string): Promise<EstadoTaller> {
   await exigirProfesor();

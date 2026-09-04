@@ -12,6 +12,7 @@ import {
   puedePublicarse,
 } from "@/lib/recorridos";
 import { esGrabacionEntregada, PREFIJO_GRABACION } from "@/lib/expresion";
+import { recorridoDeUnExamen } from "@/lib/taller/consultas";
 import { listarEstudiantes } from "@/lib/google";
 import { desmarcarSiNoRevisado } from "@/lib/progreso";
 import { estudianteAsignable } from "@/lib/estudiantes";
@@ -1272,6 +1273,12 @@ export async function borrarRecorrido(formData: FormData) {
   });
   if (!recorrido) return;
   if (!puedeBorrarRecorrido(usuario, recorrido)) return;
+  // Un examen del taller usa esta secuencia como su lectura o su auditiva:
+  // `Examen.lecturaId`/`auditivaId` no son claves ajenas, así que nada del
+  // esquema impide borrarla y dejar el examen apuntando a una fila que ya
+  // no existe (sus ocho tareas se quedan sin paso que enseñar). Se retira
+  // desde el taller, no desde aquí.
+  if (await recorridoDeUnExamen(recorridoId)) return;
 
   const pasos = await prisma.paso.findMany({
     where: { recorridoId },

@@ -34,3 +34,23 @@ export async function tareaDe(id: string) {
 }
 
 export type TareaCompleta = NonNullable<Awaited<ReturnType<typeof tareaDe>>>;
+
+/**
+ * El id del `Examen` que usa este recorrido como su lectura o su auditiva,
+ * o null si el recorrido no es de ningún examen del taller.
+ *
+ * `Examen.lecturaId`/`auditivaId` son columnas de texto con `@unique`, no
+ * claves ajenas —no hay migración de relación para ellas—, así que nada en
+ * el esquema impide borrar el `Recorrido` que apuntan y dejar el examen
+ * huérfano. Esta consulta es la única defensa: la usan tanto
+ * `borrarRecorrido` (para negarse) como la ficha de la secuencia (para
+ * enseñar el aviso y esconder el botón de borrar) — una sola regla, no dos
+ * copias que se puedan desincronizar.
+ */
+export async function recorridoDeUnExamen(recorridoId: string): Promise<string | null> {
+  const examen = await prisma.examen.findFirst({
+    where: { OR: [{ lecturaId: recorridoId }, { auditivaId: recorridoId }] },
+    select: { id: true },
+  });
+  return examen?.id ?? null;
+}
