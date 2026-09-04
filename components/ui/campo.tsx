@@ -8,7 +8,7 @@ import { useId, type ComponentProps } from "react";
 export const CONTROL =
   "mt-1 w-full rounded-full border border-hp-200 bg-white px-4 text-sm font-normal text-tinta outline-none focus:border-hp-400 disabled:bg-fondo";
 
-type Base = { etiqueta: string; name?: string; ayuda?: string; error?: string; className?: string };
+type Base = { etiqueta: string; name?: string; ayuda?: string; error?: string; duda?: string; className?: string };
 type Texto = Base & {
   tipo?: "texto" | "correo" | "contrasena" | "numero" | "fecha" | "fechahora" | "hora" | "url" | "busqueda";
 } & Omit<ComponentProps<"input">, "type" | "name" | "className">;
@@ -32,26 +32,28 @@ const TIPO_HTML = {
 
 /** Rótulo, control y, si hacen falta, ayuda o error. Una sola forma de pedir un dato. */
 export default function Campo(props: Texto | Area | Elegir) {
-  const { etiqueta, name, ayuda, error, className = "" } = props;
+  const { etiqueta, name, ayuda, error, duda, className = "" } = props;
   // useId y no name: name es opcional (un campo controlado de una lista no lo
   // necesita) y dos campos con el mismo name en una página no deben compartir id.
   const base = useId();
   const idError = error ? `${base}-error` : undefined;
   const idAyuda = ayuda ? `${base}-ayuda` : undefined;
+  const idDuda = duda ? `${base}-duda` : undefined;
   // Con error, el error es lo que se anuncia (la ayuda se oculta); si no hay
-  // error pero sí ayuda, se anuncia la ayuda. Mismo valor en los tres controles.
-  const describePor = idError ?? idAyuda;
+  // error pero sí ayuda, se anuncia la ayuda. La duda de la IA se anuncia
+  // siempre que la haya, además de una de las otras dos.
+  const describePor = [idError ?? idAyuda, idDuda].filter(Boolean).join(" ") || undefined;
   const invalido = error ? true : undefined;
   let control: React.ReactNode;
   if (props.tipo === "area") {
     // Fuera antes de esparcir `resto` sobre <textarea>: no son atributos HTML.
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { etiqueta: _e, name: _n, ayuda: _a, error: _r, className: _c, tipo: _t, ...resto } = props;
+    const { etiqueta: _e, name: _n, ayuda: _a, error: _r, duda: _d, className: _c, tipo: _t, ...resto } = props;
     control = <textarea name={name} aria-invalid={invalido} aria-describedby={describePor} {...resto} className={`${CONTROL} min-h-28 rounded-2xl py-2`} />;
   } else if (props.tipo === "elegir") {
     // Mismo motivo, más `opciones`: no es un atributo HTML de <select>.
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { etiqueta: _e, name: _n, ayuda: _a, error: _r, className: _c, tipo: _t, opciones, ...resto } = props;
+    const { etiqueta: _e, name: _n, ayuda: _a, error: _r, duda: _d, className: _c, tipo: _t, opciones, ...resto } = props;
     control = (
       <select name={name} aria-invalid={invalido} aria-describedby={describePor} {...resto} className={`${CONTROL} h-10`}>
         {opciones.map((o) => <option key={o.valor} value={o.valor} disabled={o.deshabilitada}>{o.nombre}</option>)}
@@ -60,7 +62,7 @@ export default function Campo(props: Texto | Area | Elegir) {
   } else {
     // Mismo motivo: fuera antes de esparcir `resto` sobre <input>.
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { etiqueta: _e, name: _n, ayuda: _a, error: _r, className: _c, tipo = "texto", ...resto } = props;
+    const { etiqueta: _e, name: _n, ayuda: _a, error: _r, duda: _d, className: _c, tipo = "texto", ...resto } = props;
     control = <input type={TIPO_HTML[tipo]} name={name} aria-invalid={invalido} aria-describedby={describePor} {...resto} className={`${CONTROL} h-10`} />;
   }
   return (
@@ -69,6 +71,7 @@ export default function Campo(props: Texto | Area | Elegir) {
       {control}
       {ayuda && !error && <span id={idAyuda} className="mt-1 block text-xs font-normal text-tinta-suave">{ayuda}</span>}
       {error && <span id={idError} role="alert" className="mt-1 block text-xs font-semibold text-error-600">{error}</span>}
+      {duda && <p id={idDuda} className="mt-1 rounded-md bg-sol-100 px-2 py-1 text-xs font-bold text-tinta">Duda de la IA: {duda}</p>}
     </label>
   );
 }

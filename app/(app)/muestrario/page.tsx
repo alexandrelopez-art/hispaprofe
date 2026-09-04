@@ -85,6 +85,7 @@ export default async function MuestrarioPage() {
               ]}
             />
             <Campo etiqueta="Con error" name="con-error" error="Ejemplo de error" />
+            <Campo etiqueta="Con duda de la IA" name="con-duda" duda="¿Pone «vacaciones» o «vocaciones»?" />
           </div>
         </Tarjeta>
 

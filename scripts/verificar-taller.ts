@@ -9,7 +9,9 @@
  * la clave oficial, con dos fixtures fijos — sin llamar a la API real) y la
  * revisión (`tareaPorNumero`, guardar con re-validación y la clave contra lo
  * editado, y marcar revisada con sus guardas: vacía, avisos, ítems sin
- * respuesta, imágenes por subir, auditiva sin grabación).
+ * respuesta, imágenes por subir, auditiva sin grabación). También verifica,
+ * sin tocar la base, `quitarPregunta`/`siguienteId` del editor de opción
+ * (la seguridad del cloze frente a "Quitar" + "Añadir pregunta").
  * Crea sus propios datos y los borra al terminar.
  * Ejecutar con:  npx tsx scripts/verificar-taller.ts
  */
@@ -25,6 +27,7 @@ import { textoDePdf, trozoDeClaves } from "@/lib/taller/cuadernillo";
 import { esquemaDeHerramienta, textoDelEncargo, type RespuestaIA } from "@/lib/taller/encargo-ia";
 import { pedirTarea, SinClaveError } from "@/lib/taller/rellenar";
 import { contrastarClave, guardarRelleno } from "@/lib/taller/guardar-relleno";
+import { quitarPregunta, siguienteId, type DatosOpcion } from "@/components/taller/editor-tarea-opcion";
 import fixtureBueno from "./fixtures/taller-respuesta-ia.json";
 import fixtureMalo from "./fixtures/taller-respuesta-ia-mal.json";
 
@@ -96,6 +99,36 @@ let recorridoSueltoId: string | null = null;
 const archivoIds: string[] = [];
 
 async function main() {
+  // ─── Cloze: quitarPregunta y siguienteId (puras, sin base de datos) ────
+  {
+    const clozeDatos: DatosOpcion = {
+      ejercicio: "opcion",
+      consigna: "Rellena los huecos.",
+      multiple: false,
+      presentacion: "desplegable",
+      texto: "A {{p1}} B {{p2}} C {{p3}}",
+      preguntas: [
+        { id: "p1", enunciado: "uno", opciones: ["a", "b"], correctas: [0] },
+        { id: "p2", enunciado: "dos", opciones: ["a", "b"], correctas: [0] },
+        { id: "p3", enunciado: "tres", opciones: ["a", "b"], correctas: [0] },
+      ],
+    };
+    const trasQuitar = quitarPregunta(clozeDatos, 2);
+    afirmar(trasQuitar.texto === "A {{p1}} B {{p2}} C ____", "quitarPregunta en cloze deja la marca de la pregunta borrada como ____");
+    afirmar(trasQuitar.preguntas.length === 2, "quitarPregunta en cloze deja dos preguntas");
+    afirmar(trasQuitar.preguntas.map((p) => p.id).join(",") === "p1,p2", "quitarPregunta en cloze quita justo la p3, no otra");
+
+    // Una marca {{p3}} huérfana en el pasaje (a mano, sin pasar por
+    // quitarPregunta) tiene que seguir bloqueando el id p3 aunque ninguna
+    // pregunta lo use ya: si no, «Añadir pregunta» le daría a la pregunta
+    // nueva el mismo hueco que tenía la que se acaba de borrar.
+    const preguntasSinP3 = [
+      { id: "p1", enunciado: "", correctas: [] as number[] },
+      { id: "p2", enunciado: "", correctas: [] as number[] },
+    ];
+    afirmar(siguienteId(preguntasSinP3, "A {{p1}} B {{p2}} C {{p3}}") === "p4", "siguienteId salta la marca huérfana {{p3}} y devuelve p4, no p3");
+  }
+
   const profe = await prisma.user.create({
     data: { email: `${marca}@prueba.local`, firstName: "Profe", lastName: "de prueba", role: "PROFESOR" },
     select: { id: true },

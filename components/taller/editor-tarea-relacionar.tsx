@@ -14,11 +14,6 @@ function siguienteId(parejas: Pareja[]): string {
   return `r${max + 1}`;
 }
 
-function ayudaCon(dudas: Duda[], campo: string, normal?: string): string | undefined {
-  const duda = dudaDe(dudas, campo);
-  return duda ? `Duda de la IA: ${duda}` : normal;
-}
-
 export default function EditorTareaRelacionar({ datos, alCambiar, dudas }: { datos: unknown; alCambiar: (nuevo: unknown) => void; dudas: Duda[] }) {
   const d = datos as DatosRelacionar;
   const cambiar = (parcial: Partial<DatosRelacionar>) => alCambiar({ ...d, ...parcial });
@@ -33,13 +28,13 @@ export default function EditorTareaRelacionar({ datos, alCambiar, dudas }: { dat
 
   return (
     <div className="space-y-6">
-      <Campo etiqueta="Consigna" tipo="area" rows={2} value={d.consigna} onChange={(e) => cambiar({ consigna: e.target.value })} ayuda={ayudaCon(dudas, "consigna")} />
+      <Campo etiqueta="Consigna" tipo="area" rows={2} value={d.consigna} onChange={(e) => cambiar({ consigna: e.target.value })} duda={dudaDe(dudas, "consigna") ?? undefined} />
       <ol className="space-y-4">
         {d.parejas.map((p, i) => (
           <li key={p.id}>
             <Tarjeta relleno="compacto" titulo={`Pareja ${i + 1} · ${p.id}`}>
-              <Campo etiqueta="Enunciado o persona" tipo="area" rows={3} value={p.izquierda} onChange={(e) => cambiarPareja(i, { izquierda: e.target.value })} ayuda={ayudaCon(dudas, `${p.id}.izquierda`)} />
-              <Campo etiqueta="Texto que le corresponde (su título)" className="mt-3" value={p.derecha} onChange={(e) => cambiarPareja(i, { derecha: e.target.value })} ayuda={ayudaCon(dudas, `${p.id}.derecha`, "Tiene que ser distinto en cada pareja.")} />
+              <Campo etiqueta="Enunciado o persona" tipo="area" rows={3} value={p.izquierda} onChange={(e) => cambiarPareja(i, { izquierda: e.target.value })} duda={dudaDe(dudas, `${p.id}.izquierda`) ?? undefined} />
+              <Campo etiqueta="Texto que le corresponde (su título)" className="mt-3" value={p.derecha} onChange={(e) => cambiarPareja(i, { derecha: e.target.value })} ayuda="Tiene que ser distinto en cada pareja." duda={dudaDe(dudas, `${p.id}.derecha`) ?? undefined} />
               <div className="mt-3 flex flex-wrap gap-2">
                 <Boton variante="sutil" tamano="pequeno" onClick={() => mover(i, -1)} disabled={i === 0} title="Subir">↑</Boton>
                 <Boton variante="sutil" tamano="pequeno" onClick={() => mover(i, 1)} disabled={i === d.parejas.length - 1} title="Bajar">↓</Boton>
@@ -56,7 +51,7 @@ export default function EditorTareaRelacionar({ datos, alCambiar, dudas }: { dat
         <div className="mt-2 space-y-2">
           {d.sobrantes.map((s, i) => (
             <div key={i} className="flex items-end gap-2">
-              <Campo etiqueta={`Sobrante ${i + 1}`} className="flex-1" value={s} onChange={(e) => cambiar({ sobrantes: d.sobrantes.map((x, j) => (j === i ? e.target.value : x)) })} ayuda={ayudaCon(dudas, `sobrantes[${i}]`)} />
+              <Campo etiqueta={`Sobrante ${i + 1}`} className="flex-1" value={s} onChange={(e) => cambiar({ sobrantes: d.sobrantes.map((x, j) => (j === i ? e.target.value : x)) })} ayuda="No puede repetir el texto de una respuesta correcta." duda={dudaDe(dudas, `sobrantes[${i}]`) ?? undefined} />
               <Boton variante="peligro" tamano="pequeno" onClick={() => cambiar({ sobrantes: d.sobrantes.filter((_, j) => j !== i) })}>Quitar</Boton>
             </div>
           ))}
