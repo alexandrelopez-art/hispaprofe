@@ -4,9 +4,12 @@
  * tipo y tamaño que el mapa dicta, y la fila de tarea del taller en `VACIA`.
  * Verifica también las páginas (registrar, reordenar, repartir, borrar,
  * asignar), el cuadernillo de claves (extraer texto de un PDF, recortar el
- * trozo que le toca a cada tarea) y «Rellenar con IA» (el esquema de la
+ * trozo que le toca a cada tarea), «Rellenar con IA» (el esquema de la
  * herramienta, el encargo, y guardar la respuesta validada contra el mapa y
- * la clave oficial, con dos fixtures fijos — sin llamar a la API real).
+ * la clave oficial, con dos fixtures fijos — sin llamar a la API real) y la
+ * revisión (`tareaPorNumero`, guardar con re-validación y la clave contra lo
+ * editado, y marcar revisada con sus guardas: vacía, avisos, ítems sin
+ * respuesta, imágenes por subir, auditiva sin grabación).
  * Crea sus propios datos y los borra al terminar.
  * Ejecutar con:  npx tsx scripts/verificar-taller.ts
  */
@@ -401,6 +404,67 @@ async function main() {
     contrastarClave(relacionarSinTextosConLetra, "relacionar").some((a) => a.includes("no se pudo contrastar")),
     "contrastarClave avisa en relacionar sin textosConLetra, aunque el id sí case",
   );
+
+  // ─── La revisión ────────────────────────────────────────────────────
+  const { guardarTarea, marcarRevisada, motivosParaNoRevisar, quitarImagenPedida } = await import("@/lib/taller/revision");
+  const { tareaPorNumero } = await import("@/lib/taller/consultas");
+
+  const porNumero = await tareaPorNumero(examenId!, "CE", 3);
+  afirmar(porNumero !== null && porNumero.id === tareaCE3.id, "tareaPorNumero encuentra CE 3");
+  afirmar((await tareaPorNumero(examenId!, "CE", 9)) === null, "tareaPorNumero da null para una tarea que no existe");
+
+  // El fixture malo dejó su propia `claveOficial` colgada de la tarea (con
+  // `p1` distinta de la del fixture bueno: así es como `guardarRelleno` deja
+  // dos avisos con el fixture malo). `guardarTarea` no toca `claveOficial`
+  // —no es su trabajo, la clave la trae la IA o el cuadernillo—, así que sin
+  // este remozamiento el aviso de esa clave ajena perseguiría a todas las
+  // pruebas de esta sección aunque no sea lo que están probando. Se
+  // refresca con `guardarRelleno` (no con un `update` a mano) porque es el
+  // mismo camino que usaría un profesor que vuelve a rellenar con IA.
+  await guardarRelleno(tareaCE3.id, bueno);
+
+  // Guardar el fixture bueno a mano: los avisos del malo desaparecen.
+  const guardado = await guardarTarea(tareaCE3.id, bueno.ejercicio, "Un texto corregido por el profesor.");
+  afirmar(guardado.ok === true && guardado.avisos.length === 0, "guardarTarea con datos buenos deja cero avisos");
+  const trasGuardar = await tareaDe(tareaCE3.id);
+  afirmar((trasGuardar!.avisos as string[]).length === 0, "los avisos guardados se recalculan al guardar");
+  afirmar(trasGuardar!.paso.bloques.filter((b) => b.tipo === "TEXTO").length === 1 && trasGuardar!.paso.bloques.some((b) => b.texto === "Un texto corregido por el profesor."), "guardarTarea sustituye el bloque TEXTO");
+  afirmar(trasGuardar!.paso.bloques.some((b) => b.tipo === "AUDIO"), "guardarTarea no toca el bloque AUDIO");
+
+  const roto = await guardarTarea(tareaCE3.id, { ejercicio: "opcion" }, null);
+  afirmar(roto.ok === false, "guardarTarea rechaza datos que no validan");
+  afirmar(isDeepStrictEqual((await tareaDe(tareaCE3.id))!.ejercicio.datos, bueno.ejercicio), "y no cambia nada al rechazar");
+
+  // La clave oficial se sigue contrastando en opción tras editar.
+  const ejercicioBueno = bueno.ejercicio as { preguntas: { correctas: number[] }[] };
+  const conCorrectaCambiada = { ...ejercicioBueno, preguntas: ejercicioBueno.preguntas.map((p, i) => (i === 0 ? { ...p, correctas: [(p.correctas[0] + 1) % 3] } : p)) };
+  const contrastado = await guardarTarea(tareaCE3.id, conCorrectaCambiada, null);
+  afirmar(contrastado.ok === true && contrastado.avisos.some((a) => a.includes("clave oficial")), "cambiar una correcta contra la clave oficial deja aviso");
+  await guardarTarea(tareaCE3.id, bueno.ejercicio, "Texto.");
+
+  // Marcar revisada: las guardas.
+  let motivos = motivosParaNoRevisar((await tareaDe(tareaCE3.id))!);
+  afirmar(motivos.length === 0, "CE 3 con datos buenos, sin avisos y con bloque se puede revisar");
+  const tareaCE3Completa = (await tareaDe(tareaCE3.id))!;
+  afirmar(motivosParaNoRevisar({ ...tareaCE3Completa, avisos: ["x"] }).some((m) => m.includes("aviso")), "un aviso impide revisar");
+  const tareaCO1 = examen!.tareas.find((t) => t.prueba === "CO" && t.numero === 1)!;
+  motivos = motivosParaNoRevisar((await tareaDe(tareaCO1.id))!);
+  afirmar(motivos.some((m) => m.includes("vacía")), "una tarea vacía no se puede revisar");
+  afirmar(motivos.some((m) => m.includes("grabación")), "una auditiva sin AUDIO no se puede revisar");
+
+  await prisma.tareaDeExamen.update({ where: { id: tareaCE3.id }, data: { imagenesPedidas: [{ pregunta: "p1", opcion: 0, para: "una foto", archivoId: null }] } });
+  motivos = motivosParaNoRevisar((await tareaDe(tareaCE3.id))!);
+  afirmar(motivos.some((m) => m.includes("imagen")), "una imagen pedida sin subir impide revisar");
+  await quitarImagenPedida(tareaCE3.id, 0);
+  afirmar(motivosParaNoRevisar((await tareaDe(tareaCE3.id))!).length === 0, "quitar la imagen pedida desbloquea la revisión");
+
+  const revisada = await marcarRevisada(tareaCE3.id);
+  afirmar(revisada.ok === true && (await tareaDe(tareaCE3.id))!.estado === "REVISADA", "marcarRevisada deja la tarea REVISADA");
+  const negada = await marcarRevisada(tareaCO1.id);
+  afirmar(negada.ok === false && negada.motivos.length >= 2, "marcarRevisada se niega con motivos");
+
+  const reeditada = await guardarTarea(tareaCE3.id, bueno.ejercicio, "Otro texto.");
+  afirmar(reeditada.ok === true && reeditada.volvioARellenada && (await tareaDe(tareaCE3.id))!.estado === "RELLENADA", "editar una revisada la devuelve a RELLENADA");
 
   let sinClave: unknown = null;
   try {

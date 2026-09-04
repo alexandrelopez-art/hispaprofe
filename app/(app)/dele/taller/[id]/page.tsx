@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { repartirEnOrdenAccion } from "@/lib/acciones-taller";
 import { examenDe } from "@/lib/taller/consultas";
+import { NOMBRE_ESTADO_EXAMEN, TONO_ESTADO_EXAMEN } from "@/lib/taller/estados";
 import { tareaDe as tareaDelMapa } from "@/lib/dele";
 import { hayClaveDeIA } from "@/lib/taller/rellenar";
 import type { TareaParaTarjeta } from "@/components/taller/tarjeta-tarea";
@@ -13,25 +14,12 @@ import Aviso from "@/components/ui/aviso";
 import BotonEnviar from "@/components/ui/boton-enviar";
 import Encabezado from "@/components/ui/encabezado";
 import Etiqueta from "@/components/ui/etiqueta";
-import type { TonoEtiqueta } from "@/components/ui/etiqueta";
 import Rotulo from "@/components/ui/rotulo";
 import Tarjeta from "@/components/ui/tarjeta";
 import Vacio from "@/components/ui/vacio";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
-
-const TONO: Record<string, TonoEtiqueta> = {
-  EN_CONSTRUCCION: "sol",
-  PUBLICADO: "verde",
-  ARCHIVADO: "neutro",
-};
-
-const NOMBRE: Record<string, string> = {
-  EN_CONSTRUCCION: "En construcción",
-  PUBLICADO: "Publicado",
-  ARCHIVADO: "Archivado",
-};
 
 /** Una fila de `TareaDeExamen`, vista para `TarjetaTarea`. */
 function paraTarjeta(t: {
@@ -84,7 +72,7 @@ export default async function ExamenPage({ params }: { params: Promise<{ id: str
         volver={{ href: "/dele/taller", texto: "Taller" }}
         acciones={
           <>
-            <Etiqueta tono={TONO[examen.estado] ?? "neutro"}>{NOMBRE[examen.estado] ?? examen.estado}</Etiqueta>
+            <Etiqueta tono={TONO_ESTADO_EXAMEN[examen.estado] ?? "neutro"}>{NOMBRE_ESTADO_EXAMEN[examen.estado] ?? examen.estado}</Etiqueta>
             <RellenarTodas tareas={tareasParaRellenar} hayClave={hayClave} />
           </>
         }

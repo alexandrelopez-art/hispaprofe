@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { asignarPaginasAccion } from "@/lib/acciones-taller";
 import type { TareaDele } from "@/lib/dele/mapa";
+import { NOMBRE_ESTADO_TAREA, TONO_ESTADO_TAREA } from "@/lib/taller/estados";
 import Boton from "@/components/ui/boton";
 import BotonEnviar from "@/components/ui/boton-enviar";
 import Etiqueta from "@/components/ui/etiqueta";
@@ -13,17 +14,14 @@ export type TareaParaTarjeta = {
   pasoId: string; paginaIds: string[]; avisos: string[]; dudas: number; imagenesPendientes: number;
 };
 
-const ESTADO = { VACIA: ["Vacía", "neutro"], RELLENADA: ["Rellenada", "sol"], REVISADA: ["Revisada", "verde"] } as const;
-
 export default function TarjetaTarea({ tarea, delMapa, paginas, examenId, children }: {
   tarea: TareaParaTarjeta; delMapa: TareaDele; paginas: { id: string; orden: number }[]; examenId: string; children?: ReactNode;
 }) {
-  const [nombre, tono] = ESTADO[tarea.estado];
   return (
     <Tarjeta titulo={`Tarea ${tarea.numero}`} relleno="compacto">
       <div className="flex items-center justify-between gap-2">
         <p className="text-sm text-tinta-suave">{delMapa.pide}</p>
-        <Etiqueta tono={tono}>{nombre}</Etiqueta>
+        <Etiqueta tono={TONO_ESTADO_TAREA[tarea.estado] ?? "neutro"}>{NOMBRE_ESTADO_TAREA[tarea.estado] ?? tarea.estado}</Etiqueta>
       </div>
       {tarea.avisos.length > 0 && <p className="mt-2 text-xs font-bold text-error-600">{tarea.avisos.length} aviso(s)</p>}
       {tarea.dudas > 0 && <p className="mt-1 text-xs font-bold text-tinta">{tarea.dudas} duda(s) de lectura</p>}

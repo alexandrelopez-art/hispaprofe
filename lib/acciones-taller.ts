@@ -12,8 +12,10 @@ import { tareaDe } from "@/lib/taller/consultas";
 import { trozoDeClaves } from "@/lib/taller/cuadernillo";
 import { hayClaveDeIA, pedirTarea, SinClaveError } from "@/lib/taller/rellenar";
 import { guardarRelleno } from "@/lib/taller/guardar-relleno";
+import { guardarTarea, marcarRevisada, quitarImagenPedida } from "@/lib/taller/revision";
 
 export type EstadoTaller = { error?: string; ok?: string };
+export type EstadoGuardado = { error?: string; ok?: string; avisos?: string[] };
 
 async function examenDelProfesor(examenId: string) {
   await exigirProfesor();
@@ -137,4 +139,39 @@ export async function rellenarConIAAccion(tareaId: string): Promise<EstadoTaller
 export async function hayClaveDeIAAccion(): Promise<boolean> {
   await exigirProfesor();
   return hayClaveDeIA();
+}
+
+export async function guardarTareaAccion(tareaId: string, datosJson: string, bloque: string | null): Promise<EstadoGuardado> {
+  await exigirProfesor();
+  let datos: unknown;
+  try { datos = JSON.parse(datosJson); } catch { return { error: "El contenido de la tarea no se pudo leer." }; }
+  const tarea = await tareaDe(tareaId);
+  if (!tarea) return { error: "Esa tarea ya no existe." };
+  const r = await guardarTarea(tareaId, datos, bloque);
+  revalidatePath(`/dele/taller/${tarea.examenId}`);
+  revalidatePath(`/dele/taller/${tarea.examenId}/tarea/${tarea.prueba}/${tarea.numero}`);
+  if (!r.ok) return { error: r.error };
+  return { ok: r.volvioARellenada ? "Guardado. La tarea vuelve a «rellenada»: revísala otra vez." : "Guardado.", avisos: r.avisos };
+}
+
+export async function marcarRevisadaAccion(tareaId: string): Promise<EstadoGuardado> {
+  await exigirProfesor();
+  const tarea = await tareaDe(tareaId);
+  if (!tarea) return { error: "Esa tarea ya no existe." };
+  const r = await marcarRevisada(tareaId);
+  revalidatePath(`/dele/taller/${tarea.examenId}`);
+  revalidatePath(`/dele/taller/${tarea.examenId}/tarea/${tarea.prueba}/${tarea.numero}`);
+  if (!r.ok) return { error: r.motivos.join(" ") };
+  return { ok: "Revisada." };
+}
+
+export async function quitarImagenPedidaAccion(formData: FormData): Promise<void> {
+  await exigirProfesor();
+  const tareaId = String(formData.get("tareaId") ?? "");
+  const indice = Number(formData.get("indice"));
+  const tarea = await tareaDe(tareaId);
+  if (!tarea || !Number.isInteger(indice)) return;
+  await quitarImagenPedida(tareaId, indice);
+  revalidatePath(`/dele/taller/${tarea.examenId}`);
+  revalidatePath(`/dele/taller/${tarea.examenId}/tarea/${tarea.prueba}/${tarea.numero}`);
 }

@@ -1,8 +1,8 @@
 import { listarExamenes } from "@/lib/taller/consultas";
+import { NOMBRE_ESTADO_EXAMEN, TONO_ESTADO_EXAMEN } from "@/lib/taller/estados";
 import Boton from "@/components/ui/boton";
 import Encabezado from "@/components/ui/encabezado";
 import Etiqueta from "@/components/ui/etiqueta";
-import type { TonoEtiqueta } from "@/components/ui/etiqueta";
 import Rotulo from "@/components/ui/rotulo";
 import Tarjeta from "@/components/ui/tarjeta";
 import Vacio from "@/components/ui/vacio";
@@ -14,18 +14,6 @@ const GRUPOS = [
   { estado: "PUBLICADO", rotulo: "Publicados" },
   { estado: "ARCHIVADO", rotulo: "Archivados" },
 ] as const;
-
-const TONO: Record<string, TonoEtiqueta> = {
-  EN_CONSTRUCCION: "sol",
-  PUBLICADO: "verde",
-  ARCHIVADO: "neutro",
-};
-
-const NOMBRE: Record<string, string> = {
-  EN_CONSTRUCCION: "En construcción",
-  PUBLICADO: "Publicado",
-  ARCHIVADO: "Archivado",
-};
 
 export default async function TallerPage() {
   const examenes = await listarExamenes();
@@ -57,7 +45,7 @@ export default async function TallerPage() {
                       <Tarjeta key={e.id} href={`/dele/taller/${e.id}`} titulo={e.titulo}>
                         <div className="flex items-center justify-between gap-2">
                           <p className="text-sm text-tinta-suave">{revisadas} de {e.tareas.length} tareas revisadas</p>
-                          <Etiqueta tono={TONO[e.estado] ?? "neutro"}>{NOMBRE[e.estado] ?? e.estado}</Etiqueta>
+                          <Etiqueta tono={TONO_ESTADO_EXAMEN[e.estado] ?? "neutro"}>{NOMBRE_ESTADO_EXAMEN[e.estado] ?? e.estado}</Etiqueta>
                         </div>
                       </Tarjeta>
                     );

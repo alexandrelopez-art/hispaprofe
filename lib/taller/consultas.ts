@@ -35,6 +35,15 @@ export async function tareaDe(id: string) {
 
 export type TareaCompleta = NonNullable<Awaited<ReturnType<typeof tareaDe>>>;
 
+/** La tarea por su sitio en el examen; null si el examen o la tarea no existen. */
+export async function tareaPorNumero(examenId: string, prueba: "CE" | "CO", numero: number) {
+  const fila = await prisma.tareaDeExamen.findUnique({
+    where: { examenId_prueba_numero: { examenId, prueba, numero } },
+    select: { id: true },
+  });
+  return fila ? tareaDe(fila.id) : null;
+}
+
 /**
  * El id del `Examen` que usa este recorrido como su lectura o su auditiva,
  * o null si el recorrido no es de ningún examen del taller.
