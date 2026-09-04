@@ -71,8 +71,17 @@ export async function subirCuadernilloAccion(_prev: EstadoTaller, formData: Form
   await examenDelProfesor(examenId);
   const fichero = formData.get("cuadernillo");
   if (!(fichero instanceof File) || fichero.size === 0) return { error: "Elige el PDF del cuadernillo." };
+  if (fichero.type !== "application/pdf" && !fichero.name.toLowerCase().endsWith(".pdf")) {
+    return { error: "Solo se admite un PDF." };
+  }
   if (fichero.size > 4 * 1024 * 1024) return { error: "El cuadernillo pasa de 4 MB. Comprímelo o sube solo las páginas de este examen." };
-  const { caracteres } = await guardarCuadernillo(examenId, new Uint8Array(await fichero.arrayBuffer()));
+  let caracteres: number;
+  try {
+    ({ caracteres } = await guardarCuadernillo(examenId, new Uint8Array(await fichero.arrayBuffer())));
+  } catch (e) {
+    console.error("No se pudo leer el cuadernillo:", e);
+    return { error: "No se pudo leer ese PDF." };
+  }
   revalidatePath(`/dele/taller/${examenId}`);
   if (caracteres === 0) return { error: "Ese PDF no tiene texto (es un escaneo). El examen sigue sin claves." };
   return { ok: `Cuadernillo guardado (${caracteres.toLocaleString("es")} caracteres).` };

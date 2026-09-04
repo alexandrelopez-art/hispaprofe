@@ -111,6 +111,12 @@ async function main() {
   }
 
   // ─── Páginas ────────────────────────────────────────────────────────
+  // Sin páginas todavía (k=0 en cada prueba): repartirEnOrden no debe
+  // reventar con un array vacío, y las ocho tareas se quedan sin páginas.
+  await repartirEnOrden(examenId);
+  const tareasSinPaginas = await prisma.tareaDeExamen.findMany({ where: { examenId }, select: { paginaIds: true } });
+  afirmar(tareasSinPaginas.every((t) => t.paginaIds.length === 0), "sin páginas (k=0), el reparto deja las ocho tareas vacías");
+
   async function crearArchivoDePagina(): Promise<string> {
     const archivo = await prisma.archivo.create({
       data: { nombre: "pagina.jpg", tipo: "image/jpeg", tamano: 4, datos: Buffer.from([0xff, 0xd8, 0xff, 0xd9]), subidoPorId: profe.id },
@@ -147,14 +153,16 @@ async function main() {
   const tareasTrasReparto = await prisma.tareaDeExamen.findMany({ where: { examenId }, orderBy: [{ prueba: "asc" }, { numero: "asc" }] });
   const porClave = new Map(tareasTrasReparto.map((t) => [`${t.prueba}${t.numero}`, t.paginaIds]));
   const comoLista = (v: string[] | undefined) => JSON.stringify(v ?? []);
-  afirmar(comoLista(porClave.get("CE1")) === comoLista(idsEnOrden.slice(0, 2)), "CE1 recibe las páginas 1 y 2");
-  afirmar(comoLista(porClave.get("CE2")) === comoLista(idsEnOrden.slice(2, 4)), "CE2 recibe las páginas 3 y 4");
-  afirmar(comoLista(porClave.get("CE3")) === "[]", "CE3 se queda sin páginas");
-  afirmar(comoLista(porClave.get("CE4")) === "[]", "CE4 se queda sin páginas");
-  afirmar(comoLista(porClave.get("CO1")) === comoLista(idsEnOrden.slice(4, 6)), "CO1 recibe las páginas 5 y 6");
-  afirmar(comoLista(porClave.get("CO2")) === comoLista(idsEnOrden.slice(6, 8)), "CO2 recibe las páginas 7 y 8");
-  afirmar(comoLista(porClave.get("CO3")) === "[]", "CO3 se queda sin páginas");
-  afirmar(comoLista(porClave.get("CO4")) === "[]", "CO4 se queda sin páginas");
+  // 8 páginas en total → 4 por prueba (k=4): con 4 páginas para 4 tareas, a
+  // cada una le toca exactamente una, sin solape (4 es múltiplo de 4).
+  afirmar(comoLista(porClave.get("CE1")) === comoLista(idsEnOrden.slice(0, 1)), "8 páginas (k=4), CE1: página 1");
+  afirmar(comoLista(porClave.get("CE2")) === comoLista(idsEnOrden.slice(1, 2)), "8 páginas (k=4), CE2: página 2");
+  afirmar(comoLista(porClave.get("CE3")) === comoLista(idsEnOrden.slice(2, 3)), "8 páginas (k=4), CE3: página 3");
+  afirmar(comoLista(porClave.get("CE4")) === comoLista(idsEnOrden.slice(3, 4)), "8 páginas (k=4), CE4: página 4");
+  afirmar(comoLista(porClave.get("CO1")) === comoLista(idsEnOrden.slice(4, 5)), "8 páginas (k=4), CO1: página 5");
+  afirmar(comoLista(porClave.get("CO2")) === comoLista(idsEnOrden.slice(5, 6)), "8 páginas (k=4), CO2: página 6");
+  afirmar(comoLista(porClave.get("CO3")) === comoLista(idsEnOrden.slice(6, 7)), "8 páginas (k=4), CO3: página 7");
+  afirmar(comoLista(porClave.get("CO4")) === comoLista(idsEnOrden.slice(7, 8)), "8 páginas (k=4), CO4: página 8");
 
   // `asignarPaginas` no la ejercita `repartirEnOrden` (esa escribe con
   // Prisma directamente): se prueba aparte, con una lista desordenada que
@@ -174,16 +182,65 @@ async function main() {
   const paginaBorrada = await prisma.paginaDeExamen.findUnique({ where: { id: idsEnOrden[0] } });
   afirmar(paginaBorrada === null, "borrarPagina también borra la fila de la página");
 
+  // Vacía las páginas actuales del examen (con `borrarPagina`, para que la
+  // limpieza de tarea y de archivo quede hecha) y las sustituye por `n`
+  // páginas nuevas, en orden. Sirve para probar `repartirEnOrden` con
+  // varios tamaños de prueba sin arrastrar el estado de la prueba anterior.
+  async function reiniciarPaginas(n: number): Promise<string[]> {
+    const actuales = await paginasEnOrden();
+    for (const p of actuales) await borrarPagina(p.id);
+    for (let i = 0; i < n; i++) await registrarPagina(examenId!, await crearArchivoDePagina());
+    return (await paginasEnOrden()).map((p) => p.id);
+  }
+
+  async function paginaIdsPorTarea(): Promise<Map<string, string[]>> {
+    const tareas = await prisma.tareaDeExamen.findMany({ where: { examenId: examenId! }, orderBy: [{ prueba: "asc" }, { numero: "asc" }] });
+    return new Map(tareas.map((t) => [`${t.prueba}${t.numero}`, t.paginaIds]));
+  }
+
+  // 16 páginas en total → 8 por prueba (k=8): múltiplo de 4, así que de
+  // nuevo sin solape, dos páginas limpias por tarea. Es el caso «de manual»
+  // de la proporción: [1,2],[3,4],[5,6],[7,8].
+  const ids16 = await reiniciarPaginas(16);
+  await repartirEnOrden(examenId);
+  const porTarea16 = await paginaIdsPorTarea();
+  for (const [prueba, desde] of [["CE", 0], ["CO", 8]] as const) {
+    const propias = ids16.slice(desde, desde + 8);
+    afirmar(comoLista(porTarea16.get(`${prueba}1`)) === comoLista(propias.slice(0, 2)), `16 páginas (k=8), ${prueba}1: páginas 1-2`);
+    afirmar(comoLista(porTarea16.get(`${prueba}2`)) === comoLista(propias.slice(2, 4)), `16 páginas (k=8), ${prueba}2: páginas 3-4`);
+    afirmar(comoLista(porTarea16.get(`${prueba}3`)) === comoLista(propias.slice(4, 6)), `16 páginas (k=8), ${prueba}3: páginas 5-6`);
+    afirmar(comoLista(porTarea16.get(`${prueba}4`)) === comoLista(propias.slice(6, 8)), `16 páginas (k=8), ${prueba}4: páginas 7-8`);
+  }
+
+  // 14 páginas en total → 7 por prueba. Con `k` no múltiplo de 4, el
+  // reparto proporcional solapa una página entre tareas vecinas (ver el
+  // comentario de `repartirEnOrden`): la tarea 2 se lleva la 2ª-3ª-4ª
+  // página y la tarea 3 se lleva la 4ª-5ª-6ª, compartiendo la 4ª.
+  const ids14 = await reiniciarPaginas(14);
+  await repartirEnOrden(examenId);
+  const porTarea14 = await paginaIdsPorTarea();
+  for (const [prueba, desde] of [["CE", 0], ["CO", 7]] as const) {
+    const propias = ids14.slice(desde, desde + 7);
+    afirmar(comoLista(porTarea14.get(`${prueba}1`)) === comoLista(propias.slice(0, 2)), `14 páginas (k=7), ${prueba}1: páginas 1-2`);
+    afirmar(comoLista(porTarea14.get(`${prueba}2`)) === comoLista(propias.slice(1, 4)), `14 páginas (k=7), ${prueba}2: páginas 2-3-4 (solapa la 2 con ${prueba}1)`);
+    afirmar(comoLista(porTarea14.get(`${prueba}3`)) === comoLista(propias.slice(3, 6)), `14 páginas (k=7), ${prueba}3: páginas 4-5-6 (solapa la 4 con ${prueba}2)`);
+    afirmar(comoLista(porTarea14.get(`${prueba}4`)) === comoLista(propias.slice(5, 7)), `14 páginas (k=7), ${prueba}4: páginas 6-7 (solapa la 6 con ${prueba}3)`);
+  }
+
+  // 6 páginas en total → 3 por prueba.
+  const ids6 = await reiniciarPaginas(6);
+  await repartirEnOrden(examenId);
+  const porTarea6 = await paginaIdsPorTarea();
+  for (const [prueba, desde] of [["CE", 0], ["CO", 3]] as const) {
+    const propias = ids6.slice(desde, desde + 3);
+    afirmar(comoLista(porTarea6.get(`${prueba}1`)) === comoLista(propias.slice(0, 1)), `6 páginas (k=3), ${prueba}1: página 1`);
+    afirmar(comoLista(porTarea6.get(`${prueba}2`)) === comoLista(propias.slice(0, 2)), `6 páginas (k=3), ${prueba}2: páginas 1-2`);
+    afirmar(comoLista(porTarea6.get(`${prueba}3`)) === comoLista(propias.slice(1, 3)), `6 páginas (k=3), ${prueba}3: páginas 2-3`);
+    afirmar(comoLista(porTarea6.get(`${prueba}4`)) === comoLista(propias.slice(2, 3)), `6 páginas (k=3), ${prueba}4: página 3`);
+  }
+
   // ─── Cuadernillo ────────────────────────────────────────────────────
-  // El bloque «SOLUCIONES» se busca en el texto entero (no solo en el
-  // trozo del examen), así que el relleno tiene que pasar de los 3.000
-  // caracteres que captura `trozoDeClaves` tras cada «SOLUCIONES»: si no,
-  // el bloque de soluciones del examen 2 se comería el rótulo del examen 3
-  // y la afirmación de que no se cuela dejaría de tener sentido.
-  const relleno = "X".repeat(3200);
-  const textoSintetico =
-    `EXAMEN 1 – LECTURA DEL EXAMEN 1. EXAMEN 2 – PRUEBA DE COMPRENSIÓN LECTORA. TAREA 1. ` +
-    `SOLUCIONES DEL EXAMEN 2: A B C. ${relleno} EXAMEN 3 – LECTURA DEL EXAMEN 3.`;
+  const textoSintetico = "EXAMEN 1 – … EXAMEN 2 – PRUEBA … SOLUCIONES A B C … EXAMEN 3 –";
   const trozo2 = trozoDeClaves(textoSintetico, 2, "CE", 1);
   afirmar(trozo2.texto.includes("EXAMEN 2"), "el trozo del examen 2 incluye su rótulo");
   afirmar(trozo2.texto.includes("SOLUCIONES"), "el trozo del examen 2 incluye las soluciones");

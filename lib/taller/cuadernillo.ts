@@ -31,6 +31,13 @@ const LIMITE = 40_000;
  * examen («EXAMEN 2») y se queda desde ahí hasta el siguiente examen, y añade
  * los bloques «SOLUCIONES». Si no encuentra el rótulo, manda el cuadernillo
  * entero (recortado a 40.000 caracteres) y lo dice.
+ *
+ * Cada bloque «SOLUCIONES» se busca en el texto **entero**, no solo dentro
+ * de `delExamen` — en un cuadernillo real las páginas de soluciones de
+ * varios exámenes suelen ir juntas al final, separadas de sus propias
+ * preguntas. Para no tragarse de paso las soluciones (o el rótulo) del
+ * examen siguiente, cada bloque se corta en el primer «EXAMEN N» que
+ * encuentre después, o a los 3.000 caracteres si no hay ninguno antes.
  */
 export function trozoDeClaves(
   texto: string,
@@ -43,7 +50,9 @@ export function trozoDeClaves(
   const resto = texto.slice(inicio);
   const fin = resto.slice(10).search(new RegExp(`EXAMEN\\s+${numero + 1}\\b`, "i"));
   const delExamen = fin < 0 ? resto : resto.slice(0, fin + 10);
-  const soluciones = [...texto.matchAll(/SOLUCIONES[\s\S]{0,3000}/g)].map((m) => m[0]).join("\n\n");
+  const soluciones = [...texto.matchAll(/SOLUCIONES[\s\S]*?(?=EXAMEN\s+\d+\b|$)/g)]
+    .map((m) => m[0].slice(0, 3000))
+    .join("\n\n");
   const nombre = prueba === "CE" ? "LECTURA" : "AUDITIVA";
   const cabecera = `Examen ${numero}, prueba de comprensión ${nombre.toLowerCase()}, tarea ${tarea}.\n\n`;
   return { texto: (cabecera + delExamen + "\n\n" + soluciones).slice(0, LIMITE), recortado: false };

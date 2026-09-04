@@ -32,9 +32,17 @@ export async function asignarPaginas(tareaId: string, paginaIds: string[]): Prom
 }
 
 /**
- * Reparte las páginas en el orden del libro: lectura 1-4 y auditiva 1-4, dos
- * páginas por tarea salvo la última de cada prueba, que se queda con lo que
- * sobre. El profesor corrige después lo que no cuadre.
+ * Reparte las páginas de cada prueba en proporción a sus cuatro tareas: con
+ * `k` páginas, la tarea `i` (0-indexada) se lleva las páginas con índice en
+ * `[⌊i·k/4⌋, ⌈(i+1)·k/4⌉)`.
+ *
+ * Cuando `k` no es múltiplo de 4, dos tareas vecinas pueden compartir una
+ * página (con 7 páginas, la tarea 2 recibe la 2-3-4 y la tarea 3 recibe la
+ * 4-5-6: la página 4 cae en las dos). No es un descuido: el libro captura
+ * cada tarea en pliegos a doble página, así que una tarea real casi siempre
+ * comparte página con la siguiente, y repartir con ese solape es más fiel
+ * al cuadernillo que cortar en seco y dejarle todo el sobrante a la última
+ * tarea. El profesor corrige después lo que no cuadre.
  */
 export async function repartirEnOrden(examenId: string): Promise<void> {
   const examen = await prisma.examen.findUniqueOrThrow({
@@ -48,9 +56,11 @@ export async function repartirEnOrden(examenId: string): Promise<void> {
     const tareas = examen.tareas.filter((t) => t.prueba === prueba);
     const desde = prueba === "CE" ? 0 : porPrueba;
     const mias = paginas.slice(desde, prueba === "CE" ? porPrueba : paginas.length);
+    const k = mias.length;
     tareas.forEach((t, i) => {
-      const esUltima = i === tareas.length - 1;
-      reparto.set(t.id, esUltima ? mias.slice(i * 2) : mias.slice(i * 2, i * 2 + 2));
+      const inicio = Math.floor((i * k) / tareas.length);
+      const fin = Math.ceil(((i + 1) * k) / tareas.length);
+      reparto.set(t.id, mias.slice(inicio, fin));
     });
   }
   await prisma.$transaction(
