@@ -114,6 +114,10 @@ const archivoIds: string[] = [];
 let estudianteId: string | null = null;
 let asignacionId: string | null = null;
 let pasoCompletadoId: string | null = null;
+// Sesión C: alumnos de prueba para `asignarExamen`. Sus `Asignacion` se
+// borran antes que ellos en `limpiar()` (y antes de que se borren las
+// secuencias del examen, cuya relación con `Asignacion` no es en cascada).
+const usuarioIds: string[] = [];
 
 async function main() {
   // ─── Cloze: quitarPregunta y siguienteId (puras, sin base de datos) ────
@@ -614,6 +618,50 @@ async function main() {
   afirmar(tareaCO1TrasRellenar!.estado === "RELLENADA", "guardarTarea sobre una tarea VACIA con datos válidos la deja RELLENADA");
   afirmar(tareaCO1TrasRellenar!.rellenadaEl !== null, "y le pone rellenadaEl");
 
+  // ─── Publicar, retirar, asignar ─────────────────────────────────────
+  const { motivosParaNoPublicar, publicarExamen, retirarExamen, asignarExamen } = await import("@/lib/taller/publicar");
+  let ex = (await examenDe(examenId!))!;
+  const motivosPub = motivosParaNoPublicar(ex);
+  afirmar(motivosPub.some((m) => m.includes("sin revisar")), "con tareas sin revisar no se publica");
+  afirmar(motivosPub.some((m) => m.includes("grabación")), "sin grabación en la auditiva no se publica");
+  const negadoPub = await publicarExamen(examenId!);
+  afirmar(negadoPub.ok === false, "publicarExamen se niega con motivos");
+  afirmar((await prisma.recorrido.findUnique({ where: { id: ex.lecturaId } }))!.publicado === false, "y no publica la lectura");
+
+  // Forzar el estado bueno directamente en la base: siete revisadas → sigue negado; ocho → publica.
+  const ids = ex.tareas.map((t) => t.id);
+  await prisma.tareaDeExamen.updateMany({ where: { id: { in: ids.slice(0, 7) } }, data: { estado: "REVISADA", imagenesPedidas: [] } });
+  await prisma.tareaDeExamen.updateMany({ where: { examenId: examenId!, prueba: "CO" }, data: { grabacionArchivoId: "falso" } });
+  afirmar((await publicarExamen(examenId!)).ok === false, "con siete revisadas se niega");
+  await prisma.tareaDeExamen.update({ where: { id: ids[7] }, data: { estado: "REVISADA", imagenesPedidas: [] } });
+  const publicado = await publicarExamen(examenId!);
+  afirmar(publicado.ok === true, "con ocho revisadas publica");
+  ex = (await examenDe(examenId!))!;
+  afirmar(ex.estado === "PUBLICADO", "el examen queda PUBLICADO");
+  const recs = await prisma.recorrido.findMany({ where: { id: { in: [ex.lecturaId, ex.auditivaId] } } });
+  afirmar(recs.every((r) => r.publicado && r.orden === ex.bloque), "las dos secuencias quedan publicadas en el bloque del examen");
+  const ejs = await prisma.pasoEjercicio.findMany({ where: { pasoId: { in: ex.tareas.map((t) => t.pasoId) } }, include: { ejercicio: true } });
+  afirmar(ejs.every((e) => e.ejercicio.publicado), "los ocho ejercicios quedan publicados");
+
+  // Asignar a un particular con fecha: dos asignaciones con venceEl.
+  const alumno = await prisma.user.create({ data: { email: `${marca}-alumno@prueba.local`, firstName: "Alumno", lastName: "de prueba", role: "STUDENT" }, select: { id: true } });
+  usuarioIds.push(alumno.id); // añadir a la limpieza (borrar sus asignaciones antes que el usuario)
+  const asignado = await asignarExamen(examenId!, { tipo: "alumno", id: alumno.id }, profeId!, new Date("2026-12-01T23:59:59"));
+  afirmar(asignado.ok === true && asignado.cuantos === 1, "asignarExamen a un particular asigna a uno");
+  const asigs = await prisma.asignacion.findMany({ where: { estudianteId: alumno.id } });
+  afirmar(asigs.length === 2 && asigs.every((a) => a.venceEl?.toISOString().startsWith("2026-12-01")), "dos asignaciones con la fecha límite");
+  afirmar((await asignarExamen(examenId!, { tipo: "grupo", id: "no-existe" }, profeId!, null)).ok === false, "un grupo vacío o inexistente no asigna");
+
+  await retirarExamen(examenId!);
+  ex = (await examenDe(examenId!))!;
+  afirmar(ex.estado === "EN_CONSTRUCCION" && (await prisma.recorrido.count({ where: { id: { in: [ex.lecturaId, ex.auditivaId] }, publicado: true } })) === 0, "retirar despublica y vuelve a construcción");
+  afirmar((await prisma.asignacion.count({ where: { estudianteId: alumno.id, archivada: false } })) === 2, "retirar conserva las asignaciones vivas");
+
+  // La relación Restrict: borrar la lectura de un examen tiene que fallar.
+  let restringido = false;
+  try { await prisma.recorrido.delete({ where: { id: ex.lecturaId } }); } catch { restringido = true; }
+  afirmar(restringido, "la base impide borrar una secuencia que es de un examen");
+
   let sinClave: unknown = null;
   try {
     await pedirTarea({
@@ -684,6 +732,14 @@ async function limpiar() {
   if (pasoCompletadoId) await prisma.pasoCompletado.deleteMany({ where: { id: pasoCompletadoId } });
   if (asignacionId) await prisma.asignacion.deleteMany({ where: { id: asignacionId } });
   if (estudianteId) await prisma.user.deleteMany({ where: { id: estudianteId } });
+  // Sesión C: las Asignacion del alumno de `asignarExamen` apuntan a las
+  // secuencias del examen (lecturaId/auditivaId) — hay que borrarlas antes
+  // que esas secuencias, más abajo, por el mismo motivo del comentario de
+  // arriba.
+  if (usuarioIds.length) {
+    await prisma.asignacion.deleteMany({ where: { estudianteId: { in: usuarioIds } } });
+    await prisma.user.deleteMany({ where: { id: { in: usuarioIds } } });
+  }
 
   if (examenId) {
     const ex = await prisma.examen.findUnique({ where: { id: examenId }, include: { tareas: true } });

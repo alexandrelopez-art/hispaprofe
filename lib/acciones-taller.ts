@@ -13,6 +13,7 @@ import { trozoDeClaves } from "@/lib/taller/cuadernillo";
 import { hayClaveDeIA, pedirTarea, SinClaveError } from "@/lib/taller/rellenar";
 import { guardarRelleno } from "@/lib/taller/guardar-relleno";
 import { descartarClaveOficial, guardarTarea, marcarRevisada, quitarImagenPedida } from "@/lib/taller/revision";
+import { archivarExamen, asignarExamen, partirDestino, publicarExamen, retirarExamen } from "@/lib/taller/publicar";
 
 export type EstadoTaller = { error?: string; ok?: string };
 export type EstadoGuardado = { error?: string; ok?: string; avisos?: string[] };
@@ -185,4 +186,53 @@ export async function quitarImagenPedidaAccion(tareaId: string, indice: number):
   revalidatePath(`/dele/taller/${tarea.examenId}/tarea/${tarea.prueba}/${tarea.numero}`);
   if (!r.ok) return { error: r.error };
   return { ok: "Imagen quitada de la lista." };
+}
+
+// ─── Publicar, retirar, archivar y asignar ─────────────────────────────
+
+function refrescarExamen(examenId: string) {
+  revalidatePath(`/dele/taller/${examenId}`);
+  revalidatePath("/dele/taller");
+  revalidatePath("/dele");
+  revalidatePath("/recorridos");
+  revalidatePath("/clases");
+}
+
+export async function publicarExamenAccion(_prev: EstadoTaller, formData: FormData): Promise<EstadoTaller> {
+  const examenId = String(formData.get("examenId") ?? "");
+  await examenDelProfesor(examenId);
+  const r = await publicarExamen(examenId);
+  refrescarExamen(examenId);
+  return r.ok ? { ok: "Publicado: ya está en el catálogo del nivel." } : { error: r.motivos.join(" ") };
+}
+
+export async function retirarExamenAccion(formData: FormData): Promise<void> {
+  const examenId = String(formData.get("examenId") ?? "");
+  await examenDelProfesor(examenId);
+  await retirarExamen(examenId);
+  refrescarExamen(examenId);
+}
+
+export async function archivarExamenAccion(formData: FormData): Promise<void> {
+  const examenId = String(formData.get("examenId") ?? "");
+  await examenDelProfesor(examenId);
+  await archivarExamen(examenId);
+  refrescarExamen(examenId);
+  redirect("/dele/taller");
+}
+
+export async function asignarExamenAccion(_prev: EstadoTaller, formData: FormData): Promise<EstadoTaller> {
+  const usuario = await exigirProfesor();
+  const examenId = String(formData.get("examenId") ?? "");
+  await examenDelProfesor(examenId);
+  const destino = partirDestino(String(formData.get("destino") ?? ""));
+  if (!destino) return { error: "Elige un grupo o un estudiante." };
+  const fecha = String(formData.get("venceEl") ?? "");
+  const venceEl = fecha ? new Date(`${fecha}T23:59:59`) : null;
+  if (fecha && Number.isNaN(venceEl!.getTime())) return { error: "Esa fecha no vale." };
+  const r = await asignarExamen(examenId, destino, usuario.id, venceEl);
+  refrescarExamen(examenId);
+  revalidatePath("/profe/alumnos");
+  if (!r.ok) return { error: r.error };
+  return { ok: `Asignado a ${r.cuantos} estudiante(s)${venceEl ? `, para el ${fecha}` : ""}.` };
 }

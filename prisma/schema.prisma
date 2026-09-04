@@ -142,6 +142,12 @@ model Recorrido {
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
 
+  /// Inversas de `Examen.lectura`/`.auditiva`: qué examen usa esta secuencia,
+  /// si la usa alguno. Junto con `onDelete: Restrict` en esas dos relaciones,
+  /// impiden borrar la secuencia de un examen sin borrar antes el examen.
+  examenComoLectura  Examen? @relation("ExamenLectura")
+  examenComoAuditiva Examen? @relation("ExamenAuditiva")
+
   @@index([tipo, nivel, orden])
   @@index([autorId])
 }
@@ -409,26 +415,28 @@ enum PruebaDeExamen {
 /// `Recorrido` (lectura y auditiva) que el estudiante abre como siempre; el
 /// examen es la capa de arriba: estado, páginas subidas, revisión por tarea.
 model Examen {
-  id           String       @id @default(cuid())
-  titulo       String
-  nivel        Nivel
+  id          String           @id @default(cuid())
+  titulo      String
+  nivel       Nivel
   /// De dónde sale: «DELE A2/B1 escolar, libro X, examen 2».
-  fuente       String
+  fuente      String
   /// El número que agrupa el catálogo (`Recorrido.examen`).
-  numero       Int
-  estado       EstadoExamen @default(EN_CONSTRUCCION)
+  numero      Int
+  estado      EstadoExamen     @default(EN_CONSTRUCCION)
   /// El bloque de la puerta DELE donde se publica: 2 práctica, 3 examen blanco.
-  bloque       Int          @default(2)
+  bloque      Int              @default(2)
   /// El texto del cuadernillo de claves, extraído del PDF. Nulo si no se subió.
-  clavesTexto  String?
-  lecturaId    String       @unique
-  auditivaId   String       @unique
-  creadoPor    User         @relation("AutorExamen", fields: [creadoPorId], references: [id])
-  creadoPorId  String
-  paginas      PaginaDeExamen[]
-  tareas       TareaDeExamen[]
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
+  clavesTexto String?
+  lecturaId   String           @unique
+  lectura     Recorrido        @relation("ExamenLectura", fields: [lecturaId], references: [id], onDelete: Restrict)
+  auditivaId  String           @unique
+  auditiva    Recorrido        @relation("ExamenAuditiva", fields: [auditivaId], references: [id], onDelete: Restrict)
+  creadoPor   User             @relation("AutorExamen", fields: [creadoPorId], references: [id])
+  creadoPorId String
+  paginas     PaginaDeExamen[]
+  tareas      TareaDeExamen[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
 
   @@index([nivel, estado])
   @@index([creadoPorId])
@@ -436,12 +444,12 @@ model Examen {
 
 /// Una página del examen subida por el profesor (una imagen, un `Archivo`).
 model PaginaDeExamen {
-  id        String         @id @default(cuid())
-  examen    Examen         @relation(fields: [examenId], references: [id], onDelete: Cascade)
+  id        String   @id @default(cuid())
+  examen    Examen   @relation(fields: [examenId], references: [id], onDelete: Cascade)
   examenId  String
   orden     Int
   archivoId String
-  createdAt DateTime       @default(now())
+  createdAt DateTime @default(now())
 
   @@index([examenId, orden])
 }
@@ -449,27 +457,33 @@ model PaginaDeExamen {
 /// Una de las ocho tareas del examen: su paso, su estado de revisión y lo que
 /// dejó la IA. `datos` del ejercicio sigue viviendo en `Ejercicio`.
 model TareaDeExamen {
-  id              String         @id @default(cuid())
-  examen          Examen         @relation(fields: [examenId], references: [id], onDelete: Cascade)
-  examenId        String
-  prueba          PruebaDeExamen
-  numero          Int
-  pasoId          String
-  estado          EstadoTarea    @default(VACIA)
+  id                 String         @id @default(cuid())
+  examen             Examen         @relation(fields: [examenId], references: [id], onDelete: Cascade)
+  examenId           String
+  prueba             PruebaDeExamen
+  numero             Int
+  pasoId             String
+  estado             EstadoTarea    @default(VACIA)
   /// Ids de `PaginaDeExamen` asignadas a esta tarea, en orden.
-  paginaIds       String[]
+  paginaIds          String[]
   /// `[{ campo, texto }]`: lo que la IA no leyó con seguridad.
-  dudas           Json?
+  dudas              Json?
   /// `[string]`: lo que no cuadra con el mapa o con la clave.
-  avisos          Json?
+  avisos             Json?
   /// `[{ pregunta, opcion, para, archivoId }]`: imágenes que hacen falta.
-  imagenesPedidas Json?
+  imagenesPedidas    Json?
   /// `{ [preguntaId]: letra }`: las respuestas del cuadernillo.
-  claveOficial    Json?
-  rellenadaEl     DateTime?
-  revisadaEl      DateTime?
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
+  claveOficial       Json?
+  /// La grabación completa de una tarea auditiva (un `Archivo`), de la que
+  /// salen los trozos. Se guarda aparte del bloque AUDIO para poder volver a
+  /// cortar sin pedir el MP3 otra vez.
+  grabacionArchivoId String?
+  /// `number[]`: los cortes en segundos que el profesor marcó la última vez.
+  cortes             Json?
+  rellenadaEl        DateTime?
+  revisadaEl         DateTime?
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
 
   @@unique([examenId, prueba, numero])
   @@index([pasoId])

@@ -44,22 +44,29 @@ function comoNivel(valor: string): Nivel | null {
 
 // ─── Asignaciones ────────────────────────────────────────────────────────
 
-async function asignarA(
+/**
+ * `venceEl` con valor por defecto `null` para que los llamadores existentes
+ * (asignación normal, sin fecha límite) no cambien: solo `asignarExamen`
+ * (`lib/taller/publicar.ts`) lo pasa.
+ */
+export async function asignarA(
   estudianteIds: string[],
   recorridoId: string,
   profesorId: string,
   nota: string,
+  venceEl: Date | null = null,
 ) {
   await prisma.$transaction(
     estudianteIds.map((estudianteId) =>
       prisma.asignacion.upsert({
         where: { estudianteId_recorridoId: { estudianteId, recorridoId } },
-        update: { archivada: false, nota: nota || null, profesorId },
+        update: { archivada: false, nota: nota || null, profesorId, ...(venceEl ? { venceEl } : {}) },
         create: {
           estudianteId,
           recorridoId,
           profesorId,
           nota: nota || null,
+          venceEl,
         },
       }),
     ),

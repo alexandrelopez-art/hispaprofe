@@ -1,13 +1,18 @@
 import { notFound } from "next/navigation";
 import { repartirEnOrdenAccion } from "@/lib/acciones-taller";
 import { examenDe } from "@/lib/taller/consultas";
+import { motivosParaNoPublicar } from "@/lib/taller/publicar";
 import { NOMBRE_ESTADO_EXAMEN, TONO_ESTADO_EXAMEN } from "@/lib/taller/estados";
 import { tareaDe as tareaDelMapa } from "@/lib/dele";
 import { hayClaveDeIA } from "@/lib/taller/rellenar";
+import { exigirProfesor } from "@/lib/profesor";
+import { listarEstudiantesElegibles } from "@/lib/estudiantes";
+import { prisma } from "@/lib/prisma";
 import type { TareaParaTarjeta } from "@/components/taller/tarjeta-tarea";
 import TarjetaTarea from "@/components/taller/tarjeta-tarea";
 import BotonRellenar from "@/components/taller/boton-rellenar";
 import RellenarTodas from "@/components/taller/rellenar-todas";
+import CicloExamen, { AsignarExamen } from "@/components/taller/ciclo-examen";
 import Cuadernillo from "@/components/taller/cuadernillo";
 import Paginas from "@/components/taller/paginas";
 import Aviso from "@/components/ui/aviso";
@@ -51,6 +56,7 @@ export default async function ExamenPage({ params }: { params: Promise<{ id: str
   const examen = await examenDe(id);
   if (!examen) notFound();
 
+  const usuario = await exigirProfesor();
   const paginasParaAsignar = examen.paginas.map((p) => ({ id: p.id, orden: p.orden }));
   const lectura = examen.tareas.filter((t) => t.prueba === "CE");
   const auditiva = examen.tareas.filter((t) => t.prueba === "CO");
@@ -64,6 +70,24 @@ export default async function ExamenPage({ params }: { params: Promise<{ id: str
     ...auditiva.map((t) => ({ id: t.id, nombre: `Auditiva · Tarea ${t.numero}` })),
   ];
 
+  const motivos = motivosParaNoPublicar(examen);
+  const [gruposDelProfesor, estudiantes] = await Promise.all([
+    prisma.grupo.findMany({
+      where: { profesorId: usuario.id, archivado: false },
+      select: { id: true, nombre: true },
+      orderBy: { nombre: "asc" },
+    }),
+    listarEstudiantesElegibles({
+      select: { id: true, firstName: true, lastName: true, email: true, membresias: { select: { id: true } } },
+    }),
+  ]);
+  const destinos = [
+    ...gruposDelProfesor.map((g) => ({ valor: `grupo:${g.id}`, nombre: `Grupo · ${g.nombre}` })),
+    ...estudiantes
+      .filter((e) => e.membresias.length === 0)
+      .map((e) => ({ valor: `alumno:${e.id}`, nombre: `Particular · ${[e.firstName, e.lastName].filter(Boolean).join(" ") || e.email}` })),
+  ];
+
   return (
     <div className="mx-auto max-w-4xl px-6 py-12">
       <Encabezado
@@ -74,6 +98,7 @@ export default async function ExamenPage({ params }: { params: Promise<{ id: str
           <>
             <Etiqueta tono={TONO_ESTADO_EXAMEN[examen.estado] ?? "neutro"}>{NOMBRE_ESTADO_EXAMEN[examen.estado] ?? examen.estado}</Etiqueta>
             <RellenarTodas tareas={tareasParaRellenar} hayClave={hayClave} />
+            <CicloExamen examenId={examen.id} estado={examen.estado} motivos={motivos} />
           </>
         }
       />
@@ -102,6 +127,8 @@ export default async function ExamenPage({ params }: { params: Promise<{ id: str
       <Tarjeta className="mt-6">
         <Cuadernillo examenId={examen.id} caracteres={examen.clavesTexto?.length ?? null} />
       </Tarjeta>
+
+      <AsignarExamen examenId={examen.id} estado={examen.estado} destinos={destinos} />
 
       <Tarjeta titulo="Imágenes que faltan" className="mt-6">
         {imagenesPorSubir === 0 ? (
