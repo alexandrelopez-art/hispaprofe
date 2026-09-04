@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ["@prisma/client", "@prisma/adapter-pg", "pg", "ffmpeg-static"],
+  serverExternalPackages: ["@prisma/client", "@prisma/adapter-pg", "pg", "ffmpeg-static", "pdfjs-dist"],
 
   // El binario de ffmpeg no es código que el empaquetador pueda seguir: nadie
   // lo importa, se lanza como proceso. Sin esto no viaja con la función y en
