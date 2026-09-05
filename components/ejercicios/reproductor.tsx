@@ -18,8 +18,13 @@ function formatoTiempo(segundos: number): string {
  * señal de que nunca va a sonar (`src` roto, red caída a media carga). Sin
  * esto se podía cobrar una escucha sobre un `play()` que resolvió pero
  * nunca llegó a sonar.
+ *
+ * Exportada para que `ReproductorEncadenado` (examen blanco, Tarea 5) la
+ * reutilice tal cual: la misma comprobación hace falta en el primer trozo
+ * de la tira encadenada, y duplicarla sería la forma segura de que un día
+ * se corrija aquí y no allí.
  */
-function reproducirYConfirmar(el: HTMLAudioElement): Promise<void> {
+export function reproducirYConfirmar(el: HTMLAudioElement): Promise<void> {
   return new Promise((resolve, reject) => {
     function sonando() {
       limpiar();

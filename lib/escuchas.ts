@@ -130,6 +130,21 @@ export async function maximoDeEscucha(pasoId: string, clave: string): Promise<nu
   const analizado = analizar(vinculo.ejercicio.datos);
   if (!analizado) return null;
 
+  // El examen blanco encadenado (Tarea 5 de la sesión C): "encadenado" no es
+  // el id de ninguna pregunta ni pareja — es la clave fija con la que
+  // `ReproductorEncadenado` cuenta la tarea entera como una sola escucha, en
+  // vez de una por pregunta. Se resuelve antes de la búsqueda por pregunta
+  // porque esa búsqueda, con esta clave, nunca encontraría nada.
+  if (clave === "encadenado") {
+    if (analizado.tipo === "opcion") {
+      return analizado.datos.preguntas.some((p) => p.audio) ? analizado.datos.escuchas : null;
+    }
+    if (analizado.tipo === "relacionar") {
+      return analizado.datos.parejas.some((p) => p.audio) ? analizado.datos.escuchas : null;
+    }
+    return null;
+  }
+
   if (analizado.tipo === "opcion") {
     const pregunta = analizado.datos.preguntas.find((p) => p.id === clave);
     return pregunta?.audio ? analizado.datos.escuchas : null;

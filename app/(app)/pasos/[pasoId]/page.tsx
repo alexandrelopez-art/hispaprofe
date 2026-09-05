@@ -383,6 +383,13 @@ export default async function PasoPage({
 
   const racionado = esRacionado(paso.recorrido);
 
+  // El examen blanco (bloque 3, «Examen blanco», de `lib/preparacion.ts`):
+  // ahí la tarea auditiva encadena todos sus trozos y los cuenta como una
+  // sola escucha, en vez de un `Reproductor` por pregunta o pareja. Solo el
+  // bloque 3 se comporta así: la práctica por tarea (bloque 2) sigue con un
+  // reproductor por audio, que es como se practica una tarea suelta.
+  const encadenado = paso.recorrido.tipo === "PREPARACION_DELE" && paso.recorrido.orden === 3;
+
   // Leído una sola vez para todo el paso: sirve tanto al bloque `AUDIO`
   // (clave = id del bloque) como a los audios del ejercicio (clave = id de
   // pregunta o pareja), porque `Escucha.clave` es un espacio único por
@@ -524,6 +531,7 @@ export default async function PasoPage({
           // que cuenta solo serviría para enseñar "Sin escuchas" sobre un
           // audio que nunca ha sonado. Ver `PropsEjercicio.puedeContar`.
           puedeContar={puedeMarcar}
+          encadenado={encadenado}
         />
       )}
 

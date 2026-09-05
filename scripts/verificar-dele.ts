@@ -32,6 +32,14 @@ let asignacionId: string | null = null;
 let ejercicioId: string | null = null;
 let recorridoLibreId: string | null = null;
 let pasoLibreId: string | null = null;
+// Tarea 5 (examen blanco encadenado): tres pasos más colgados del mismo
+// `recorrido` racionado de más arriba, cada uno con su propio ejercicio.
+let pasoEncadenadoId: string | null = null;
+let ejercicioEncadenadoId: string | null = null;
+let pasoSinAudioId: string | null = null;
+let ejercicioSinAudioId: string | null = null;
+let pasoRelacionarEncadenadoId: string | null = null;
+let ejercicioRelacionarEncadenadoId: string | null = null;
 const usuarioIds: string[] = [];
 
 async function main() {
@@ -291,6 +299,119 @@ async function main() {
     "una clave que no corresponde a nada de este paso no tiene tope",
   );
 
+  // ─── Tarea 5: el examen blanco encadena los trozos, la clave "encadenado" ──
+  // "encadenado" no es el id de ninguna pregunta ni pareja — es la clave fija
+  // con la que `ReproductorEncadenado` cuenta la tarea entera como una sola
+  // escucha. Cada caso vive en su propio paso, colgado del mismo `recorrido`
+  // racionado de más arriba, para no interferir con las claves "p1" ya
+  // probadas.
+  const pasoEncadenado = await prisma.paso.create({
+    data: { recorridoId: recorrido.id, titulo: "Paso encadenado", tipo: "ACTIVIDAD", ciclo: 1, orden: 2 },
+  });
+  pasoEncadenadoId = pasoEncadenado.id;
+  const ejercicioEncadenado = await prisma.ejercicio.create({
+    data: {
+      tipo: "OPCION_MULTIPLE",
+      titulo: `Ejercicio encadenado ${marca}`,
+      nivel: "B1",
+      datos: {
+        ejercicio: "opcion",
+        consigna: "Escucha la tarea entera y responde.",
+        multiple: false,
+        escuchas: 2,
+        preguntas: [
+          {
+            id: "e1",
+            enunciado: "¿Qué oyes primero?",
+            opciones: ["Uno", "Dos"],
+            correctas: [0],
+            audio: "https://ejemplo.test/e1.mp3",
+          },
+          {
+            // Sin audio propio: comparte el trozo de "e1" (como las dos
+            // preguntas de la tarea 4 que comparten noticia), y de todas
+            // formas basta con que UNA pregunta lleve audio para que
+            // "encadenado" tenga tope.
+            id: "e2",
+            enunciado: "¿Y después?",
+            opciones: ["Uno", "Dos"],
+            correctas: [1],
+          },
+        ],
+      },
+    },
+  });
+  ejercicioEncadenadoId = ejercicioEncadenado.id;
+  await prisma.pasoEjercicio.create({
+    data: { pasoId: pasoEncadenado.id, ejercicioId: ejercicioEncadenado.id, orden: 1 },
+  });
+
+  afirmar(
+    (await maximoDeEscucha(pasoEncadenado.id, "encadenado")) === 2,
+    "con una pregunta de opcion con audio, la clave encadenado da las escuchas del ejercicio",
+  );
+  afirmar(
+    (await maximoDeEscucha(pasoEncadenado.id, "e1")) === 2,
+    "la propia pregunta se sigue pudiendo pedir por su id: encadenado no la tapa",
+  );
+
+  const pasoSinAudio = await prisma.paso.create({
+    data: { recorridoId: recorrido.id, titulo: "Paso sin audio", tipo: "ACTIVIDAD", ciclo: 1, orden: 3 },
+  });
+  pasoSinAudioId = pasoSinAudio.id;
+  const ejercicioSinAudio = await prisma.ejercicio.create({
+    data: {
+      tipo: "OPCION_MULTIPLE",
+      titulo: `Ejercicio sin audio ${marca}`,
+      nivel: "B1",
+      datos: {
+        ejercicio: "opcion",
+        consigna: "Responde sin ningún audio.",
+        multiple: false,
+        preguntas: [{ id: "s1", enunciado: "¿Cuánto es 2+2?", opciones: ["3", "4"], correctas: [1] }],
+      },
+    },
+  });
+  ejercicioSinAudioId = ejercicioSinAudio.id;
+  await prisma.pasoEjercicio.create({
+    data: { pasoId: pasoSinAudio.id, ejercicioId: ejercicioSinAudio.id, orden: 1 },
+  });
+
+  afirmar(
+    (await maximoDeEscucha(pasoSinAudio.id, "encadenado")) === null,
+    "sin ningún audio en el ejercicio, la clave encadenado no tiene tope",
+  );
+
+  const pasoRelacionarEncadenado = await prisma.paso.create({
+    data: { recorridoId: recorrido.id, titulo: "Paso relacionar encadenado", tipo: "ACTIVIDAD", ciclo: 1, orden: 4 },
+  });
+  pasoRelacionarEncadenadoId = pasoRelacionarEncadenado.id;
+  const ejercicioRelacionarEncadenado = await prisma.ejercicio.create({
+    data: {
+      tipo: "RELACIONAR",
+      titulo: `Ejercicio relacionar encadenado ${marca}`,
+      nivel: "B1",
+      datos: {
+        ejercicio: "relacionar",
+        consigna: "Escucha y relaciona cada hablante con su tema.",
+        escuchas: 3,
+        parejas: [
+          { id: "r1", izquierda: "Hablante 1", derecha: "Tema A", audio: "https://ejemplo.test/r1.mp3" },
+          { id: "r2", izquierda: "Hablante 2", derecha: "Tema B" },
+        ],
+      },
+    },
+  });
+  ejercicioRelacionarEncadenadoId = ejercicioRelacionarEncadenado.id;
+  await prisma.pasoEjercicio.create({
+    data: { pasoId: pasoRelacionarEncadenado.id, ejercicioId: ejercicioRelacionarEncadenado.id, orden: 1 },
+  });
+
+  afirmar(
+    (await maximoDeEscucha(pasoRelacionarEncadenado.id, "encadenado")) === 3,
+    "con una pareja de relacionar con audio, la clave encadenado también da las escuchas del ejercicio",
+  );
+
   // Defensa en profundidad: un audio de una clase particular (no racionada)
   // no tiene tope contable aunque alguien intente pedirlo con el id de un
   // bloque real — la página nunca llega a montar el `Reproductor` ahí, pero
@@ -353,6 +474,21 @@ main()
       await intentar("bloques", () => prisma.bloque.deleteMany({ where: { pasoId: id } }));
       await intentar("paso", () => prisma.paso.delete({ where: { id } }));
     }
+    // Los tres pasos de la Tarea 5 (examen blanco encadenado) cuelgan del
+    // mismo `recorrido` que el paso principal: tienen que irse antes que él,
+    // igual que ese paso — la relación Paso→Recorrido no tiene cascada.
+    if (pasoEncadenadoId) {
+      const id = pasoEncadenadoId;
+      await intentar("paso encadenado", () => prisma.paso.delete({ where: { id } }));
+    }
+    if (pasoSinAudioId) {
+      const id = pasoSinAudioId;
+      await intentar("paso sin audio", () => prisma.paso.delete({ where: { id } }));
+    }
+    if (pasoRelacionarEncadenadoId) {
+      const id = pasoRelacionarEncadenadoId;
+      await intentar("paso relacionar encadenado", () => prisma.paso.delete({ where: { id } }));
+    }
     if (recorridoId) {
       const id = recorridoId;
       await intentar("recorrido", () => prisma.recorrido.delete({ where: { id } }));
@@ -362,6 +498,18 @@ main()
       // y solo entonces el ejercicio se queda sin nada que lo enganche.
       const id = ejercicioId;
       await intentar("ejercicio", () => prisma.ejercicio.delete({ where: { id } }));
+    }
+    if (ejercicioEncadenadoId) {
+      const id = ejercicioEncadenadoId;
+      await intentar("ejercicio encadenado", () => prisma.ejercicio.delete({ where: { id } }));
+    }
+    if (ejercicioSinAudioId) {
+      const id = ejercicioSinAudioId;
+      await intentar("ejercicio sin audio", () => prisma.ejercicio.delete({ where: { id } }));
+    }
+    if (ejercicioRelacionarEncadenadoId) {
+      const id = ejercicioRelacionarEncadenadoId;
+      await intentar("ejercicio relacionar encadenado", () => prisma.ejercicio.delete({ where: { id } }));
     }
     if (pasoLibreId) {
       const id = pasoLibreId;

@@ -44,6 +44,12 @@ export type PropsEjercicio = {
    * así que veía «Sin escuchas» sin que el audio hubiera sonado una vez.
    */
   puedeContar: boolean;
+  /**
+   * El examen blanco (bloque 3 de `lib/preparacion.ts`): la tarea auditiva
+   * encadena todos sus trozos y los cuenta como una sola escucha, en vez de
+   * un `Reproductor` por pregunta. Ver el comentario de `PropsCara.encadenado`.
+   */
+  encadenado?: boolean;
 };
 
 export type PropsCara = {
@@ -74,6 +80,14 @@ export type PropsCara = {
    * previsualización del profesor.
    */
   puedeContar: boolean;
+  /**
+   * El examen blanco encadena todos los audios de la tarea en uno solo
+   * (`ReproductorEncadenado`) en vez de un `Reproductor` por pregunta o
+   * pareja: lo deciden `CaraOpcion` y `CaraRelacionar`, las únicas que
+   * pintan audio. `false`/`undefined` en cualquier otro bloque, y también
+   * en la previsualización del profesor.
+   */
+  encadenado?: boolean;
 };
 
 /**
@@ -96,6 +110,7 @@ export default function Ejercicio({
   respuestas,
   escuchas,
   puedeContar,
+  encadenado,
 }: PropsEjercicio) {
   const [valor, setValor] = useState<Respuestas>(respuestas ?? {});
   const [enviando, setEnviando] = useState(false);
@@ -114,6 +129,7 @@ export default function Ejercicio({
       pasoId,
       escuchasUsadas: escuchas,
       puedeContar,
+      encadenado,
     };
     switch (tipo) {
       case "opcion":

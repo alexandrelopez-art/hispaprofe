@@ -4,6 +4,7 @@ import type { OpcionPublica } from "@/lib/ejercicios/opcion";
 import { comoLista, trozos, type Respuestas } from "@/lib/ejercicios/tipos";
 import type { Progreso, PropsCara } from "./ejercicio";
 import Reproductor from "./reproductor";
+import ReproductorEncadenado from "./reproductor-encadenado";
 
 export default function CaraOpcion({
   publica,
@@ -14,8 +15,17 @@ export default function CaraOpcion({
   pasoId,
   escuchasUsadas,
   puedeContar,
+  encadenado,
 }: PropsCara) {
   const datos = publica as OpcionPublica;
+
+  // Los audios de la tarea, en orden y sin repetidos: en la tarea 4 de la
+  // auditiva dos preguntas comparten un mismo trozo, y no tiene sentido que
+  // suene dos veces dentro de la misma escucha encadenada.
+  const audiosEncadenados = encadenado
+    ? [...new Set(datos.preguntas.map((p) => p.audio).filter((a): a is string => Boolean(a)))]
+    : [];
+  const hayEncadenado = audiosEncadenados.length > 0;
 
   // Con pasaje es un cloze y se pinta dentro del texto. Sin él, la lista de
   // siempre. Las preguntas con audio nunca llevan pasaje —son tareas
@@ -45,7 +55,19 @@ export default function CaraOpcion({
   }
 
   return (
-    <ol className="space-y-6">
+    <>
+      {hayEncadenado && (
+        <div className="mb-6">
+          <ReproductorEncadenado
+            srcs={audiosEncadenados}
+            pasoId={pasoId}
+            maximo={datos.escuchas}
+            usadas={escuchasUsadas["encadenado"] ?? 0}
+            cerrado={cerrado || pasoId === "" || !puedeContar}
+          />
+        </div>
+      )}
+      <ol className="space-y-6">
       {datos.preguntas.map((pregunta, i) => {
         const marcadas = new Set(comoLista(valor[pregunta.id]));
         const item = correccion?.items.find((x) => x.id === pregunta.id);
@@ -54,7 +76,7 @@ export default function CaraOpcion({
             <p className="font-semibold text-tinta">
               {i + 1}. {pregunta.enunciado}
             </p>
-            {pregunta.audio && (
+            {pregunta.audio && !hayEncadenado && (
               <div className="mt-3">
                 <Reproductor
                   src={pregunta.audio}
@@ -123,7 +145,8 @@ export default function CaraOpcion({
           </li>
         );
       })}
-    </ol>
+      </ol>
+    </>
   );
 }
 

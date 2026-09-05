@@ -6,6 +6,7 @@ import { comoLista, type Respuestas } from "@/lib/ejercicios/tipos";
 import type { Progreso, PropsCara } from "./ejercicio";
 import { Veredicto } from "./opcion";
 import Reproductor from "./reproductor";
+import ReproductorEncadenado from "./reproductor-encadenado";
 
 export default function CaraRelacionar({
   publica,
@@ -16,9 +17,17 @@ export default function CaraRelacionar({
   pasoId,
   escuchasUsadas,
   puedeContar,
+  encadenado,
 }: PropsCara) {
   const datos = publica as RelacionarPublica;
   const [cogida, setCogida] = useState<string | null>(null);
+
+  // Los audios de la tarea, en orden y sin repetidos: ver el mismo
+  // comentario en `CaraOpcion`.
+  const audiosEncadenados = encadenado
+    ? [...new Set(datos.izquierdas.map((i) => i.audio).filter((a): a is string => Boolean(a)))]
+    : [];
+  const hayEncadenado = audiosEncadenados.length > 0;
 
   function unir(izquierdaId: string, clave: string) {
     if (cerrado) return;
@@ -43,6 +52,17 @@ export default function CaraRelacionar({
           {datos.texto}
         </p>
       )}
+      {hayEncadenado && (
+        <div className="mb-6">
+          <ReproductorEncadenado
+            srcs={audiosEncadenados}
+            pasoId={pasoId}
+            maximo={datos.escuchas}
+            usadas={escuchasUsadas["encadenado"] ?? 0}
+            cerrado={cerrado || pasoId === "" || !puedeContar}
+          />
+        </div>
+      )}
       <div className="grid gap-6 sm:grid-cols-2">
         <ul className="space-y-2">
           {datos.izquierdas.map((izq) => {
@@ -63,7 +83,7 @@ export default function CaraRelacionar({
                   }`}
                 >
                   <span className="text-sm font-semibold text-tinta">{izq.texto}</span>
-                  {izq.audio && (
+                  {izq.audio && !hayEncadenado && (
                     // El div de la fila escucha `onClick` para emparejar la pieza
                     // cogida. Sin cortar aquí, un toque en los controles nativos
                     // del audio —reescuchar antes de decidir, el gesto normal en
