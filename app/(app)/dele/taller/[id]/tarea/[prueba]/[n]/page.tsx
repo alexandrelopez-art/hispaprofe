@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { tareaDe as tareaDelMapa } from "@/lib/dele";
 import { tareaPorNumero } from "@/lib/taller/consultas";
 import { motivosParaNoRevisar } from "@/lib/taller/revision";
+import { trozosQueEspera } from "@/lib/taller/audio";
 import { NOMBRE_ESTADO_TAREA, TONO_ESTADO_TAREA } from "@/lib/taller/estados";
 import { hayClaveDeIA } from "@/lib/taller/rellenar";
 import RevisionTarea from "@/components/taller/revision-tarea";
@@ -33,10 +34,18 @@ export default async function TareaPage({ params }: { params: Promise<{ id: stri
   const dudas = (tarea.dudas as Duda[] | null) ?? [];
   const pedidas = ((tarea.imagenesPedidas as { pregunta: string; opcion: number | null; para: string; archivoId: string | null }[] | null) ?? []);
   const motivos = motivosParaNoRevisar(tarea);
-  // I-4 de la revisión final: el taller ya no enlaza a `/pasos/[pasoId]`
-  // desde ningún otro sitio (la tarjeta «Abrir» de la mesa de trabajo
-  // manda aquí), y es donde se sube la grabación de una auditiva.
-  const faltaGrabacion = tarea.prueba === "CO" && !tarea.paso.bloques.some((b) => b.tipo === "AUDIO");
+  // Sesión C, Task 4: la grabación se sube y se corta desde aquí mismo (ya
+  // no hace falta enlazar a `/pasos/[pasoId]`). Null en lectura (CE); en
+  // auditiva (CO), la dirección del archivo (si ya hay uno), los cortes
+  // guardados y cuántos trozos espera el mapa (`trozosQueEspera`, null si la
+  // tarea se oye entera y no se corta).
+  const grabacion = tarea.prueba === "CO"
+    ? {
+        url: tarea.grabacionArchivoId ? `/api/archivos/${tarea.grabacionArchivoId}` : null,
+        cortes: (tarea.cortes as number[] | null) ?? [],
+        trozosEsperados: trozosQueEspera(delMapa),
+      }
+    : null;
   const vecina = (k: number) => (k >= 1 && k <= 4 ? `/dele/taller/${id}/tarea/${prueba}/${k}` : null);
 
   return (
@@ -76,8 +85,12 @@ export default async function TareaPage({ params }: { params: Promise<{ id: stri
           // acciones que sí tienen que remontar: `rellenadaEl` con
           // «Volver a rellenar con IA», `claveOficial === null` con «La
           // clave del cuadernillo está mal», y el número de `pedidas` con
-          // «No hace falta».
-          key={`${tarea.rellenadaEl?.toISOString() ?? "-"}|${tarea.claveOficial === null}|${pedidas.length}`}
+          // «No hace falta». Sesión C, Task 4: también con
+          // `grabacionArchivoId` y con cuántos cortes hay guardados —subir o
+          // cortar la grabación reescribe `Ejercicio.datos`, igual que
+          // «Volver a rellenar con IA»— para que el editor vuelva a montarse
+          // con los `audio` nuevos.
+          key={`${tarea.rellenadaEl?.toISOString() ?? "-"}|${tarea.claveOficial === null}|${pedidas.length}|${tarea.grabacionArchivoId ?? "-"}|${grabacion?.cortes.length ?? 0}`}
           tareaId={tarea.id}
           motor={delMapa.motor === "relacionar" ? "relacionar" : "opcion"}
           datosIniciales={tarea.ejercicio.datos}
@@ -88,8 +101,7 @@ export default async function TareaPage({ params }: { params: Promise<{ id: stri
           hayClave={hayClaveDeIA()}
           tieneClave={tarea.claveOficial !== null}
           pedidas={pedidas}
-          faltaGrabacion={faltaGrabacion}
-          pasoId={tarea.pasoId}
+          grabacion={grabacion}
           anterior={vecina(numero - 1)}
           siguiente={vecina(numero + 1)}
         />

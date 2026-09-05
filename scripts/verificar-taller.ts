@@ -25,7 +25,8 @@
  * de verdad (reparte un trozo por pregunta con dos escuchas, avisa si el
  * número de cortes no cuadra con el mapa, y se niega en la tarea que se oye
  * entera). Si esta máquina no tiene ningún ffmpeg, esa sección se salta con
- * un aviso en vez de fallar.
+ * un aviso en vez de fallar. Sesión C, Task 4: `picosDe` y `silenciosDe`
+ * (puras, con un canal sintético, sin base de datos).
  * Crea sus propios datos y los borra al terminar.
  * Ejecutar con:  npx tsx scripts/verificar-taller.ts
  */
@@ -46,6 +47,7 @@ import { asignarImagenPedida } from "@/lib/taller/imagenes";
 import { revisarDatos } from "@/lib/recursos";
 import { generarWav, hayCompresor } from "@/lib/audio";
 import { cortarGrabacion, guardarGrabacion, trozosQueEspera } from "@/lib/taller/audio";
+import { picosDe, silenciosDe } from "@/components/taller/onda";
 import fixtureBueno from "./fixtures/taller-respuesta-ia.json";
 import fixtureMalo from "./fixtures/taller-respuesta-ia-mal.json";
 
@@ -184,6 +186,46 @@ async function main() {
       quitarOpcion(conDosOpciones, 0, 0).preguntas[0].opciones?.length === 2,
       "quitarOpcion no hace nada si eso dejaría menos de dos opciones",
     );
+  }
+
+  // ─── Sesión C, Task 4: picosDe y silenciosDe (puras, sin base de datos) ─
+  {
+    const frecuencia = 1000;
+    const duracion = 10;
+
+    // Ruido de amplitud 1 salvo silencio total entre 4,0 y 6,0 s: el sonido
+    // vuelve en 6 s, ya fuera de los 3 s que se saltan.
+    const canalConSilencioLargo = new Float32Array(frecuencia * duracion);
+    for (let i = 0; i < canalConSilencioLargo.length; i++) {
+      const t = i / frecuencia;
+      canalConSilencioLargo[i] = t >= 4.0 && t < 6.0 ? 0 : Math.random() * 2 - 1;
+    }
+    const silenciosLargo = silenciosDe(canalConSilencioLargo, frecuencia);
+    afirmar(
+      silenciosLargo.length === 1 && Math.abs(silenciosLargo[0] - 6) <= 0.1,
+      "silenciosDe: silencio de 4,0 a 6,0 s → un marcador en 6 s (±0,1)",
+    );
+
+    // El mismo canal, pero con el silencio entre 1,0 y 2,7 s: cae dentro de
+    // los 3 s saltados (las instrucciones) y no propone nada.
+    const canalConSilencioCorto = new Float32Array(frecuencia * duracion);
+    for (let i = 0; i < canalConSilencioCorto.length; i++) {
+      const t = i / frecuencia;
+      canalConSilencioCorto[i] = t >= 1.0 && t < 2.7 ? 0 : Math.random() * 2 - 1;
+    }
+    afirmar(
+      silenciosDe(canalConSilencioCorto, frecuencia).length === 0,
+      "silenciosDe: un silencio dentro de los 3 s saltados no propone nada",
+    );
+
+    // Un canal de ceros con un 1 en el centro: un cubo por muestra, así que
+    // el cubo del 1 queda exactamente en 1 y todos los demás en 0.
+    const cubos = 1200;
+    const canalCentro = new Float32Array(cubos);
+    canalCentro[600] = 1;
+    const picos = picosDe(canalCentro, cubos);
+    afirmar(picos[600] === 1, "picosDe: el cubo del 1 central queda en 1");
+    afirmar(picos.every((p, i) => i === 600 || p === 0), "picosDe: el resto de cubos queda en 0");
   }
 
   const profe = await prisma.user.create({

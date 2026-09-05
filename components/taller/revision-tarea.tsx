@@ -7,6 +7,7 @@ import Previsualizacion from "@/components/recursos/previsualizacion";
 import TextoRico from "@/components/texto-rico";
 import EditorTareaOpcion from "./editor-tarea-opcion";
 import EditorTareaRelacionar from "./editor-tarea-relacionar";
+import Grabacion from "./grabacion";
 import ImagenesPedidas, { type ImagenPedida } from "./imagenes-pedidas";
 import { dudaDe, type Duda } from "./dudas";
 import Aviso from "@/components/ui/aviso";
@@ -15,12 +16,15 @@ import Campo from "@/components/ui/campo";
 import Rotulo from "@/components/ui/rotulo";
 import Tarjeta from "@/components/ui/tarjeta";
 
+export type GrabacionDeLaTarea = { url: string | null; cortes: number[]; trozosEsperados: number | null };
+
 export default function RevisionTarea({
-  tareaId, motor, datosIniciales, bloqueInicial, dudas, estado, motivos, hayClave, tieneClave, pedidas, faltaGrabacion, pasoId, anterior, siguiente,
+  tareaId, motor, datosIniciales, bloqueInicial, dudas, estado, motivos, hayClave, tieneClave, pedidas, grabacion, anterior, siguiente,
 }: {
   tareaId: string; motor: "opcion" | "relacionar"; datosIniciales: unknown; bloqueInicial: string | null; dudas: Duda[];
   estado: "VACIA" | "RELLENADA" | "REVISADA"; motivos: string[]; hayClave: boolean; tieneClave: boolean; pedidas: ImagenPedida[];
-  faltaGrabacion: boolean; pasoId: string; anterior: string | null; siguiente: string | null;
+  /** Null en lectura (CE): en auditiva (CO) trae la grabación, sus cortes guardados y cuántos trozos espera el mapa. */
+  grabacion: GrabacionDeLaTarea | null; anterior: string | null; siguiente: string | null;
 }) {
   const router = useRouter();
   const [datos, setDatos] = useState<unknown>(datosIniciales);
@@ -84,6 +88,15 @@ export default function RevisionTarea({
           <ImagenesPedidas tareaId={tareaId} pedidas={pedidas} bloqueado={sucio || pendiente} />
         </Tarjeta>
       )}
+      {grabacion && (
+        <Grabacion
+          tareaId={tareaId}
+          grabacionUrl={grabacion.url}
+          cortesGuardados={grabacion.cortes}
+          trozosEsperados={grabacion.trozosEsperados}
+          bloqueado={sucio || pendiente}
+        />
+      )}
       <div className="flex flex-wrap items-center gap-2">
         <Rotulo>La tarea, como la verá el estudiante</Rotulo>
         <Boton variante="sutil" tamano="pequeno" onClick={() => setComoEstudiante((v) => !v)}>{comoEstudiante ? "Volver a editar" : "Ver como estudiante"}</Boton>
@@ -116,11 +129,6 @@ export default function RevisionTarea({
         {estado !== "REVISADA" && motivos.length > 0 && !sucio && (
           <Aviso tono="aviso" className="mb-3">
             <ul className="list-disc pl-5">{motivos.map((m) => <li key={m}>{m}</li>)}</ul>
-            {faltaGrabacion && (
-              <Boton href={`/pasos/${pasoId}`} variante="secundario" tamano="pequeno" className="mt-2">
-                Subir la grabación
-              </Boton>
-            )}
           </Aviso>
         )}
         <div className="flex flex-wrap gap-2">
