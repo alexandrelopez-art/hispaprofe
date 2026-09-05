@@ -40,6 +40,11 @@ let pasoSinAudioId: string | null = null;
 let ejercicioSinAudioId: string | null = null;
 let pasoRelacionarEncadenadoId: string | null = null;
 let ejercicioRelacionarEncadenadoId: string | null = null;
+// Fix round 1: el mismo ejercicio encadenado, colgado de un paso de un
+// recorrido con orden 2 (no el bloque 3) — para probar que "encadenado"
+// solo tiene tope dentro del examen blanco.
+let recorridoOrden2Id: string | null = null;
+let pasoOrden2Id: string | null = null;
 const usuarioIds: string[] = [];
 
 async function main() {
@@ -193,9 +198,12 @@ async function main() {
   // Racionado a propósito: PREPARACION_DELE con destreza puesta, para poder
   // probar también el tope del bloque AUDIO (siempre 1) en el mismo paso
   // que ya usan las afirmaciones de `apuntarEscucha` de más abajo — la
-  // clave del bloque y las claves "a"/"b"/"c" no chocan.
+  // clave del bloque y las claves "a"/"b"/"c" no chocan. `orden: 3` (el
+  // bloque «Examen blanco» de `lib/preparacion.ts`) y no un valor
+  // cualquiera: hace falta desde el fix round 1, porque la clave
+  // "encadenado" solo tiene tope dentro de ese bloque.
   const recorrido = await prisma.recorrido.create({
-    data: { titulo: `Recorrido ${marca}`, nivel: "B1", orden: 1, tipo: "PREPARACION_DELE", destreza: "CO" },
+    data: { titulo: `Recorrido ${marca}`, nivel: "B1", orden: 3, tipo: "PREPARACION_DELE", destreza: "CO" },
   });
   recorridoId = recorrido.id;
 
@@ -412,6 +420,33 @@ async function main() {
     "con una pareja de relacionar con audio, la clave encadenado también da las escuchas del ejercicio",
   );
 
+  // Fix round 1 (finding #1 de la revisión): "encadenado" solo tiene tope
+  // dentro del examen blanco (bloque 3). El mismo ejercicio encadenado
+  // (con audio) enganchado a un paso de un recorrido con orden 2 no debe
+  // dar ningún tope por esa clave, aunque el ejercicio sea idéntico — y su
+  // propia pregunta ("e1") sigue teniendo el tope de siempre, sin que la
+  // acotación por bloque le afecte.
+  const recorridoOrden2 = await prisma.recorrido.create({
+    data: { titulo: `Recorrido orden 2 ${marca}`, nivel: "B1", orden: 2, tipo: "PREPARACION_DELE", destreza: "CO" },
+  });
+  recorridoOrden2Id = recorridoOrden2.id;
+  const pasoOrden2 = await prisma.paso.create({
+    data: { recorridoId: recorridoOrden2.id, titulo: "Paso orden 2", tipo: "ACTIVIDAD", ciclo: 1, orden: 1 },
+  });
+  pasoOrden2Id = pasoOrden2.id;
+  await prisma.pasoEjercicio.create({
+    data: { pasoId: pasoOrden2.id, ejercicioId: ejercicioEncadenado.id, orden: 1 },
+  });
+
+  afirmar(
+    (await maximoDeEscucha(pasoOrden2.id, "encadenado")) === null,
+    "fuera del bloque 3 (orden 2), la clave encadenado no tiene tope aunque el ejercicio tenga audio",
+  );
+  afirmar(
+    (await maximoDeEscucha(pasoOrden2.id, "e1")) === 2,
+    "la pregunta sigue teniendo su propio tope por id fuera del bloque 3: solo se acota \"encadenado\"",
+  );
+
   // Defensa en profundidad: un audio de una clase particular (no racionada)
   // no tiene tope contable aunque alguien intente pedirlo con el id de un
   // bloque real — la página nunca llega a montar el `Reproductor` ahí, pero
@@ -492,6 +527,17 @@ main()
     if (recorridoId) {
       const id = recorridoId;
       await intentar("recorrido", () => prisma.recorrido.delete({ where: { id } }));
+    }
+    // El paso y el recorrido de orden 2 (fix round 1): el paso primero,
+    // mismo motivo que arriba; el ejercicio que enganchan es el mismo
+    // `ejercicioEncadenadoId`, borrado más abajo una sola vez.
+    if (pasoOrden2Id) {
+      const id = pasoOrden2Id;
+      await intentar("paso orden 2", () => prisma.paso.delete({ where: { id } }));
+    }
+    if (recorridoOrden2Id) {
+      const id = recorridoOrden2Id;
+      await intentar("recorrido orden 2", () => prisma.recorrido.delete({ where: { id } }));
     }
     if (ejercicioId) {
       // Después del paso: PasoEjercicio cae en cascada al borrar el paso,

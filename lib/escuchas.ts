@@ -106,7 +106,7 @@ export function esRacionado(recorrido: { tipo: TipoRecorrido; destreza: Destreza
 export async function maximoDeEscucha(pasoId: string, clave: string): Promise<number | null> {
   const paso = await prisma.paso.findUnique({
     where: { id: pasoId },
-    select: { recorrido: { select: { tipo: true, destreza: true } } },
+    select: { recorrido: { select: { tipo: true, destreza: true, orden: true } } },
   });
   if (!paso) return null;
 
@@ -135,7 +135,19 @@ export async function maximoDeEscucha(pasoId: string, clave: string): Promise<nu
   // `ReproductorEncadenado` cuenta la tarea entera como una sola escucha, en
   // vez de una por pregunta. Se resuelve antes de la búsqueda por pregunta
   // porque esa búsqueda, con esta clave, nunca encontraría nada.
+  //
+  // Acotada al bloque 3 («Examen blanco», `lib/preparacion.ts`) y no a
+  // cualquier `opcion`/`relacionar` con audio: sin esto, `pedirEscucha`
+  // concedería la escucha "encadenado" en cualquier paso con ese tipo de
+  // ejercicio, DELE o no, bloque 3 o no — la garantía de que el conteo
+  // encadenado solo existe dentro del examen quedaba en manos de qué
+  // componente pintara el cliente, no del servidor. También cierra el hueco
+  // de un id de pregunta generado (por la IA de "Rellenar" o por "pegar por
+  // código") que coincidiera con el literal "encadenado": fuera del bloque
+  // 3 esa clave nunca es la de nadie.
   if (clave === "encadenado") {
+    const esExamenBlanco = paso.recorrido.tipo === "PREPARACION_DELE" && paso.recorrido.orden === 3;
+    if (!esExamenBlanco) return null;
     if (analizado.tipo === "opcion") {
       return analizado.datos.preguntas.some((p) => p.audio) ? analizado.datos.escuchas : null;
     }
