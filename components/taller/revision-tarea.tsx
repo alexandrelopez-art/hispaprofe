@@ -81,7 +81,7 @@ export default function RevisionTarea({
     <div>
       {pedidas.length > 0 && (
         <Tarjeta className="mb-6" titulo="Imágenes que pide esta tarea" relleno="compacto">
-          <ImagenesPedidas tareaId={tareaId} pedidas={pedidas} bloqueado={sucio} />
+          <ImagenesPedidas tareaId={tareaId} pedidas={pedidas} bloqueado={sucio || pendiente} />
         </Tarjeta>
       )}
       <div className="flex flex-wrap items-center gap-2">

@@ -765,7 +765,43 @@ async function main() {
   const guardadoConOpcionDeImagen = await guardarTarea(tareaCE3.id, conOpcionDeImagen, "Texto con una opción pedida como imagen.");
   afirmar(guardadoConOpcionDeImagen.ok === true, "guardarTarea acepta una opción marcada «(imagen)»");
 
+  // Revisión, A-1: asignarImagenPedida pasa por la misma guarda que
+  // guardarTarea/guardarRelleno — mismo montaje mínimo que el bloque C-1
+  // de más arriba (un estudiante, una Asignacion sobre la lectura del
+  // examen y un PasoCompletado sobre el paso de CE 3), reutilizando las
+  // mismas variables de limpieza (`estudianteId`, `asignacionId`,
+  // `pasoCompletadoId`), que a esta altura del script vuelven a estar a
+  // null.
+  const estudianteImg = await prisma.user.create({
+    data: { email: `${marca}-estudiante-img@prueba.local`, firstName: "Est", lastName: "img", role: "STUDENT" },
+    select: { id: true },
+  });
+  estudianteId = estudianteImg.id;
+  const asignacionImg = await prisma.asignacion.create({
+    data: { estudianteId: estudianteImg.id, profesorId: profe.id, recorridoId: examen!.lecturaId },
+  });
+  asignacionId = asignacionImg.id;
+  const completadoImg = await prisma.pasoCompletado.create({
+    data: { asignacionId: asignacionImg.id, pasoId: tareaCE3.pasoId, respuestas: { p1: "0" } },
+  });
+  pasoCompletadoId = completadoImg.id;
+
+  const negadaPorTrabajo = await asignarImagenPedida(tareaCE3.id, 0, urlImagen);
+  afirmar(negadaPorTrabajo.ok === false, "asignarImagenPedida se niega si ya hay trabajo del estudiante guardado");
+  afirmar(
+    negadaPorTrabajo.ok === false && negadaPorTrabajo.error.includes("Alguien ya lo respondió"),
+    "y da el motivo de puedeEditarse, no uno genérico",
+  );
+
+  await prisma.pasoCompletado.delete({ where: { id: completadoImg.id } });
+  pasoCompletadoId = null;
+  await prisma.asignacion.delete({ where: { id: asignacionImg.id } });
+  asignacionId = null;
+  await prisma.user.delete({ where: { id: estudianteImg.id } });
+  estudianteId = null;
+
   const asignada = await asignarImagenPedida(tareaCE3.id, 0, urlImagen);
+  afirmar(asignada.ok === true, "y en cuanto se borra ese PasoCompletado, asignarImagenPedida vuelve a decir ok");
   afirmar(asignada.ok === true, "asignarImagenPedida coloca la imagen en su sitio: ok");
   const tareaConImagen = await tareaDe(tareaCE3.id);
   const datosConImagen = tareaConImagen!.ejercicio.datos as { preguntas: { opciones: string[]; imagenes?: (string | null)[] }[] };
@@ -804,6 +840,40 @@ async function main() {
   archivoIds.push(archivoPrivadoParaImagen.id);
   const negadaPrivado = await asignarImagenPedida(tareaCE3.id, 0, `/api/archivos/${archivoPrivadoParaImagen.id}`);
   afirmar(negadaPrivado.ok === false, "asignarImagenPedida rechaza un archivo privado");
+
+  // Revisión, A-2/B-2: con lista común (`opcionesComunes`, sin `opciones`
+  // propias en la pregunta), la letra sustituye el texto en la lista
+  // compartida — es lo mismo para todas las preguntas que la usan, así que
+  // no hay nada que romper al escribirla ahí.
+  const conListaComun = {
+    ejercicio: "opcion" as const,
+    consigna: "Elige la persona correcta.",
+    multiple: false,
+    opcionesComunes: ["(imagen)", "B", "C"],
+    preguntas: [
+      { id: "p1", enunciado: "1.", correctas: [0] },
+      { id: "p2", enunciado: "2.", correctas: [1] },
+    ],
+  };
+  const guardadaListaComun = await guardarTarea(tareaCE3.id, conListaComun, "Texto con lista común.");
+  afirmar(guardadaListaComun.ok === true, "guardarTarea acepta una lista común con una opción marcada «(imagen)»");
+  await prisma.tareaDeExamen.update({
+    where: { id: tareaCE3.id },
+    data: { imagenesPedidas: [{ pregunta: "p1", opcion: 0, para: "una persona", archivoId: null }] },
+  });
+  const archivoComun = await prisma.archivo.create({
+    data: { nombre: "persona.webp", tipo: "image/webp", tamano: 4, datos: Buffer.from([1, 2]), subidoPorId: profe.id },
+    select: { id: true },
+  });
+  archivoIds.push(archivoComun.id);
+  const urlComun = `/api/archivos/${archivoComun.id}`;
+  const asignadaComun = await asignarImagenPedida(tareaCE3.id, 0, urlComun);
+  afirmar(asignadaComun.ok === true, "asignarImagenPedida también dice ok con lista común");
+  const tareaTrasComun = await tareaDe(tareaCE3.id);
+  const datosTrasComun = tareaTrasComun!.ejercicio.datos as { opcionesComunes?: string[]; preguntas: { imagenes?: (string | null)[] }[] };
+  afirmar(datosTrasComun.opcionesComunes?.[0] === "A", "con lista común, la letra sustituye el texto en opcionesComunes[0]");
+  afirmar(datosTrasComun.opcionesComunes?.[1] === "B" && datosTrasComun.opcionesComunes?.[2] === "C", "las otras opciones comunes no cambian");
+  afirmar(datosTrasComun.preguntas[0].imagenes?.[0] === urlComun, "y la imagen se coloca en preguntas[0].imagenes[0] igual que con lista propia");
 
   console.log("\nTodo en orden.");
 }
