@@ -26,7 +26,9 @@
  * número de cortes no cuadra con el mapa, y se niega en la tarea que se oye
  * entera). Si esta máquina no tiene ningún ffmpeg, esa sección se salta con
  * un aviso en vez de fallar. Sesión C, Task 4: `picosDe` y `silenciosDe`
- * (puras, con un canal sintético, sin base de datos).
+ * (puras, con un canal sintético, sin base de datos), y tras la revisión de
+ * esa tarea, `cortarAudio` con dos cortes casi pegados (3 y 3,05 s): tres
+ * trozos, ninguno por debajo de 0,5 s.
  * Crea sus propios datos y los borra al terminar.
  * Ejecutar con:  npx tsx scripts/verificar-taller.ts
  */
@@ -45,7 +47,7 @@ import { contrastarClave, guardarRelleno } from "@/lib/taller/guardar-relleno";
 import { quitarOpcion, quitarPregunta, siguienteId, type DatosOpcion } from "@/components/taller/editor-tarea-opcion";
 import { asignarImagenPedida } from "@/lib/taller/imagenes";
 import { revisarDatos } from "@/lib/recursos";
-import { generarWav, hayCompresor } from "@/lib/audio";
+import { cortarAudio, duracionDe, generarWav, hayCompresor } from "@/lib/audio";
 import { cortarGrabacion, guardarGrabacion, trozosQueEspera } from "@/lib/taller/audio";
 import { picosDe, silenciosDe } from "@/components/taller/onda";
 import fixtureBueno from "./fixtures/taller-respuesta-ia.json";
@@ -226,6 +228,19 @@ async function main() {
     const picos = picosDe(canalCentro, cubos);
     afirmar(picos[600] === 1, "picosDe: el cubo del 1 central queda en 1");
     afirmar(picos.every((p, i) => i === 600 || p === 0), "picosDe: el resto de cubos queda en 0");
+
+    // Tras la revisión: un corte a 0,05 s de otro (3 y 3,05) no puede dejar
+    // un trozo casi vacío — cortarAudio lo descarta antes de cortar, así
+    // que el 3,05 colapsa contra el 3 y quedan tres trozos, no cuatro.
+    if (!(await hayCompresor())) {
+      console.log("AVISO: esta máquina no tiene ningún compresor de audio — se salta la comprobación de cortes casi pegados.");
+    } else {
+      const wavDeNueveSegundosPuro = generarWav(9);
+      const { trozos: trozosSinBlanco } = await cortarAudio(wavDeNueveSegundosPuro, "audio/wav", [3, 3.05, 6]);
+      afirmar(trozosSinBlanco.length === 3, "cortarAudio con cortes en 3, 3,05 y 6: el 3,05 colapsa contra el 3 y quedan tres trozos");
+      const duracionesDeLosTrozos = await Promise.all(trozosSinBlanco.map((t) => duracionDe(t, "audio/mp4")));
+      afirmar(duracionesDeLosTrozos.every((d) => d >= 0.5), "cortarAudio: ninguno de los tres trozos queda por debajo de 0,5 s");
+    }
   }
 
   const profe = await prisma.user.create({

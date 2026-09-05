@@ -56,6 +56,32 @@ const CUBOS = 1200;
 const ALTO_CANVAS = 120;
 /** Distancia, en píxeles, para considerar que un clic empieza a arrastrar un marcador en vez de crear uno nuevo. */
 const RADIO_ARRASTRE = 6;
+/** Separación mínima, en segundos, entre dos marcadores y entre un marcador y 0/duración: por debajo de esto, cortarAudio dejaría un trozo casi vacío. */
+const SEPARACION_MINIMA = 0.3;
+
+/**
+ * Aleja `t` de 0, de `duracion` y de cualquier marcador de `otros` hasta que
+ * quede a `SEPARACION_MINIMA` s de todos ellos, en vez de rechazar el gesto
+ * que lo propuso (un clic, un arrastre, una propuesta por silencios): así
+ * nunca quedan dos marcadores en el mismo instante ni uno pegado a un borde.
+ */
+function clampearMarcador(t: number, otros: number[], duracion: number): number {
+  let minimo = SEPARACION_MINIMA;
+  let maximo = Math.max(SEPARACION_MINIMA, duracion - SEPARACION_MINIMA);
+  for (const o of [...otros].sort((a, b) => a - b)) {
+    if (o <= t) minimo = Math.max(minimo, o + SEPARACION_MINIMA);
+    else { maximo = Math.min(maximo, o - SEPARACION_MINIMA); break; }
+  }
+  if (minimo > maximo) return (minimo + maximo) / 2; // hueco más estrecho que 2×SEPARACION_MINIMA: se reparte por igual
+  return Math.min(Math.max(t, minimo), maximo);
+}
+
+/** `clampearMarcador`, aplicado en cadena a una lista entera (la propuesta inicial o la de «Proponer cortes por los silencios»). */
+function clampearLista(lista: number[], duracion: number): number[] {
+  const normalizados: number[] = [];
+  for (const t of [...lista].sort((a, b) => a - b)) normalizados.push(clampearMarcador(t, normalizados, duracion));
+  return normalizados;
+}
 
 function formatoTiempo(segundos: number): string {
   const m = Math.floor(segundos / 60);
@@ -100,6 +126,10 @@ export default function Onda({
   const contenedorRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
+  // El `setTimeout` de «Escuchar 5 s»: si se audiciona un marcador y, antes
+  // de que pasen los 5 s, se audiciona otro, hay que cancelar el primero o
+  // corta la reproducción del segundo antes de tiempo.
+  const escuchaTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const duracion = canal && frecuencia ? canal.length / frecuencia : 0;
   const titulo = bloqueado ? "Guarda o descarta tus cambios antes" : undefined;
@@ -112,26 +142,36 @@ export default function Onda({
   useEffect(() => {
     let cancelado = false;
     async function cargar() {
+      // El contexto se declara fuera del `try` y se cierra en el `finally`
+      // de más abajo para que se cierre en TODOS los caminos: éxito, un
+      // `decodeAudioData` que rechaza (el propio caso que motiva el
+      // `catch`), y también si el componente se desmonta mientras el
+      // `await` todavía está en vuelo (el `finally` corre igual tras el
+      // `return` de la línea de `cancelado`). Sin esto, un formato que no
+      // decodifica deja el contexto abierto para siempre.
+      let contexto: AudioContext | undefined;
       try {
         type VentanaConWebkit = Window & { webkitAudioContext?: typeof AudioContext };
         const Contexto = window.AudioContext ?? (window as VentanaConWebkit).webkitAudioContext;
         if (!Contexto) throw new Error("Este navegador no tiene AudioContext.");
         const respuesta = await fetch(src);
         const datos = await respuesta.arrayBuffer();
-        const contexto = new Contexto();
+        contexto = new Contexto();
         const decodificado = await contexto.decodeAudioData(datos);
-        void contexto.close().catch(() => {});
         if (cancelado) return;
         const canalDecodificado = decodificado.getChannelData(0);
         setCanal(canalDecodificado);
         setFrecuencia(decodificado.sampleRate);
         setPicos(picosDe(canalDecodificado, CUBOS));
         if (cortesIniciales.length === 0) {
-          setMarcadores(silenciosDe(canalDecodificado, decodificado.sampleRate));
+          const duracionDecodificada = canalDecodificado.length / decodificado.sampleRate;
+          setMarcadores(clampearLista(silenciosDe(canalDecodificado, decodificado.sampleRate), duracionDecodificada));
         }
         setEstado("ok");
       } catch {
         if (!cancelado) setEstado("error");
+      } finally {
+        await contexto?.close().catch(() => {});
       }
     }
     cargar();
@@ -201,7 +241,7 @@ export default function Onda({
     if (cerca >= 0) {
       setArrastrando(cerca);
     } else {
-      const t = tiempoDeX(x);
+      const t = clampearMarcador(tiempoDeX(x), marcadores, duracion);
       setMarcadores((m) => [...m, t].sort((a, b) => a - b));
     }
   }
@@ -209,7 +249,8 @@ export default function Onda({
   function alMoverCanvas(e: React.MouseEvent<HTMLCanvasElement>) {
     if (arrastrando === null || !canvasRef.current) return;
     const rect = canvasRef.current.getBoundingClientRect();
-    const t = tiempoDeX(e.clientX - rect.left);
+    const otros = marcadores.filter((_, i) => i !== arrastrando);
+    const t = clampearMarcador(tiempoDeX(e.clientX - rect.left), otros, duracion);
     setMarcadores((m) => m.map((v, i) => (i === arrastrando ? t : v)));
   }
 
@@ -222,10 +263,22 @@ export default function Onda({
   function escuchar(t: number) {
     const audio = audioRef.current;
     if (!audio) return;
+    if (escuchaTimeoutRef.current !== null) clearTimeout(escuchaTimeoutRef.current);
     audio.currentTime = t;
     void audio.play().catch(() => {});
-    setTimeout(() => audio.pause(), 5000);
+    escuchaTimeoutRef.current = setTimeout(() => {
+      audio.pause();
+      escuchaTimeoutRef.current = null;
+    }, 5000);
   }
+
+  // Al desmontar, cancela cualquier audición en curso: si no, el
+  // `setTimeout` intentaría pausar un `<audio>` que ya no existe.
+  useEffect(() => {
+    return () => {
+      if (escuchaTimeoutRef.current !== null) clearTimeout(escuchaTimeoutRef.current);
+    };
+  }, []);
 
   function quitar(i: number) {
     setMarcadores((m) => m.filter((_, idx) => idx !== i));
@@ -233,7 +286,7 @@ export default function Onda({
 
   function proponerPorSilencios() {
     if (!canal || !frecuencia) return;
-    setMarcadores(silenciosDe(canal, frecuencia));
+    setMarcadores(clampearLista(silenciosDe(canal, frecuencia), duracion));
   }
 
   function confirmarYCortar(cortes: number[]) {

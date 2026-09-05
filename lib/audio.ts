@@ -382,7 +382,19 @@ export async function cortarAudio(datos: Buffer, tipo: string, cortes: number[])
   const [ff] = await ffmpegs();
   if (!ff) throw new CompresorAusenteError("No hay ffmpeg para cortar el audio.");
   const duracion = await duracionDe(datos, tipo);
-  const puntos = [0, ...cortes.filter((c) => c > 0 && c < duracion).sort((a, b) => a - b), duracion];
+  // Descarta, antes de cortar, cualquier corte que dejaría un trozo de
+  // menos de 0,1 s (demasiado cerca del corte anterior o del final): un
+  // trozo así sale en blanco de ffmpeg sin que este falle, así que ni una
+  // lista escrita a mano en el fallback manual de la onda puede colarlo.
+  const candidatos = cortes.filter((c) => c > 0 && c < duracion).sort((a, b) => a - b);
+  const cortesFiltrados: number[] = [];
+  let anterior = 0;
+  for (const c of candidatos) {
+    if (c - anterior < 0.1 || duracion - c < 0.1) continue;
+    cortesFiltrados.push(c);
+    anterior = c;
+  }
+  const puntos = [0, ...cortesFiltrados, duracion];
   const carpeta = await mkdtemp(join(tmpdir(), "cortes-"));
   const entrada = join(carpeta, `in.${extensionDe(tipo)}`);
   try {
