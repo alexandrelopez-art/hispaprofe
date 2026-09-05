@@ -21,14 +21,22 @@
  * `correctas` sin dejar menos de dos). Sesión C, Task 3: `trozosQueEspera`
  * contra el mapa (diálogos, mensajes, la conversación que no se corta,
  * noticias), `guardarGrabacion` (deja `grabacionArchivoId` y el bloque AUDIO
- * de la grabación completa) y `cortarGrabacion` con el ffmpeg empaquetado
- * de verdad (reparte un trozo por pregunta con dos escuchas, avisa si el
- * número de cortes no cuadra con el mapa, y se niega en la tarea que se oye
- * entera). Si esta máquina no tiene ningún ffmpeg, esa sección se salta con
- * un aviso en vez de fallar. Sesión C, Task 4: `picosDe` y `silenciosDe`
- * (puras, con un canal sintético, sin base de datos), y tras la revisión de
- * esa tarea, `cortarAudio` con dos cortes casi pegados (3 y 3,05 s): tres
- * trozos, ninguno por debajo de 0,5 s.
+ * de la grabación completa, y se niega igual que `cortarGrabacion` —C-1 de
+ * la revisión final de rama— si ya hay trabajo de un estudiante guardado) y
+ * `cortarGrabacion` con el ffmpeg empaquetado de verdad (reparte un trozo
+ * por pregunta con dos escuchas, avisa si el número de cortes no cuadra con
+ * el mapa, y se niega en la tarea que se oye entera). Si esta máquina no
+ * tiene ningún ffmpeg, esa sección se salta con un aviso en vez de fallar.
+ * Sesión C, Task 4: `picosDe` y `silenciosDe` (puras, con un canal
+ * sintético, sin base de datos), y tras la revisión de esa tarea,
+ * `cortarAudio` con dos cortes casi pegados (3 y 3,05 s): tres trozos,
+ * ninguno por debajo de 0,5 s.
+ * Tras la revisión final de rama: publicar cambia el bloque del examen
+ * justo antes de publicar para que la afirmación de `orden` no sea vacua
+ * (I-4), `asignarImagenPedida` se ejercita con tres `imagenesPedidas` y la
+ * real en el índice 2, no en el 0 (I-6), y los `Archivo` de cada corte se
+ * apuntan para la limpieza en cuanto se crean — nunca por un patrón de
+ * `nombre` sin más cota, que podría barrer audio real de otro examen (C-2).
  * Crea sus propios datos y los borra al terminar.
  * Ejecutar con:  npx tsx scripts/verificar-taller.ts
  */
@@ -702,12 +710,25 @@ async function main() {
   await prisma.tareaDeExamen.updateMany({ where: { examenId: examenId!, prueba: "CO" }, data: { grabacionArchivoId: "falso" } });
   afirmar((await publicarExamen(examenId!)).ok === false, "con siete revisadas se niega");
   await prisma.tareaDeExamen.update({ where: { id: ids[7] }, data: { estado: "REVISADA", imagenesPedidas: [] } });
+  // I-4 de la revisión final: antes de este cambio, las dos secuencias ya
+  // nacían con `orden` igual al bloque original (2, ver la afirmación de
+  // más arriba «las dos secuencias llevan el bloque pedido (2) como
+  // orden»), así que `recs.every((r) => r.orden === ex.bloque)` salía
+  // cierto ANTES de publicar — la afirmación no distinguía si
+  // `publicarExamen` de verdad escribía `orden`. Cambiando `Examen.bloque`
+  // a un valor distinto (3) justo antes de publicar, solo sale en verde si
+  // `publicarExamen` reescribe `orden` con el bloque nuevo.
+  await prisma.examen.update({ where: { id: examenId! }, data: { bloque: 3 } });
   const publicado = await publicarExamen(examenId!);
   afirmar(publicado.ok === true, "con ocho revisadas publica");
   ex = (await examenDe(examenId!))!;
   afirmar(ex.estado === "PUBLICADO", "el examen queda PUBLICADO");
+  afirmar(ex.bloque === 3, "el examen sigue en el bloque cambiado a mano (3)");
   const recs = await prisma.recorrido.findMany({ where: { id: { in: [ex.lecturaId, ex.auditivaId] } } });
-  afirmar(recs.every((r) => r.publicado && r.orden === ex.bloque), "las dos secuencias quedan publicadas en el bloque del examen");
+  afirmar(
+    recs.every((r) => r.publicado && r.orden === 3),
+    "las dos secuencias pasan del orden 2 (el bloque original) al 3 (el bloque nuevo) al publicar",
+  );
   const ejs = await prisma.pasoEjercicio.findMany({ where: { pasoId: { in: ex.tareas.map((t) => t.pasoId) } }, include: { ejercicio: true } });
   afirmar(ejs.every((e) => e.ejercicio.publicado), "los ocho ejercicios quedan publicados");
 
@@ -819,17 +840,30 @@ async function main() {
   archivoIds.push(archivoImagen.id);
   const urlImagen = `/api/archivos/${archivoImagen.id}`;
 
-  // p1 de `bueno.ejercicio` tiene tres opciones («Uno.», «Tres.», «Seis.»);
-  // se marca la opción 1 como pedida a la IA, tal como la dejaría
+  // p1, p2 y p3 de `bueno.ejercicio` tienen tres opciones cada una; se
+  // marca una opción de cada una como pedida a la IA, tal como la dejaría
   // `textoDelEncargo` («(imagen)» en el texto de la opción).
+  //
+  // I-6 de la revisión final: la lista `imagenesPedidas` lleva tres
+  // entradas y la que de verdad se asigna va en el índice 2, no en el 0 —
+  // con una sola entrada, una mutación que cambiara `lista[indice]` por
+  // `lista[0]` en `asignarImagenPedida` pasaría igual de verde.
   const conOpcionDeImagen = structuredClone(bueno.ejercicio) as { preguntas: { id: string; opciones: string[] }[] };
-  conOpcionDeImagen.preguntas[0].opciones[1] = "(imagen)";
+  conOpcionDeImagen.preguntas[0].opciones[1] = "(imagen)"; // p1, la real (índice 2 de la lista)
+  conOpcionDeImagen.preguntas[1].opciones[0] = "(imagen)"; // p2, decoy del índice 0
+  conOpcionDeImagen.preguntas[2].opciones[2] = "(imagen)"; // p3, decoy del índice 1
   await prisma.tareaDeExamen.update({
     where: { id: tareaCE3.id },
-    data: { imagenesPedidas: [{ pregunta: "p1", opcion: 1, para: "un dibujo", archivoId: null }] },
+    data: {
+      imagenesPedidas: [
+        { pregunta: "p2", opcion: 0, para: "decoy del índice 0", archivoId: null },
+        { pregunta: "p3", opcion: 2, para: "decoy del índice 1", archivoId: null },
+        { pregunta: "p1", opcion: 1, para: "un dibujo", archivoId: null },
+      ],
+    },
   });
   const guardadoConOpcionDeImagen = await guardarTarea(tareaCE3.id, conOpcionDeImagen, "Texto con una opción pedida como imagen.");
-  afirmar(guardadoConOpcionDeImagen.ok === true, "guardarTarea acepta una opción marcada «(imagen)»");
+  afirmar(guardadoConOpcionDeImagen.ok === true, "guardarTarea acepta varias opciones marcadas «(imagen)»");
 
   // Revisión, A-1: asignarImagenPedida pasa por la misma guarda que
   // guardarTarea/guardarRelleno — mismo montaje mínimo que el bloque C-1
@@ -852,7 +886,7 @@ async function main() {
   });
   pasoCompletadoId = completadoImg.id;
 
-  const negadaPorTrabajo = await asignarImagenPedida(tareaCE3.id, 0, urlImagen);
+  const negadaPorTrabajo = await asignarImagenPedida(tareaCE3.id, 2, urlImagen);
   afirmar(negadaPorTrabajo.ok === false, "asignarImagenPedida se niega si ya hay trabajo del estudiante guardado");
   afirmar(
     negadaPorTrabajo.ok === false && negadaPorTrabajo.error.includes("Alguien ya lo respondió"),
@@ -866,15 +900,23 @@ async function main() {
   await prisma.user.delete({ where: { id: estudianteImg.id } });
   estudianteId = null;
 
-  const asignada = await asignarImagenPedida(tareaCE3.id, 0, urlImagen);
+  const asignada = await asignarImagenPedida(tareaCE3.id, 2, urlImagen);
   afirmar(asignada.ok === true, "y en cuanto se borra ese PasoCompletado, asignarImagenPedida vuelve a decir ok");
   afirmar(asignada.ok === true, "asignarImagenPedida coloca la imagen en su sitio: ok");
   const tareaConImagen = await tareaDe(tareaCE3.id);
   const datosConImagen = tareaConImagen!.ejercicio.datos as { preguntas: { opciones: string[]; imagenes?: (string | null)[] }[] };
-  afirmar(datosConImagen.preguntas[0].imagenes?.[1] === urlImagen, "asignarImagenPedida guarda la url en preguntas[0].imagenes[1]");
+  afirmar(datosConImagen.preguntas[0].imagenes?.[1] === urlImagen, "asignarImagenPedida guarda la url en preguntas[0].imagenes[1] (la pedida del índice 2)");
   afirmar(datosConImagen.preguntas[0].opciones[1] === "B", "asignarImagenPedida cambia el texto «(imagen)» por la letra de la opción (B)");
-  const pedidaTrasAsignar = (tareaConImagen!.imagenesPedidas as { archivoId: string | null }[])[0];
-  afirmar(pedidaTrasAsignar.archivoId === archivoImagen.id, "la pedida queda con el archivoId puesto");
+  // I-6: si la función leyera `lista[0]` en vez de `lista[indice]`, esto
+  // habría tocado el decoy de p2 en vez de p1 — las dos comprobaciones
+  // siguientes lo cazan por los dos lados: el decoy sigue intacto, y solo
+  // la pedida real (índice 2) queda con el archivoId puesto.
+  afirmar(!datosConImagen.preguntas[1].imagenes?.[0], "el decoy del índice 0 (p2) no recibe ninguna imagen");
+  afirmar(datosConImagen.preguntas[1].opciones[0] === "(imagen)", "y su opción marcada «(imagen)» sigue intacta, sin letra");
+  afirmar(!datosConImagen.preguntas[2].imagenes?.[2], "el decoy del índice 1 (p3) tampoco recibe ninguna imagen");
+  const pedidasTrasAsignar = tareaConImagen!.imagenesPedidas as { archivoId: string | null }[];
+  afirmar(pedidasTrasAsignar[2].archivoId === archivoImagen.id, "la pedida real (índice 2) queda con el archivoId puesto");
+  afirmar(pedidasTrasAsignar[0].archivoId === null && pedidasTrasAsignar[1].archivoId === null, "los dos decoys (índices 0 y 1) quedan sin archivoId");
   afirmar("tipo" in revisarDatos(tareaConImagen!.ejercicio.datos), "revisarDatos sigue validando el ejercicio tras colocar la imagen");
 
   // Una pedida con `opcion: null` es del ítem entero, no de una opción:
@@ -994,6 +1036,15 @@ async function main() {
     // cualquiera de los siete (una mutación que barajara `urls` seguiría
     // pasando "los siete son distintos" sin esto).
     const idsDelPrimerCorte = audiosDeLasPreguntas.map((u) => u!.replace(/^\/api\/archivos\//, ""));
+    // C-2 de la revisión final: se apuntan para la limpieza AQUÍ, justo
+    // tras crearse, y no al final del bloque de audio por un `nombre:
+    // { startsWith: "CO-tarea-" } }` sin más cota — ese filtro barrería
+    // también los trozos de verdad de un examen cortado por el profesor
+    // en esta misma base. Apuntando el id de cada corte en cuanto se
+    // conoce, la limpieza no depende de llegar viva hasta el final del
+    // bloque (si una afirmación revienta a mitad, estos ids ya están en
+    // la lista) y nunca toca un `Archivo` que esta corrida no creó.
+    archivoIds.push(...idsDelPrimerCorte);
     const archivosDelPrimerCorte = await prisma.archivo.findMany({ where: { id: { in: idsDelPrimerCorte } }, select: { id: true, nombre: true } });
     const nombrePorId = new Map(archivosDelPrimerCorte.map((a) => [a.id, a.nombre]));
     afirmar(
@@ -1027,9 +1078,65 @@ async function main() {
       .filter((a): a is string => typeof a === "string")
       .map((u) => u.replace(/^\/api\/archivos\//, ""));
     afirmar(idsDelSegundoCorte.length === 2, "antes de resubir, dos preguntas siguen con el audio del segundo corte");
+    // C-2 (ver el comentario de idsDelPrimerCorte, más arriba): estos dos
+    // también se apuntan en cuanto se conocen.
+    archivoIds.push(...idsDelSegundoCorte);
 
+    // ─── C-1 de la revisión final: guardarGrabacion respeta la misma
+    // guarda que cortarGrabacion ───────────────────────────────────────
+    // Resubir reescribe `Ejercicio.datos` (borra el `audio` de cada
+    // pregunta) y pisa `grabacionArchivoId`; si un estudiante ya
+    // respondió, entregó o le corrigieron este ejercicio, `puedeEditarse`
+    // tiene que negarlo igual que se lo niega a `cortarGrabacion`. Mismo
+    // montaje mínimo que el C-1 de más arriba (`lib/taller/revision.ts`),
+    // esta vez sobre el paso de CO1 (la auditiva) y con trozos de verdad
+    // ya wireados en las preguntas.
+    const estudianteAudio = await prisma.user.create({
+      data: { email: `${marca}-estudiante-audio@prueba.local`, firstName: "Est", lastName: "audio", role: "STUDENT" },
+      select: { id: true },
+    });
+    estudianteId = estudianteAudio.id;
+    const asignacionAudio = await prisma.asignacion.create({
+      data: { estudianteId: estudianteAudio.id, profesorId: profe.id, recorridoId: examen!.auditivaId },
+    });
+    asignacionId = asignacionAudio.id;
+    const completadoAudio = await prisma.pasoCompletado.create({
+      data: { asignacionId: asignacionAudio.id, pasoId: tareaCO1.pasoId, respuestas: { p1: "0" } },
+    });
+    pasoCompletadoId = completadoAudio.id;
+
+    const negadaGuardarGrabacion = await guardarGrabacion(tareaCO1.id, urlGrabacion);
+    afirmar(negadaGuardarGrabacion.ok === false, "guardarGrabacion se niega si ya hay trabajo del estudiante guardado (C-1)");
+    afirmar(
+      negadaGuardarGrabacion.ok === false && negadaGuardarGrabacion.error.includes("Alguien ya lo respondió"),
+      "y da el motivo de puedeEditarse, no uno genérico",
+    );
+    const tareaTrasNegarGrabacion = await tareaDe(tareaCO1.id);
+    afirmar(
+      tareaTrasNegarGrabacion!.grabacionArchivoId === tareaAntesDeResubir!.grabacionArchivoId,
+      "y no cambia grabacionArchivoId al negarse",
+    );
+    afirmar(
+      isDeepStrictEqual(
+        (tareaTrasNegarGrabacion!.ejercicio.datos as DatosOpcion).preguntas.map((p) => p.audio),
+        (tareaAntesDeResubir!.ejercicio.datos as DatosOpcion).preguntas.map((p) => p.audio),
+      ),
+      "ni los trozos ya wireados en las preguntas",
+    );
+
+    await prisma.pasoCompletado.delete({ where: { id: completadoAudio.id } });
+    pasoCompletadoId = null;
+    await prisma.asignacion.delete({ where: { id: asignacionAudio.id } });
+    asignacionId = null;
+    await prisma.user.delete({ where: { id: estudianteAudio.id } });
+    estudianteId = null;
+
+    // Resubir la grabación (aunque sea el mismo archivo) es «esto ya no es
+    // la grabación cortada»: los dos trozos del segundo corte dejan de ser
+    // trozos de nada y `guardarGrabacion` los tiene que quitar de en medio,
+    // no solo de la tarea.
     const resubida = await guardarGrabacion(tareaCO1.id, urlGrabacion);
-    afirmar(resubida.ok === true, "guardarGrabacion otra vez sobre CO1 (resubir): ok");
+    afirmar(resubida.ok === true, "y guardarGrabacion vuelve a funcionar en cuanto se borra ese PasoCompletado (resubir): ok");
     const tareaTrasResubir = await tareaDe(tareaCO1.id);
     afirmar(
       (tareaTrasResubir!.ejercicio.datos as DatosOpcion).preguntas.every((p) => p.audio === undefined),
@@ -1041,12 +1148,10 @@ async function main() {
       "los dos Archivo del segundo corte tampoco sobreviven a resubir la grabación",
     );
 
-    // Los trozos que sobreviven al final (ninguno, tras resubir) no los
-    // borra nadie más: por si acaso queda alguno de una afirmación que
-    // reviente a media prueba, se apuntan para la limpieza por su nombre,
-    // que siempre empieza por `CO-tarea-`.
-    const trozosVivos = await prisma.archivo.findMany({ where: { nombre: { startsWith: "CO-tarea-" } }, select: { id: true } });
-    archivoIds.push(...trozosVivos.map((a) => a.id));
+    // C-2: ya no hace falta un barrido final por nombre — los ids de los
+    // dos cortes se apuntaron en cuanto se crearon (ver los dos
+    // comentarios de más arriba), así que `archivoIds` ya los lleva
+    // aunque no sobreviva ninguno tras resubir.
   }
 
   console.log("\nTodo en orden.");

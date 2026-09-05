@@ -148,11 +148,15 @@ export async function maximoDeEscucha(pasoId: string, clave: string): Promise<nu
   if (clave === "encadenado") {
     const esExamenBlanco = paso.recorrido.tipo === "PREPARACION_DELE" && paso.recorrido.orden === 3;
     if (!esExamenBlanco) return null;
+    // I-1 de la revisión final: el tope aquí es de TANDAS, no de audiciones
+    // dentro de la tanda. `ReproductorEncadenado` ya mete las dos audiciones
+    // del examen (`[...srcs, ...srcs]`) dentro de una sola escucha, así que
+    // devolver `datos.escuchas` (2) dejaba oír la tarea entera cuatro veces.
     if (analizado.tipo === "opcion") {
-      return analizado.datos.preguntas.some((p) => p.audio) ? analizado.datos.escuchas : null;
+      return analizado.datos.preguntas.some((p) => p.audio) ? 1 : null;
     }
     if (analizado.tipo === "relacionar") {
-      return analizado.datos.parejas.some((p) => p.audio) ? analizado.datos.escuchas : null;
+      return analizado.datos.parejas.some((p) => p.audio) ? 1 : null;
     }
     return null;
   }

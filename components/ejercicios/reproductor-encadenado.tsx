@@ -255,6 +255,11 @@ export default function ReproductorEncadenado({
           </div>
         ) : (
           <div className="flex items-center gap-3">
+            {/* I-2 de la revisión final, NO es un defecto: la spec dice
+                "suena seguido, dos audiciones, sin pausa entre preguntas" —
+                "sin pausa" cualifica a "entre preguntas" (nada de silencio
+                entre trozos), no la capacidad del alumno de pausar. El botón
+                se queda. */}
             <Boton onClick={alternarPausa} tamano="pequeno">
               {pausado ? "Reanudar" : "Pausa"}
             </Boton>
@@ -291,7 +296,7 @@ export default function ReproductorEncadenado({
                 : libre
                   ? "Ya está corregido: puedes escucharla las veces que quieras."
                   : quedan === maximo
-                    ? `La grabación se repite dos veces seguidas, como en el examen. Puedes oírla ${maximo} ${maximo === 1 ? "vez" : "veces"}.`
+                    ? "La grabación se repite dos veces seguidas, como en el examen. Es la única vez que puedes oírla."
                     : quedan === 0
                       ? "Era la última."
                       : `Te queda ${quedan} ${quedan === 1 ? "escucha" : "escuchas"}.`}

@@ -105,7 +105,7 @@ export default function CaraOpcion({
                 className="mt-2 h-10 rounded-full border border-hp-200 bg-white px-4 text-sm text-tinta outline-none focus:border-hp-400 disabled:opacity-70"
               />
             ) : (
-            <div className={`mt-3 grid gap-2 ${pregunta.imagenes?.some((i) => i) ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
+            <div className={`mt-3 grid gap-2 ${pregunta.imagenes?.some((i) => i) ? "grid-cols-3" : "sm:grid-cols-2"}`}>
               {pregunta.opciones.map((opcion, indice) => {
                 const elegida = marcadas.has(String(indice));
                 return (

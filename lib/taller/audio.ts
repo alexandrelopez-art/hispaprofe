@@ -52,6 +52,14 @@ export async function guardarGrabacion(tareaId: string, archivoUrl: string): Pro
   const archivoId = archivoUrl.replace(/^\/api\/archivos\//, "");
   const archivo = await prisma.archivo.findUnique({ where: { id: archivoId }, select: { id: true, tipo: true, privado: true } });
   if (!archivo || archivo.privado || !archivo.tipo.startsWith("audio/")) return { ok: false, error: "Ese archivo no es un audio del sitio." };
+
+  // Misma guarda que `cortarGrabacion` (C-1 de la revisión final): resubir
+  // reescribe `Ejercicio.datos` y borra los trozos vigentes, así que si un
+  // estudiante ya respondió, entregó o le corrigieron este ejercicio, su
+  // respuesta se quedaría apuntando a audio que ya no existe.
+  const motivoBloqueo = await puedeEditarse(tarea.ejercicio.id);
+  if (motivoBloqueo) return { ok: false, error: motivoBloqueo };
+
   try {
     await prisma.$transaction(async (tx) => {
       const datos = structuredClone(tarea.ejercicio.datos) as DatosConAudio;
@@ -133,6 +141,13 @@ export async function cortarGrabacion(tareaId: string, cortes: number[]): Promis
     await tx.bloque.deleteMany({ where: { pasoId: tarea.pasoId, tipo: "AUDIO" } });
     await tx.tareaDeExamen.update({ where: { id: tareaId }, data: { cortes, avisos } });
     return urls.length;
+  }, {
+    // I-3 de la revisión final: siete `archivo.create` con un par de
+    // megabytes cada uno contra un Postgres remoto no caben en el tope
+    // por defecto de 5 s. 60 s dentro de la transacción y 10 s de espera
+    // para conseguir una conexión del pool.
+    timeout: 60_000,
+    maxWait: 10_000,
   });
   return { ok: true, avisos, trozos: resultado };
 }

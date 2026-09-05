@@ -355,8 +355,8 @@ async function main() {
   });
 
   afirmar(
-    (await maximoDeEscucha(pasoEncadenado.id, "encadenado")) === 2,
-    "con una pregunta de opcion con audio, la clave encadenado da las escuchas del ejercicio",
+    (await maximoDeEscucha(pasoEncadenado.id, "encadenado")) === 1,
+    "con una pregunta de opcion con audio, la clave encadenado da UNA tanda (I-1: la tanda ya encadena las dos audiciones)",
   );
   afirmar(
     (await maximoDeEscucha(pasoEncadenado.id, "e1")) === 2,
@@ -416,8 +416,8 @@ async function main() {
   });
 
   afirmar(
-    (await maximoDeEscucha(pasoRelacionarEncadenado.id, "encadenado")) === 3,
-    "con una pareja de relacionar con audio, la clave encadenado también da las escuchas del ejercicio",
+    (await maximoDeEscucha(pasoRelacionarEncadenado.id, "encadenado")) === 1,
+    "con una pareja de relacionar con audio, la clave encadenado también da UNA tanda (I-1)",
   );
 
   // Fix round 1 (finding #1 de la revisión): "encadenado" solo tiene tope
