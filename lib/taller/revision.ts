@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { tareaDe as tareaDelMapa } from "@/lib/dele";
 import { puedeEditarse, revisarDatos } from "@/lib/recursos";
 import { avisosDelMapa, contrastarClave } from "@/lib/taller/guardar-relleno";
+import { trozosQueEspera } from "@/lib/taller/audio";
 import { tareaDe, type TareaCompleta } from "@/lib/taller/consultas";
 
 export type ResultadoGuardado =
@@ -88,6 +89,14 @@ function itemsSinRespuesta(datos: unknown, motor: string): number {
   return (d.preguntas ?? []).filter((p) => !p.correctas || p.correctas.length === 0).length;
 }
 
+/** Si ningún ítem (pregunta o pareja, según el motor) lleva ya su trozo de audio. */
+function ningunItemConAudio(datos: unknown, motor: string): boolean {
+  const d = datos as { preguntas?: { audio?: string }[]; parejas?: { audio?: string }[] } | null;
+  const lista = motor === "relacionar" ? d?.parejas : d?.preguntas;
+  if (!Array.isArray(lista) || lista.length === 0) return true;
+  return lista.every((item) => !item.audio);
+}
+
 /** Por qué no se puede marcar revisada todavía. Vacío = se puede. */
 export function motivosParaNoRevisar(tarea: TareaCompleta): string[] {
   const motivos: string[] = [];
@@ -99,8 +108,12 @@ export function motivosParaNoRevisar(tarea: TareaCompleta): string[] {
   if (sinRespuesta) motivos.push(`${sinRespuesta} ítem(s) sin respuesta correcta.`);
   const pendientes = ((tarea.imagenesPedidas as ImagenPedida[] | null) ?? []).filter((i) => !i.archivoId).length;
   if (pendientes) motivos.push(`${pendientes} imagen(es) por subir.`);
-  if (tarea.prueba === "CO" && !tarea.paso.bloques.some((b) => b.tipo === "AUDIO")) {
-    motivos.push("Falta la grabación de la tarea: súbela desde la ficha del paso (enlace abajo).");
+  if (tarea.prueba === "CO") {
+    if (!tarea.grabacionArchivoId) {
+      motivos.push("Falta la grabación de la tarea.");
+    } else if (delMapa && trozosQueEspera(delMapa) !== null && ningunItemConAudio(tarea.ejercicio.datos, delMapa.motor)) {
+      motivos.push("La grabación está sin cortar: marca los cortes y pulsa Cortar.");
+    }
   }
   return motivos;
 }

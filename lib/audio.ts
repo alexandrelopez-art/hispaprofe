@@ -341,6 +341,75 @@ function conExtensionM4a(nombre: string): string {
 }
 
 /**
+ * La extensión que le corresponde a un tipo, para el archivo temporal que
+ * se le pasa a ffmpeg. Reutiliza `EXTENSIONES`, la misma tabla de
+ * `nombreDeGrabacion`: dos mapas del mismo mime a la misma extensión se
+ * desincronizan en cuanto alguien añade un formato a uno solo.
+ */
+function extensionDe(tipo: string): string {
+  return EXTENSIONES[tipo] ?? "bin";
+}
+
+/** Los ffmpeg disponibles, en orden: el del sistema si lo hay, si no el empaquetado. */
+async function ffmpegs(): Promise<Compresor[]> {
+  return (await buscarCompresores()).filter((c) => c.nombre.startsWith("ffmpeg"));
+}
+
+/** Duración en segundos, leída con ffmpeg (`-f null` y el `time=` del stderr). */
+export async function duracionDe(datos: Buffer, tipo: string): Promise<number> {
+  const [ff] = await ffmpegs();
+  if (!ff) throw new CompresorAusenteError("No hay ffmpeg para leer el audio.");
+  const carpeta = await mkdtemp(join(tmpdir(), "duracion-"));
+  const entrada = join(carpeta, `in.${extensionDe(tipo)}`);
+  try {
+    await writeFile(entrada, datos);
+    const { error } = await lanzar(ff.orden, ["-nostdin", "-i", entrada, "-f", "null", "-"]);
+    const m = [...error.matchAll(/time=(\d+):(\d+):(\d+(?:\.\d+)?)/g)].pop();
+    if (!m) throw new Error("No se pudo leer la duración del audio.");
+    return Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3]);
+  } finally {
+    await rm(carpeta, { recursive: true, force: true });
+  }
+}
+
+/**
+ * Corta en los segundos dados (ordenados, dentro de la duración) y devuelve
+ * un trozo por tramo, en AAC mono a 48 kbps como todo el audio del sitio.
+ * Se re-codifica en vez de copiar: copiar corta en el marco AAC anterior y
+ * deja hasta 20 ms del diálogo siguiente al final de cada trozo.
+ */
+export async function cortarAudio(datos: Buffer, tipo: string, cortes: number[]): Promise<{ trozos: Buffer<ArrayBuffer>[]; tipo: "audio/mp4" }> {
+  const [ff] = await ffmpegs();
+  if (!ff) throw new CompresorAusenteError("No hay ffmpeg para cortar el audio.");
+  const duracion = await duracionDe(datos, tipo);
+  const puntos = [0, ...cortes.filter((c) => c > 0 && c < duracion).sort((a, b) => a - b), duracion];
+  const carpeta = await mkdtemp(join(tmpdir(), "cortes-"));
+  const entrada = join(carpeta, `in.${extensionDe(tipo)}`);
+  try {
+    await writeFile(entrada, datos);
+    // `Buffer<ArrayBuffer>`, no `Buffer` a secas: igual que `AudioComprimido`
+    // más abajo, esto acaba en `Prisma`, que exige la variante estrecha.
+    const trozos: Buffer<ArrayBuffer>[] = [];
+    for (let i = 0; i < puntos.length - 1; i++) {
+      const salida = join(carpeta, `t${i}.m4a`);
+      // `-ss` antes de `-i` para el corte rápido (busca sin decodificar
+      // hasta el punto). `-t <duración>` y no `-to <fin>`: con `-ss` como
+      // opción de entrada, distintas versiones de ffmpeg han tratado `-to`
+      // como si fuera otra duración —no un instante final—, lo que corta
+      // el trozo dos veces más corto o más largo de lo que toca. Dándole
+      // directamente la duración del tramo no hay ambigüedad posible.
+      const duracionTrozo = puntos[i + 1] - puntos[i];
+      const r = await lanzar(ff.orden, ["-y", "-nostdin", "-ss", String(puntos[i]), "-t", String(duracionTrozo), "-i", entrada, "-vn", "-ac", "1", "-c:a", "aac", "-b:a", "48k", salida]);
+      if (r.codigo !== 0) throw new Error(`ffmpeg no pudo cortar el trozo ${i + 1}: ${r.error.slice(-300)}`);
+      trozos.push((await readFile(salida)) as Buffer<ArrayBuffer>);
+    }
+    return { trozos, tipo: "audio/mp4" };
+  } finally {
+    await rm(carpeta, { recursive: true, force: true });
+  }
+}
+
+/**
  * Un WAV de prueba: PCM de 16 bits, mono, 44,1 kHz, con una onda sencilla.
  *
  * Vive aquí y no en el script porque el script no puede fabricarlo con el

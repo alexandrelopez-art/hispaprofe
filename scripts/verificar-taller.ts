@@ -18,7 +18,14 @@
  * También verifica, sin tocar la base, `quitarPregunta`/`siguienteId`/
  * `quitarOpcion` del editor de opción (la seguridad del cloze frente a
  * "Quitar" + "Añadir pregunta", y que quitar una opción desplaza o vacía
- * `correctas` sin dejar menos de dos).
+ * `correctas` sin dejar menos de dos). Sesión C, Task 3: `trozosQueEspera`
+ * contra el mapa (diálogos, mensajes, la conversación que no se corta,
+ * noticias), `guardarGrabacion` (deja `grabacionArchivoId` y el bloque AUDIO
+ * de la grabación completa) y `cortarGrabacion` con el ffmpeg empaquetado
+ * de verdad (reparte un trozo por pregunta con dos escuchas, avisa si el
+ * número de cortes no cuadra con el mapa, y se niega en la tarea que se oye
+ * entera). Si esta máquina no tiene ningún ffmpeg, esa sección se salta con
+ * un aviso en vez de fallar.
  * Crea sus propios datos y los borra al terminar.
  * Ejecutar con:  npx tsx scripts/verificar-taller.ts
  */
@@ -37,6 +44,8 @@ import { contrastarClave, guardarRelleno } from "@/lib/taller/guardar-relleno";
 import { quitarOpcion, quitarPregunta, siguienteId, type DatosOpcion } from "@/components/taller/editor-tarea-opcion";
 import { asignarImagenPedida } from "@/lib/taller/imagenes";
 import { revisarDatos } from "@/lib/recursos";
+import { generarWav, hayCompresor } from "@/lib/audio";
+import { cortarGrabacion, guardarGrabacion, trozosQueEspera } from "@/lib/taller/audio";
 import fixtureBueno from "./fixtures/taller-respuesta-ia.json";
 import fixtureMalo from "./fixtures/taller-respuesta-ia-mal.json";
 
@@ -540,7 +549,7 @@ async function main() {
   const tareaCO1 = examen!.tareas.find((t) => t.prueba === "CO" && t.numero === 1)!;
   motivos = motivosParaNoRevisar((await tareaDe(tareaCO1.id))!);
   afirmar(motivos.some((m) => m.includes("vacía")), "una tarea vacía no se puede revisar");
-  afirmar(motivos.some((m) => m.includes("grabación")), "una auditiva sin AUDIO no se puede revisar");
+  afirmar(motivos.some((m) => m.includes("grabación")), "una auditiva sin grabacionArchivoId no se puede revisar");
 
   await prisma.tareaDeExamen.update({ where: { id: tareaCE3.id }, data: { imagenesPedidas: [{ pregunta: "p1", opcion: 0, para: "una foto", archivoId: null }] } });
   motivos = motivosParaNoRevisar((await tareaDe(tareaCE3.id))!);
@@ -874,6 +883,73 @@ async function main() {
   afirmar(datosTrasComun.opcionesComunes?.[0] === "A", "con lista común, la letra sustituye el texto en opcionesComunes[0]");
   afirmar(datosTrasComun.opcionesComunes?.[1] === "B" && datosTrasComun.opcionesComunes?.[2] === "C", "las otras opciones comunes no cambian");
   afirmar(datosTrasComun.preguntas[0].imagenes?.[0] === urlComun, "y la imagen se coloca en preguntas[0].imagenes[0] igual que con lista propia");
+
+  // ─── Sesión C, Task 3: cortar la grabación en el servidor ──────────
+  const tareaCO3 = examen!.tareas.find((t) => t.prueba === "CO" && t.numero === 3)!;
+
+  afirmar(trozosQueEspera(tareaDelMapa("A2_B1_ESCOLAR", "CO", 1)!) === 7, "trozosQueEspera de CO1 (siete diálogos): 7");
+  afirmar(trozosQueEspera(tareaDelMapa("A2_B1_ESCOLAR", "CO", 2)!) === 6, "trozosQueEspera de CO2 (seis mensajes): 6");
+  afirmar(trozosQueEspera(tareaDelMapa("A2_B1_ESCOLAR", "CO", 3)!) === null, "trozosQueEspera de CO3 (una conversación, ATTRIB): null, no se corta");
+  afirmar(trozosQueEspera(tareaDelMapa("A2_B1_ESCOLAR", "CO", 4)!) === 3, "trozosQueEspera de CO4 (tres noticias): 3");
+
+  if (!(await hayCompresor())) {
+    console.log("AVISO: esta máquina no tiene ningún compresor de audio — se salta la sección de cortar la grabación.");
+  } else {
+    const wavDeNueveSegundos = generarWav(9);
+    const archivoGrabacion = await prisma.archivo.create({
+      data: { nombre: "grabacion-co1.wav", tipo: "audio/wav", tamano: wavDeNueveSegundos.length, datos: wavDeNueveSegundos, subidoPorId: profe.id },
+      select: { id: true },
+    });
+    archivoIds.push(archivoGrabacion.id);
+    const urlGrabacion = `/api/archivos/${archivoGrabacion.id}`;
+
+    const guardadaGrabacion = await guardarGrabacion(tareaCO1.id, urlGrabacion);
+    afirmar(guardadaGrabacion.ok === true, "guardarGrabacion sobre CO1: ok");
+    const tareaConGrabacion = await tareaDe(tareaCO1.id);
+    afirmar(tareaConGrabacion!.grabacionArchivoId === archivoGrabacion.id, "guardarGrabacion deja grabacionArchivoId puesto");
+    afirmar(
+      tareaConGrabacion!.paso.bloques.some((b) => b.tipo === "AUDIO" && b.etiqueta === "Grabación completa" && b.url === urlGrabacion),
+      "guardarGrabacion cuelga el bloque AUDIO «Grabación completa» del paso",
+    );
+
+    // Sin esto, `motivosParaNoRevisar`/`cortarGrabacion` seguirían viendo
+    // una tarea vacía (sin `preguntas`) en vez de las siete que se cortan.
+    const tareaCO1AntesDeCortar = await tareaDe(tareaCO1.id);
+    afirmar(
+      (tareaCO1AntesDeCortar!.ejercicio.datos as DatosOpcion).preguntas.length === 7,
+      "CO1 sigue con sus siete preguntas (rellenadas a mano más arriba) antes de cortar",
+    );
+
+    const cortada = await cortarGrabacion(tareaCO1.id, [1.5, 3, 4.5, 6, 7.5, 8.5]);
+    afirmar(cortada.ok === true, "cortarGrabacion sobre CO1 con seis cortes: ok");
+    afirmar(cortada.ok === true && cortada.trozos === 7, "cortarGrabacion deja siete trozos (uno por pregunta)");
+    afirmar(cortada.ok === true && !cortada.avisos.some((a) => a.includes("espera")), "sin seis cortes (siete trozos) no hay aviso de cuenta");
+    const tareaTrasCortar = await tareaDe(tareaCO1.id);
+    const datosTrasCortar = tareaTrasCortar!.ejercicio.datos as DatosOpcion & { escuchas: number };
+    const audiosDeLasPreguntas = datosTrasCortar.preguntas.map((p) => p.audio);
+    afirmar(audiosDeLasPreguntas.every((a): a is string => typeof a === "string"), "las siete preguntas quedan con su `audio` puesto");
+    afirmar(new Set(audiosDeLasPreguntas).size === 7, "los siete `audio` son distintos entre sí");
+    afirmar(datosTrasCortar.escuchas === 2, "cortarGrabacion deja escuchas en 2");
+    afirmar(tareaTrasCortar!.paso.bloques.filter((b) => b.tipo === "AUDIO").length === 0, "cortarGrabacion retira el bloque AUDIO de la grabación completa del paso");
+    afirmar(isDeepStrictEqual(tareaTrasCortar!.cortes, [1.5, 3, 4.5, 6, 7.5, 8.5]), "cortarGrabacion deja los cortes guardados en la tarea");
+
+    // Volver a cortar con menos cortes: menos trozos de los que espera el
+    // mapa, y los siete `Archivo` del corte anterior quedan huérfanos y se
+    // borran solos (nadie más los referencia ya).
+    const recortada = await cortarGrabacion(tareaCO1.id, [4.5]);
+    afirmar(recortada.ok === true && recortada.trozos === 2, "un segundo corte con un solo punto deja dos trozos");
+    afirmar(recortada.ok === true && recortada.avisos.some((a) => a.includes("espera 7")), "y avisa de que el examen espera 7");
+
+    const negadaEntera = await cortarGrabacion(tareaCO3.id, [1]);
+    afirmar(negadaEntera.ok === false, "cortarGrabacion se niega en la tarea que se oye entera (CO3, ATTRIB)");
+    afirmar(negadaEntera.ok === false && negadaEntera.error.includes("se oye entera"), "con el motivo de que no se corta");
+
+    // Los trozos que sobreviven al final (los del segundo corte de CO1) no
+    // los borra nadie más: se apuntan para la limpieza por su nombre, que
+    // siempre empieza por `CO-tarea-`.
+    const trozosVivos = await prisma.archivo.findMany({ where: { nombre: { startsWith: "CO-tarea-" } }, select: { id: true } });
+    archivoIds.push(...trozosVivos.map((a) => a.id));
+  }
 
   console.log("\nTodo en orden.");
 }

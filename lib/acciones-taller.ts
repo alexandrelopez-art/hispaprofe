@@ -14,6 +14,7 @@ import { hayClaveDeIA, pedirTarea, SinClaveError } from "@/lib/taller/rellenar";
 import { guardarRelleno } from "@/lib/taller/guardar-relleno";
 import { descartarClaveOficial, guardarTarea, marcarRevisada, quitarImagenPedida } from "@/lib/taller/revision";
 import { asignarImagenPedida } from "@/lib/taller/imagenes";
+import { cortarGrabacion, guardarGrabacion } from "@/lib/taller/audio";
 import { archivarExamen, asignarExamen, partirDestino, publicarExamen, retirarExamen } from "@/lib/taller/publicar";
 
 export type EstadoTaller = { error?: string; ok?: string };
@@ -199,6 +200,36 @@ export async function asignarImagenPedidaAccion(tareaId: string, indice: number,
   revalidatePath(`/dele/taller/${tarea.examenId}/tarea/${tarea.prueba}/${tarea.numero}`);
   if (!r.ok) return { error: r.error };
   return { ok: "Imagen colocada." };
+}
+
+export async function guardarGrabacionAccion(tareaId: string, archivoUrl: string): Promise<EstadoGuardado> {
+  await exigirProfesor();
+  const tarea = await tareaDe(tareaId);
+  if (!tarea) return { error: "Esa tarea ya no existe." };
+  const r = await guardarGrabacion(tareaId, archivoUrl);
+  revalidatePath(`/dele/taller/${tarea.examenId}`);
+  revalidatePath(`/dele/taller/${tarea.examenId}/tarea/${tarea.prueba}/${tarea.numero}`);
+  if (!r.ok) return { error: r.error };
+  return { ok: "Grabación guardada." };
+}
+
+export async function cortarGrabacionAccion(tareaId: string, cortes: number[]): Promise<EstadoGuardado> {
+  await exigirProfesor();
+  if (!Array.isArray(cortes) || cortes.length > 30 || !cortes.every((c) => typeof c === "number" && Number.isFinite(c) && c >= 0)) {
+    return { error: "Esos cortes no valen." };
+  }
+  const tarea = await tareaDe(tareaId);
+  if (!tarea) return { error: "Esa tarea ya no existe." };
+  try {
+    const r = await cortarGrabacion(tareaId, cortes);
+    revalidatePath(`/dele/taller/${tarea.examenId}`);
+    revalidatePath(`/dele/taller/${tarea.examenId}/tarea/${tarea.prueba}/${tarea.numero}`);
+    if (!r.ok) return { error: r.error };
+    return { ok: `Cortada en ${r.trozos} trozo(s).`, avisos: r.avisos };
+  } catch (e) {
+    console.error("Cortar grabación:", e);
+    return { error: `No se pudo cortar el audio: ${e instanceof Error ? e.message : "fallo desconocido"}` };
+  }
 }
 
 // ─── Publicar, retirar, archivar y asignar ─────────────────────────────

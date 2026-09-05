@@ -10,6 +10,10 @@ const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
     "/api/archivos": ["./node_modules/ffmpeg-static/ffmpeg"],
     "/api/entregas/audio": ["./node_modules/ffmpeg-static/ffmpeg"],
+    // `cortarGrabacionAccion` (Server Action) corre bajo esta página: sin
+    // rastrear el binario aquí, cortar audio en producción fallaría con
+    // `CompresorAusenteError` aunque `/api/archivos` sí lo tuviera.
+    "/dele/taller/[id]/tarea/[prueba]/[n]": ["./node_modules/ffmpeg-static/ffmpeg"],
   },
 
   // Con `proxy.ts` en la raíz, Next bufferiza el cuerpo de toda petición que
