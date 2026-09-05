@@ -933,20 +933,61 @@ async function main() {
     afirmar(tareaTrasCortar!.paso.bloques.filter((b) => b.tipo === "AUDIO").length === 0, "cortarGrabacion retira el bloque AUDIO de la grabación completa del paso");
     afirmar(isDeepStrictEqual(tareaTrasCortar!.cortes, [1.5, 3, 4.5, 6, 7.5, 8.5]), "cortarGrabacion deja los cortes guardados en la tarea");
 
+    // El orden importa: la pregunta i tiene que llevar el trozo i, no uno
+    // cualquiera de los siete (una mutación que barajara `urls` seguiría
+    // pasando "los siete son distintos" sin esto).
+    const idsDelPrimerCorte = audiosDeLasPreguntas.map((u) => u!.replace(/^\/api\/archivos\//, ""));
+    const archivosDelPrimerCorte = await prisma.archivo.findMany({ where: { id: { in: idsDelPrimerCorte } }, select: { id: true, nombre: true } });
+    const nombrePorId = new Map(archivosDelPrimerCorte.map((a) => [a.id, a.nombre]));
+    afirmar(
+      idsDelPrimerCorte.every((id, i) => nombrePorId.get(id) === `CO-tarea-1-trozo-${i + 1}.m4a`),
+      "cada pregunta i queda con el archivo CO-tarea-1-trozo-(i+1).m4a, en orden",
+    );
+
     // Volver a cortar con menos cortes: menos trozos de los que espera el
     // mapa, y los siete `Archivo` del corte anterior quedan huérfanos y se
-    // borran solos (nadie más los referencia ya).
+    // borran solos (nadie más los referencia ya). Los ids se recogen ANTES
+    // de recortar: después de recortar ya no hay dónde leerlos.
     const recortada = await cortarGrabacion(tareaCO1.id, [4.5]);
     afirmar(recortada.ok === true && recortada.trozos === 2, "un segundo corte con un solo punto deja dos trozos");
     afirmar(recortada.ok === true && recortada.avisos.some((a) => a.includes("espera 7")), "y avisa de que el examen espera 7");
+    afirmar(
+      (await prisma.archivo.count({ where: { id: { in: idsDelPrimerCorte } } })) === 0,
+      "los siete Archivo del primer corte ya no existen tras el segundo corte (no dependiendo de la limpieza del script)",
+    );
 
     const negadaEntera = await cortarGrabacion(tareaCO3.id, [1]);
     afirmar(negadaEntera.ok === false, "cortarGrabacion se niega en la tarea que se oye entera (CO3, ATTRIB)");
     afirmar(negadaEntera.ok === false && negadaEntera.error.includes("se oye entera"), "con el motivo de que no se corta");
 
-    // Los trozos que sobreviven al final (los del segundo corte de CO1) no
-    // los borra nadie más: se apuntan para la limpieza por su nombre, que
-    // siempre empieza por `CO-tarea-`.
+    // Resubir la grabación (aunque sea el mismo archivo) es «esto ya no es
+    // la grabación cortada»: los dos trozos del segundo corte dejan de ser
+    // trozos de nada y `guardarGrabacion` los tiene que quitar de en medio,
+    // no solo de la tarea.
+    const tareaAntesDeResubir = await tareaDe(tareaCO1.id);
+    const idsDelSegundoCorte = (tareaAntesDeResubir!.ejercicio.datos as DatosOpcion).preguntas
+      .map((p) => p.audio)
+      .filter((a): a is string => typeof a === "string")
+      .map((u) => u.replace(/^\/api\/archivos\//, ""));
+    afirmar(idsDelSegundoCorte.length === 2, "antes de resubir, dos preguntas siguen con el audio del segundo corte");
+
+    const resubida = await guardarGrabacion(tareaCO1.id, urlGrabacion);
+    afirmar(resubida.ok === true, "guardarGrabacion otra vez sobre CO1 (resubir): ok");
+    const tareaTrasResubir = await tareaDe(tareaCO1.id);
+    afirmar(
+      (tareaTrasResubir!.ejercicio.datos as DatosOpcion).preguntas.every((p) => p.audio === undefined),
+      "tras resubir la grabación, ninguna pregunta se queda con el `audio` del corte anterior",
+    );
+    afirmar(tareaTrasResubir!.cortes === null, "tras resubir la grabación, cortes vuelve a null");
+    afirmar(
+      (await prisma.archivo.count({ where: { id: { in: idsDelSegundoCorte } } })) === 0,
+      "los dos Archivo del segundo corte tampoco sobreviven a resubir la grabación",
+    );
+
+    // Los trozos que sobreviven al final (ninguno, tras resubir) no los
+    // borra nadie más: por si acaso queda alguno de una afirmación que
+    // reviente a media prueba, se apuntan para la limpieza por su nombre,
+    // que siempre empieza por `CO-tarea-`.
     const trozosVivos = await prisma.archivo.findMany({ where: { nombre: { startsWith: "CO-tarea-" } }, select: { id: true } });
     archivoIds.push(...trozosVivos.map((a) => a.id));
   }

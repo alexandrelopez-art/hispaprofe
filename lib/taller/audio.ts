@@ -4,21 +4,47 @@ import type { TareaDele } from "@/lib/dele/mapa";
 import { tareaDe as tareaDelMapa } from "@/lib/dele";
 import { cortarAudio } from "@/lib/audio";
 import { puedeEditarse, revisarDatos } from "@/lib/recursos";
-import { tareaDe } from "@/lib/taller/consultas";
+import { tareaDe, type TareaCompleta } from "@/lib/taller/consultas";
 
 /**
- * Cuántos trozos tiene la grabación de una tarea auditiva, según el examen:
- * uno por pregunta (siete diálogos), uno por pareja (seis mensajes), tres
- * noticias con dos preguntas cada una, y una sola conversación que no se
- * corta (null).
+ * Cuántos trozos tiene la grabación de una tarea auditiva, según lo que dice
+ * el mapa (`TareaDele.trozos`): `null` es una sola conversación que se oye
+ * entera y no se corta; si el mapa no lo dice (`undefined`), un trozo por
+ * ítem (`items`) — el caso normal, uno por pregunta o por pareja.
  */
 export function trozosQueEspera(tarea: TareaDele): number | null {
-  if (tarea.formato === "ATTRIB") return null;
-  if (tarea.pide.includes("noticias")) return 3;
-  return tarea.items;
+  return tarea.trozos === undefined ? tarea.items : tarea.trozos;
 }
 
-/** La grabación completa: se guarda en la tarea y, mientras no haya trozos, como bloque AUDIO del paso. */
+type DatosConAudio = { escuchas?: number; preguntas?: { audio?: string }[]; parejas?: { audio?: string }[] };
+
+/**
+ * Borra los `Archivo` de los trozos que hoy están wireados en `datos`
+ * (nunca la grabación completa, y nunca un archivo privado) y les quita el
+ * campo `audio` a los ítems. Sirve a los dos sitios que pueden dejar trozos
+ * huérfanos: `cortarGrabacion` antes de crear los nuevos, y `guardarGrabacion`
+ * cuando se resube la grabación completa —los trozos del corte anterior ya
+ * no son trozos de nada, porque ya no son trozos de esta grabación—.
+ */
+async function quitarTrozos(tx: Prisma.TransactionClient, tarea: TareaCompleta, datos: DatosConAudio): Promise<void> {
+  const delMapa = tareaDelMapa(tarea.examen.nivel, tarea.prueba, tarea.numero);
+  const lista = (delMapa?.motor === "relacionar" ? datos.parejas : datos.preguntas) ?? datos.parejas ?? datos.preguntas ?? [];
+  const viejos = [...new Set(lista.map((i) => i.audio).filter((u): u is string => Boolean(u)))]
+    .map((u) => u.replace(/^\/api\/archivos\//, ""))
+    .filter((id) => id !== tarea.grabacionArchivoId);
+  if (viejos.length) await tx.archivo.deleteMany({ where: { id: { in: viejos }, privado: false } });
+  for (const item of lista) delete item.audio;
+}
+
+/**
+ * La grabación completa: se guarda en la tarea y, mientras no haya trozos,
+ * como bloque AUDIO del paso.
+ *
+ * Si la tarea ya estaba cortada, los trozos del corte anterior son trozos de
+ * la grabación vieja —resubir no los recorta de la nueva—: `quitarTrozos`
+ * los borra y limpia `datos`, y `cortes` vuelve a null para que
+ * `motivosParaNoRevisar` vuelva a pedir «La grabación está sin cortar».
+ */
 export async function guardarGrabacion(tareaId: string, archivoUrl: string): Promise<{ ok: true } | { ok: false; error: string }> {
   const tarea = await tareaDe(tareaId);
   if (!tarea) return { ok: false, error: "Esa tarea ya no existe." };
@@ -26,20 +52,36 @@ export async function guardarGrabacion(tareaId: string, archivoUrl: string): Pro
   const archivoId = archivoUrl.replace(/^\/api\/archivos\//, "");
   const archivo = await prisma.archivo.findUnique({ where: { id: archivoId }, select: { id: true, tipo: true, privado: true } });
   if (!archivo || archivo.privado || !archivo.tipo.startsWith("audio/")) return { ok: false, error: "Ese archivo no es un audio del sitio." };
-  await prisma.$transaction(async (tx) => {
-    await tx.tareaDeExamen.update({ where: { id: tareaId }, data: { grabacionArchivoId: archivo.id, cortes: Prisma.DbNull } });
-    await tx.bloque.deleteMany({ where: { pasoId: tarea.pasoId, tipo: "AUDIO" } });
-    await tx.bloque.create({ data: { pasoId: tarea.pasoId, tipo: "AUDIO", url: archivoUrl, etiqueta: "Grabación completa", orden: 1 } });
-  });
+  try {
+    await prisma.$transaction(async (tx) => {
+      const datos = structuredClone(tarea.ejercicio.datos) as DatosConAudio;
+      await quitarTrozos(tx, tarea, datos);
+      const revision = revisarDatos(datos);
+      if ("error" in revision) throw new Error(revision.error);
+      await tx.ejercicio.update({ where: { id: tarea.ejercicio.id }, data: { datos: datos as Prisma.InputJsonValue } });
+      await tx.tareaDeExamen.update({ where: { id: tareaId }, data: { grabacionArchivoId: archivo.id, cortes: Prisma.DbNull } });
+      await tx.bloque.deleteMany({ where: { pasoId: tarea.pasoId, tipo: "AUDIO" } });
+      await tx.bloque.create({ data: { pasoId: tarea.pasoId, tipo: "AUDIO", url: archivoUrl, etiqueta: "Grabación completa", orden: 1 } });
+    });
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "No se pudo guardar la grabación." };
+  }
   return { ok: true };
 }
 
 /**
  * Corta la grabación en los segundos dados y reparte los trozos: en `opcion`
- * uno por pregunta (o uno por cada dos, en las noticias), en `relacionar`
- * uno por pareja; cada trozo con dos escuchas. Cuando hay trozos, el bloque
- * AUDIO de la grabación completa se retira del paso (el examen blanco los
- * encadena) y se conserva en la tarea para poder volver a cortar.
+ * uno por pregunta (o menos, si el mapa agrupa varias preguntas por audio —
+ * las noticias), en `relacionar` uno por pareja; cada trozo con dos
+ * escuchas. Cuando hay trozos, el bloque AUDIO de la grabación completa se
+ * retira del paso (el examen blanco los encadena) y se conserva en la tarea
+ * para poder volver a cortar.
+ *
+ * Si el corte produce más trozos de los que espera el mapa, solo se guardan
+ * los `esperados` primeros: guardar los de más dejaría `Archivo` sin dueño
+ * —ningún ítem los referencia, así que ni siquiera un corte posterior los
+ * encontraría para borrarlos—. El aviso de la cuenta sigue contando los
+ * trozos que de verdad salieron del corte, no los que se quedaron guardados.
  */
 export async function cortarGrabacion(tareaId: string, cortes: number[]): Promise<{ ok: true; avisos: string[]; trozos: number } | { ok: false; error: string }> {
   const tarea = await tareaDe(tareaId);
@@ -62,25 +104,26 @@ export async function cortarGrabacion(tareaId: string, cortes: number[]): Promis
   if (motivoBloqueo) return { ok: false, error: motivoBloqueo };
 
   const { trozos, tipo } = await cortarAudio(Buffer.from(archivo.datos), archivo.tipo, cortes);
-  const datos = structuredClone(tarea.ejercicio.datos) as { escuchas?: number; preguntas?: { audio?: string }[]; parejas?: { audio?: string }[] };
+  const datos = structuredClone(tarea.ejercicio.datos) as DatosConAudio;
   const avisos = ((tarea.avisos as string[] | null) ?? []).filter((a) => !a.startsWith("La grabación tiene"));
   if (trozos.length !== esperados) avisos.push(`La grabación tiene ${trozos.length} trozo(s) y el examen espera ${esperados}: revisa los cortes.`);
-
-  // Los trozos de un corte anterior se borran: nadie más los referencia y, si
-  // se quedaran, cada nuevo corte dejaría siete archivos huérfanos en la base.
-  const listaVieja = delMapa.motor === "relacionar" ? datos.parejas ?? [] : datos.preguntas ?? [];
-  const viejos = [...new Set(listaVieja.map((i) => i.audio).filter((u): u is string => Boolean(u)))]
-    .map((u) => u.replace(/^\/api\/archivos\//, ""))
-    .filter((id) => id !== tarea.grabacionArchivoId);
+  // Nunca más de los que el mapa espera: los sobrantes no los referenciaría
+  // ningún ítem y quedarían huérfanos para siempre (ver la nota de la
+  // función).
+  const trozosAGuardar = trozos.slice(0, esperados);
 
   const resultado = await prisma.$transaction(async (tx) => {
-    if (viejos.length) await tx.archivo.deleteMany({ where: { id: { in: viejos }, privado: false } });
+    await quitarTrozos(tx, tarea, datos);
     const urls: string[] = [];
-    for (let i = 0; i < trozos.length; i++) {
-      const guardado = await tx.archivo.create({ data: { nombre: `${tarea.prueba}-tarea-${tarea.numero}-trozo-${i + 1}.m4a`, tipo, tamano: trozos[i].length, datos: trozos[i], subidoPorId: tarea.examen.creadoPorId }, select: { id: true } });
+    for (let i = 0; i < trozosAGuardar.length; i++) {
+      const guardado = await tx.archivo.create({ data: { nombre: `${tarea.prueba}-tarea-${tarea.numero}-trozo-${i + 1}.m4a`, tipo, tamano: trozosAGuardar[i].length, datos: trozosAGuardar[i], subidoPorId: tarea.examen.creadoPorId }, select: { id: true } });
       urls.push(`/api/archivos/${guardado.id}`);
     }
-    const porItem = delMapa.pide.includes("noticias") ? 2 : 1;
+    // Cuántos ítems comparten cada trozo: las noticias son dos preguntas
+    // por audio, todo lo demás uno a uno. Sale de los números del mapa
+    // (`items`/`esperados`), no de adivinar la forma de la tarea por su
+    // texto de pantalla.
+    const porItem = Math.ceil(delMapa.items / esperados);
     const lista = delMapa.motor === "relacionar" ? datos.parejas ?? [] : datos.preguntas ?? [];
     lista.forEach((item, i) => { item.audio = urls[Math.floor(i / porItem)] ?? undefined; });
     datos.escuchas = 2;

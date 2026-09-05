@@ -56,6 +56,14 @@ export type TareaDele = {
   opciones: number;
   /** Lo que se enseña en pantalla al elegir la tarea. */
   pide: string;
+  /**
+   * Cuántos trozos tiene la grabación de una tarea auditiva: `null` es una
+   * sola conversación que se oye entera y no se corta; si falta el campo,
+   * uno por ítem (`items`) — el caso normal, uno por pregunta o por pareja.
+   * Solo se declara donde el reparto no es 1:1 o donde no se corta; el resto
+   * de tareas (CE incluidas, que no llevan audio) se queda sin él.
+   */
+  trozos?: number | null;
   verificado: boolean;
 };
 
@@ -179,17 +187,18 @@ export const PRUEBAS: PruebaDele[] = [
       // los dos exámenes, así que es la estructura de la tarea y no una rareza
       // de uno. Hoy el motor solo sabe construir las tres últimas.
       { numero: 1, formato: "MC", motor: "opcion", listaComun: false,
-        items: 7, opciones: 3, verificado: true,
+        items: 7, opciones: 3, verificado: true, trozos: 7,
         pide: "Siete conversaciones, una pregunta de tres opciones cada una. Las cuatro primeras responden con imágenes." },
       { numero: 2, formato: "MATCH_TEXT", motor: "relacionar", listaComun: false,
-        items: 6, opciones: 9, verificado: true,
+        items: 6, opciones: 9, verificado: true, trozos: 6,
         pide: "Relacionar seis mensajes con seis de los nueve enunciados. Sobran tres." },
+      // Una sola conversación: no se corta.
       { numero: 3, formato: "ATTRIB", motor: "opcion", listaComun: true,
-        items: 6, opciones: 3, verificado: true,
+        items: 6, opciones: 3, verificado: true, trozos: null,
         pide: "Una conversación: de cada enunciado, si lo dice ella, él o ninguno de los dos." },
       // Tres noticias y seis preguntas —dos por noticia—, no siete noticias.
       { numero: 4, formato: "MC", motor: "opcion", listaComun: false,
-        items: 6, opciones: 3, verificado: true,
+        items: 6, opciones: 3, verificado: true, trozos: 3,
         pide: "Tres noticias de radio y seis preguntas de tres opciones: dos por noticia." },
     ],
   },

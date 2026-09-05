@@ -127,6 +127,16 @@ async function main() {
   afirmar(sobrantesDe(tareaDe("B1", "CE", 1)!) === 3, "B1 · CE · T1 tiene tres sobrantes");
   afirmar(sobrantesDe(tareaDe("B1", "CE", 2)!) === 0, "B1 · CE · T2 no tiene sobrantes");
 
+  // Sesión C, Task 3 (fix round 1): los trozos de la auditiva escolar los
+  // dicta el mapa (`TareaDele.trozos`), no una heurística sobre `pide`.
+  const TROZOS_CO_ESCOLAR: [number, number | null][] = [[1, 7], [2, 6], [3, null], [4, 3]];
+  for (const [numero, trozos] of TROZOS_CO_ESCOLAR) {
+    afirmar(
+      tareaDe("A2_B1_ESCOLAR", "CO", numero)?.trozos === trozos,
+      `A2_B1_ESCOLAR · CO · T${numero} tiene trozos: ${trozos}`,
+    );
+  }
+
   // ─── La regla que comparten dos pantallas ───────────────────────────
   // `numeroDeTarea` la usan la ficha del paso (qué tarea enseñar) y el panel
   // de tareas sugeridas (qué tareas están puestas). Cuando eran dos copias,
