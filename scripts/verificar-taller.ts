@@ -35,6 +35,8 @@ import { esquemaDeHerramienta, textoDelEncargo, type RespuestaIA } from "@/lib/t
 import { pedirTarea, SinClaveError } from "@/lib/taller/rellenar";
 import { contrastarClave, guardarRelleno } from "@/lib/taller/guardar-relleno";
 import { quitarOpcion, quitarPregunta, siguienteId, type DatosOpcion } from "@/components/taller/editor-tarea-opcion";
+import { asignarImagenPedida } from "@/lib/taller/imagenes";
+import { revisarDatos } from "@/lib/recursos";
 import fixtureBueno from "./fixtures/taller-respuesta-ia.json";
 import fixtureMalo from "./fixtures/taller-respuesta-ia-mal.json";
 
@@ -709,6 +711,11 @@ async function main() {
   afirmar(!!esquemaCE4.required?.includes("ejercicio"), "esquemaDeHerramienta de CE4: `required` incluye `ejercicio`");
   afirmar(!JSON.stringify(esquemaCE4).includes('"$schema"'), "esquemaDeHerramienta de CE4: sin \"$schema\" anidado");
   afirmar(Object.keys(esquemaCE4.properties.ejercicio?.properties ?? {}).length > 0, "esquemaDeHerramienta de CE4: `properties.ejercicio.properties` no está vacío");
+  // Sesión C: la IA no rellena `imagenes` — marca la opción con «(imagen)»
+  // y pide la imagen en `imagenesPedidas`; el profesor es quien la sube.
+  // CE4 es `opcion` (CLOZE), así que si `imagenes` se colara en algún sitio
+  // del esquema de la herramienta sería aquí.
+  afirmar(!JSON.stringify(esquemaCE4).includes('"imagenes"'), "esquemaDeHerramienta de CE4 no expone `imagenes`");
 
   const textoCE4 = textoDelEncargo(tareaDelMapa("A2_B1_ESCOLAR", "CE", 4)!, "CE", examen!.numero, null);
   afirmar(textoCE4.includes("{{p1}}"), "textoDelEncargo de CE4 (cloze) menciona la marca {{p1}}");
@@ -735,6 +742,68 @@ async function main() {
   afirmar(clavesCE1.texto === clavesCO4.texto, "trozoDeClaves: el texto crudo es idéntico entre tareas del mismo examen");
   afirmar(clavesCE1.cabecera !== clavesCO4.cabecera, "trozoDeClaves: la cabecera sí cambia por prueba y tarea");
   afirmar(!clavesCE1.texto.includes("tarea 1"), "trozoDeClaves: el texto crudo no lleva la cabecera de la tarea");
+
+  // ─── Sesión C, Task 2: asignarImagenPedida ─────────────────────────
+  // Un archivo de imagen mínimo, del profesor y no privado: lo único que
+  // `asignarImagenPedida` exige para aceptarlo.
+  const archivoImagen = await prisma.archivo.create({
+    data: { nombre: "dibujo.webp", tipo: "image/webp", tamano: 4, datos: Buffer.from([0, 1, 2, 3]), subidoPorId: profe.id },
+    select: { id: true },
+  });
+  archivoIds.push(archivoImagen.id);
+  const urlImagen = `/api/archivos/${archivoImagen.id}`;
+
+  // p1 de `bueno.ejercicio` tiene tres opciones («Uno.», «Tres.», «Seis.»);
+  // se marca la opción 1 como pedida a la IA, tal como la dejaría
+  // `textoDelEncargo` («(imagen)» en el texto de la opción).
+  const conOpcionDeImagen = structuredClone(bueno.ejercicio) as { preguntas: { id: string; opciones: string[] }[] };
+  conOpcionDeImagen.preguntas[0].opciones[1] = "(imagen)";
+  await prisma.tareaDeExamen.update({
+    where: { id: tareaCE3.id },
+    data: { imagenesPedidas: [{ pregunta: "p1", opcion: 1, para: "un dibujo", archivoId: null }] },
+  });
+  const guardadoConOpcionDeImagen = await guardarTarea(tareaCE3.id, conOpcionDeImagen, "Texto con una opción pedida como imagen.");
+  afirmar(guardadoConOpcionDeImagen.ok === true, "guardarTarea acepta una opción marcada «(imagen)»");
+
+  const asignada = await asignarImagenPedida(tareaCE3.id, 0, urlImagen);
+  afirmar(asignada.ok === true, "asignarImagenPedida coloca la imagen en su sitio: ok");
+  const tareaConImagen = await tareaDe(tareaCE3.id);
+  const datosConImagen = tareaConImagen!.ejercicio.datos as { preguntas: { opciones: string[]; imagenes?: (string | null)[] }[] };
+  afirmar(datosConImagen.preguntas[0].imagenes?.[1] === urlImagen, "asignarImagenPedida guarda la url en preguntas[0].imagenes[1]");
+  afirmar(datosConImagen.preguntas[0].opciones[1] === "B", "asignarImagenPedida cambia el texto «(imagen)» por la letra de la opción (B)");
+  const pedidaTrasAsignar = (tareaConImagen!.imagenesPedidas as { archivoId: string | null }[])[0];
+  afirmar(pedidaTrasAsignar.archivoId === archivoImagen.id, "la pedida queda con el archivoId puesto");
+  afirmar("tipo" in revisarDatos(tareaConImagen!.ejercicio.datos), "revisarDatos sigue validando el ejercicio tras colocar la imagen");
+
+  // Una pedida con `opcion: null` es del ítem entero, no de una opción:
+  // se cuelga como bloque IMAGEN del paso, con la etiqueta `para`.
+  const archivoImagenDeItem = await prisma.archivo.create({
+    data: { nombre: "item.webp", tipo: "image/webp", tamano: 4, datos: Buffer.from([4, 5, 6, 7]), subidoPorId: profe.id },
+    select: { id: true },
+  });
+  archivoIds.push(archivoImagenDeItem.id);
+  const urlImagenDeItem = `/api/archivos/${archivoImagenDeItem.id}`;
+  await prisma.tareaDeExamen.update({
+    where: { id: tareaCE3.id },
+    data: { imagenesPedidas: [{ pregunta: "p2", opcion: null, para: "una foto del sitio", archivoId: null }] },
+  });
+  const bloquesAntes = (await tareaDe(tareaCE3.id))!.paso.bloques.length;
+  const asignadaDeItem = await asignarImagenPedida(tareaCE3.id, 0, urlImagenDeItem);
+  afirmar(asignadaDeItem.ok === true, "asignarImagenPedida con opcion: null también dice ok");
+  const tareaTrasBloque = await tareaDe(tareaCE3.id);
+  afirmar(tareaTrasBloque!.paso.bloques.length === bloquesAntes + 1, "asignarImagenPedida con opcion: null crea un bloque nuevo");
+  const bloqueImagen = tareaTrasBloque!.paso.bloques.find((b) => b.url === urlImagenDeItem);
+  afirmar(!!bloqueImagen && bloqueImagen.tipo === "IMAGEN" && bloqueImagen.etiqueta === "una foto del sitio", "el bloque es IMAGEN, con la url y la etiqueta `para`");
+
+  // Un archivo privado (una entrega de un estudiante) no es material que el
+  // profesor pueda colocar en un ejercicio publicado.
+  const archivoPrivadoParaImagen = await prisma.archivo.create({
+    data: { nombre: "privada.webp", tipo: "image/webp", tamano: 4, datos: Buffer.from([8, 9]), privado: true, subidoPorId: profe.id },
+    select: { id: true },
+  });
+  archivoIds.push(archivoPrivadoParaImagen.id);
+  const negadaPrivado = await asignarImagenPedida(tareaCE3.id, 0, `/api/archivos/${archivoPrivadoParaImagen.id}`);
+  afirmar(negadaPrivado.ok === false, "asignarImagenPedida rechaza un archivo privado");
 
   console.log("\nTodo en orden.");
 }

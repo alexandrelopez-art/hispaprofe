@@ -2,19 +2,18 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { descartarClaveOficialAccion, guardarTareaAccion, marcarRevisadaAccion, quitarImagenPedidaAccion, rellenarConIAAccion, type EstadoGuardado } from "@/lib/acciones-taller";
+import { descartarClaveOficialAccion, guardarTareaAccion, marcarRevisadaAccion, rellenarConIAAccion, type EstadoGuardado } from "@/lib/acciones-taller";
 import Previsualizacion from "@/components/recursos/previsualizacion";
 import TextoRico from "@/components/texto-rico";
 import EditorTareaOpcion from "./editor-tarea-opcion";
 import EditorTareaRelacionar from "./editor-tarea-relacionar";
+import ImagenesPedidas, { type ImagenPedida } from "./imagenes-pedidas";
 import { dudaDe, type Duda } from "./dudas";
 import Aviso from "@/components/ui/aviso";
 import Boton from "@/components/ui/boton";
 import Campo from "@/components/ui/campo";
 import Rotulo from "@/components/ui/rotulo";
 import Tarjeta from "@/components/ui/tarjeta";
-
-type ImagenPedida = { pregunta: string; opcion: number | null; para: string; archivoId: string | null };
 
 export default function RevisionTarea({
   tareaId, motor, datosIniciales, bloqueInicial, dudas, estado, motivos, hayClave, tieneClave, pedidas, faltaGrabacion, pasoId, anterior, siguiente,
@@ -68,14 +67,6 @@ export default function RevisionTarea({
     });
   }
 
-  function quitarImagen(indice: number) {
-    empezar(async () => {
-      const r = await quitarImagenPedidaAccion(tareaId, indice);
-      setMensaje(r);
-      if (!r.error) router.refresh();
-    });
-  }
-
   // I-2 de la revisión final: eran enlaces (`Boton href=…`, es decir
   // `next/link`) — una navegación de cliente en App Router no dispara
   // `beforeunload` ni nada que avise, así que un clic tiraba el editor
@@ -90,25 +81,7 @@ export default function RevisionTarea({
     <div>
       {pedidas.length > 0 && (
         <Tarjeta className="mb-6" titulo="Imágenes que pide esta tarea" relleno="compacto">
-          <ul className="space-y-2 text-sm">
-            {pedidas.map((img, i) => (
-              <li key={i} className="flex items-center justify-between gap-3">
-                <span>{img.pregunta}{img.opcion !== null ? ` · opción ${"ABCDEFGHIJ"[img.opcion] ?? img.opcion + 1}` : ""}: {img.para}{img.archivoId ? " (subida)" : ""}</span>
-                {!img.archivoId && (
-                  <Boton
-                    variante="sutil"
-                    tamano="pequeno"
-                    onClick={() => quitarImagen(i)}
-                    disabled={pendiente || sucio}
-                    title={sucio ? "Guarda o descarta tus cambios antes" : undefined}
-                  >
-                    No hace falta
-                  </Boton>
-                )}
-              </li>
-            ))}
-          </ul>
-          <p className="mt-2 text-xs text-tinta-suave">Subirlas llega en la siguiente entrega. Si una no hace falta, quítala.</p>
+          <ImagenesPedidas tareaId={tareaId} pedidas={pedidas} bloqueado={sucio} />
         </Tarjeta>
       )}
       <div className="flex flex-wrap items-center gap-2">

@@ -412,6 +412,30 @@ async function main() {
     "trozos saca los dos huecos del pasaje en orden",
   );
 
+  // ─── Sesión C: `imagenes` por opción, en paralelo a `opciones` ─────────
+  const CON_IMAGENES = {
+    ejercicio: "opcion" as const,
+    consigna: "Elige el dibujo.",
+    multiple: false,
+    preguntas: [
+      { id: "p1", enunciado: "1.", opciones: ["A", "B", "C"], correctas: [1], imagenes: ["/a.webp", null, "/c.webp"] },
+    ],
+  };
+  const conImagenes = opcionSchema.safeParse(CON_IMAGENES);
+  afirmar(conImagenes.success, "un opcion con imagenes de la misma longitud que sus opciones es válido");
+  afirmar(
+    !opcionSchema.safeParse({
+      ...CON_IMAGENES,
+      preguntas: [{ ...CON_IMAGENES.preguntas[0], imagenes: ["/a.webp", null] }],
+    }).success,
+    "un opcion con imagenes de longitud distinta a sus opciones se rechaza",
+  );
+  const publicaConImagenes = versionPublicaOpcion(conImagenes.data!);
+  afirmar(
+    JSON.stringify(publicaConImagenes.preguntas[0].imagenes) === JSON.stringify(["/a.webp", null, "/c.webp"]),
+    "la versión pública lleva las imagenes",
+  );
+
   console.log("\nTodo bien.");
 }
 

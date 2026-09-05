@@ -83,7 +83,7 @@ export default function CaraOpcion({
                 className="mt-2 h-10 rounded-full border border-hp-200 bg-white px-4 text-sm text-tinta outline-none focus:border-hp-400 disabled:opacity-70"
               />
             ) : (
-            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            <div className={`mt-3 grid gap-2 ${pregunta.imagenes?.some((i) => i) ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
               {pregunta.opciones.map((opcion, indice) => {
                 const elegida = marcadas.has(String(indice));
                 return (
@@ -105,7 +105,15 @@ export default function CaraOpcion({
                       onChange={() => alternar(pregunta.id, indice)}
                       className="h-4 w-4 shrink-0 accent-hp-400"
                     />
-                    <span>{opcion}</span>
+                    {pregunta.imagenes?.[indice] ? (
+                      <span className="flex flex-col items-center gap-1">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={pregunta.imagenes[indice]!} alt={`Opción ${opcion}`} className="max-h-40 rounded-lg object-contain" />
+                        <span>{opcion}</span>
+                      </span>
+                    ) : (
+                      <span>{opcion}</span>
+                    )}
                   </label>
                 );
               })}

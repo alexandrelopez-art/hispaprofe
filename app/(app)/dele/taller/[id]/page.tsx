@@ -14,6 +14,7 @@ import BotonRellenar from "@/components/taller/boton-rellenar";
 import RellenarTodas from "@/components/taller/rellenar-todas";
 import CicloExamen, { AsignarExamen } from "@/components/taller/ciclo-examen";
 import Cuadernillo from "@/components/taller/cuadernillo";
+import ImagenesPedidas, { type ImagenPedida } from "@/components/taller/imagenes-pedidas";
 import Paginas from "@/components/taller/paginas";
 import Aviso from "@/components/ui/aviso";
 import BotonEnviar from "@/components/ui/boton-enviar";
@@ -61,10 +62,10 @@ export default async function ExamenPage({ params }: { params: Promise<{ id: str
   const paginasParaAsignar = examen.paginas.map((p) => ({ id: p.id, orden: p.orden }));
   const lectura = examen.tareas.filter((t) => t.prueba === "CE");
   const auditiva = examen.tareas.filter((t) => t.prueba === "CO");
-  const imagenesPorSubir = examen.tareas.reduce(
-    (n, t) => n + ((t.imagenesPedidas as { archivoId?: string }[] | null) ?? []).filter((i) => !i.archivoId).length,
-    0,
-  );
+  const gruposImagenes = [
+    ...lectura.map((t) => ({ id: t.id, nombre: `Lectura · Tarea ${t.numero}`, pedidas: ((t.imagenesPedidas as ImagenPedida[] | null) ?? []) })),
+    ...auditiva.map((t) => ({ id: t.id, nombre: `Auditiva · Tarea ${t.numero}`, pedidas: ((t.imagenesPedidas as ImagenPedida[] | null) ?? []) })),
+  ].filter((g) => g.pedidas.some((p) => !p.archivoId));
   const hayClave = hayClaveDeIA();
   const tareasParaRellenar = [
     ...lectura.map((t) => ({ id: t.id, nombre: `Lectura · Tarea ${t.numero}` })),
@@ -132,12 +133,19 @@ export default async function ExamenPage({ params }: { params: Promise<{ id: str
       <AsignarExamen examenId={examen.id} estado={examen.estado} destinos={destinos} />
 
       <Tarjeta titulo="Imágenes que faltan" className="mt-6">
-        {imagenesPorSubir === 0 ? (
+        {gruposImagenes.length === 0 ? (
           <Vacio>Ninguna por ahora.</Vacio>
         ) : (
-          <p className="text-sm text-tinta-suave">
-            {imagenesPorSubir} imagen{imagenesPorSubir !== 1 ? "es" : ""} por subir. Se suben desde aquí en la siguiente entrega.
-          </p>
+          <div className="space-y-6">
+            {gruposImagenes.map((g) => (
+              <div key={g.id}>
+                <Rotulo>{g.nombre}</Rotulo>
+                <div className="mt-2">
+                  <ImagenesPedidas tareaId={g.id} pedidas={g.pedidas} bloqueado={false} />
+                </div>
+              </div>
+            ))}
+          </div>
         )}
       </Tarjeta>
 

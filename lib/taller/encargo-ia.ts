@@ -45,6 +45,14 @@ export function esquemaDeHerramienta(tarea: TareaDele): Record<string, unknown> 
   };
   // eslint-disable-next-line @typescript-eslint/no-unused-vars -- se destructura para quitarlo del resto
   const { $schema: _schema, $defs: defsEjercicio, ...ejercicio } = bruto;
+  // La IA no rellena `imagenes`: marca la opción con «(imagen)» y pide la
+  // imagen en `imagenesPedidas` (ver `textoDelEncargo`) — el profesor es
+  // quien la sube. Sin este borrado, el campo opcional de
+  // `preguntaOpcionSchema` se colaba tal cual en el esquema de la
+  // herramienta y la IA podía intentar rellenarlo con texto.
+  const propiedadesDePregunta = (ejercicio as { properties?: { preguntas?: { items?: { properties?: Record<string, unknown> } } } })
+    .properties?.preguntas?.items?.properties;
+  if (propiedadesDePregunta) delete propiedadesDePregunta.imagenes;
   const sobre = z.toJSONSchema(respuestaIASchema.omit({ ejercicio: true }), { io: "input", unrepresentable: "any" }) as {
     properties: Record<string, unknown>;
     required?: string[];

@@ -21,6 +21,13 @@ export const preguntaOpcionSchema = z.object({
     .min(1, { message: "Marca al menos una respuesta correcta." }),
   /** Audio que hay que escuchar para responder. Opcional. */
   audio: z.string().optional(),
+  /**
+   * Una imagen por opción, en paralelo a `opciones` (null donde la opción es
+   * solo texto). Es lo que hace la tarea 1 de la auditiva escolar: las tres
+   * opciones son dibujos. El texto de esa opción es su letra («A»), que es lo
+   * que el estudiante ve al pie y lo que el corrector enseña al fallar.
+   */
+  imagenes: z.array(z.string().nullable()).optional(),
 });
 
 export const opcionSchema = z
@@ -100,7 +107,14 @@ export const opcionSchema = z
     // El desplegable del cloze solo deja elegir una opción: con `multiple`,
     // una pregunta con dos respuestas correctas no se podría acertar nunca.
     message: "Con pasaje, el ejercicio no puede ser de opción múltiple: el desplegable solo elige una.",
-  });
+  })
+  .refine(
+    (d) =>
+      d.preguntas.every(
+        (p) => p.imagenes === undefined || p.imagenes.length === (p.opciones ?? d.opcionesComunes ?? []).length,
+      ),
+    { message: "Cada pregunta con imágenes necesita una por opción (o null)." },
+  );
 
 export type PreguntaOpcion = z.infer<typeof preguntaOpcionSchema>;
 export type Opcion = z.infer<typeof opcionSchema>;
@@ -117,7 +131,7 @@ export type OpcionPublica = {
   escuchas: number;
   /** El pasaje, si lo hay. Sin él la cara no puede pintar el cloze. */
   texto?: string;
-  preguntas: { id: string; enunciado: string; opciones: string[]; audio?: string }[];
+  preguntas: { id: string; enunciado: string; opciones: string[]; audio?: string; imagenes?: (string | null)[] }[];
 };
 
 export function versionPublicaOpcion(datos: Opcion): OpcionPublica {
@@ -134,6 +148,7 @@ export function versionPublicaOpcion(datos: Opcion): OpcionPublica {
       enunciado: p.enunciado,
       opciones: opcionesDe(datos, p),
       audio: p.audio,
+      imagenes: p.imagenes,
     })),
   };
 }

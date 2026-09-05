@@ -13,6 +13,7 @@ import { trozoDeClaves } from "@/lib/taller/cuadernillo";
 import { hayClaveDeIA, pedirTarea, SinClaveError } from "@/lib/taller/rellenar";
 import { guardarRelleno } from "@/lib/taller/guardar-relleno";
 import { descartarClaveOficial, guardarTarea, marcarRevisada, quitarImagenPedida } from "@/lib/taller/revision";
+import { asignarImagenPedida } from "@/lib/taller/imagenes";
 import { archivarExamen, asignarExamen, partirDestino, publicarExamen, retirarExamen } from "@/lib/taller/publicar";
 
 export type EstadoTaller = { error?: string; ok?: string };
@@ -186,6 +187,18 @@ export async function quitarImagenPedidaAccion(tareaId: string, indice: number):
   revalidatePath(`/dele/taller/${tarea.examenId}/tarea/${tarea.prueba}/${tarea.numero}`);
   if (!r.ok) return { error: r.error };
   return { ok: "Imagen quitada de la lista." };
+}
+
+export async function asignarImagenPedidaAccion(tareaId: string, indice: number, archivoUrl: string): Promise<EstadoGuardado> {
+  await exigirProfesor();
+  if (!Number.isInteger(indice)) return { error: "Esa imagen ya no está en la lista." };
+  const tarea = await tareaDe(tareaId);
+  if (!tarea) return { error: "Esa tarea ya no existe." };
+  const r = await asignarImagenPedida(tareaId, indice, archivoUrl);
+  revalidatePath(`/dele/taller/${tarea.examenId}`);
+  revalidatePath(`/dele/taller/${tarea.examenId}/tarea/${tarea.prueba}/${tarea.numero}`);
+  if (!r.ok) return { error: r.error };
+  return { ok: "Imagen colocada." };
 }
 
 // ─── Publicar, retirar, archivar y asignar ─────────────────────────────

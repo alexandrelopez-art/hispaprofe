@@ -6,7 +6,7 @@ import Rotulo from "@/components/ui/rotulo";
 import Tarjeta from "@/components/ui/tarjeta";
 import { dudaDe, type Duda } from "./dudas";
 
-export type Pregunta = { id: string; enunciado: string; opciones?: string[]; correctas: number[]; audio?: string };
+export type Pregunta = { id: string; enunciado: string; opciones?: string[]; correctas: number[]; audio?: string; imagenes?: (string | null)[] };
 export type DatosOpcion = {
   ejercicio: "opcion"; consigna: string; multiple: boolean; opcionesComunes?: string[];
   presentacion: "botones" | "desplegable"; texto?: string; escuchas?: number; preguntas: Pregunta[];
@@ -144,6 +144,10 @@ export default function EditorTareaOpcion({ datos, alCambiar, dudas }: { datos: 
                           onChange={() => cambiarPregunta(i, { correctas: d.multiple ? (p.correctas.includes(k) ? p.correctas.filter((c) => c !== k) : [...p.correctas, k].sort()) : [k] })} />
                         {LETRAS[k] ?? k + 1}
                       </label>
+                      {p.imagenes?.[k] && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={p.imagenes[k]!} alt={`Opción ${LETRAS[k] ?? k + 1}`} className="mt-1 h-16 w-16 shrink-0 rounded-lg object-cover" />
+                      )}
                       {p.opciones ? (
                         <>
                           <Campo etiqueta={`Opción ${LETRAS[k] ?? k + 1}`} className="flex-1" value={o}
