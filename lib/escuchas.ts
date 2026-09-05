@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { analizar } from "@/lib/ejercicios/registro";
+import { TANDAS_ENCADENADO } from "@/lib/ejercicios/tipos";
 import type { Destreza, TipoRecorrido } from "@/lib/generated/prisma/enums";
 
 // Solo de servidor: habla con la base. Vive fuera de las acciones para que
@@ -152,11 +153,14 @@ export async function maximoDeEscucha(pasoId: string, clave: string): Promise<nu
     // dentro de la tanda. `ReproductorEncadenado` ya mete las dos audiciones
     // del examen (`[...srcs, ...srcs]`) dentro de una sola escucha, así que
     // devolver `datos.escuchas` (2) dejaba oír la tarea entera cuatro veces.
+    // `TANDAS_ENCADENADO` es la misma constante que pasan `opcion.tsx` y
+    // `relacionar.tsx` a `ReproductorEncadenado`: un literal en cada lado se
+    // podía desajustar sin que nada avisara.
     if (analizado.tipo === "opcion") {
-      return analizado.datos.preguntas.some((p) => p.audio) ? 1 : null;
+      return analizado.datos.preguntas.some((p) => p.audio) ? TANDAS_ENCADENADO : null;
     }
     if (analizado.tipo === "relacionar") {
-      return analizado.datos.parejas.some((p) => p.audio) ? 1 : null;
+      return analizado.datos.parejas.some((p) => p.audio) ? TANDAS_ENCADENADO : null;
     }
     return null;
   }

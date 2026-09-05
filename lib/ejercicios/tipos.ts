@@ -13,6 +13,19 @@
  */
 export type Respuestas = Record<string, string | string[]>;
 
+/**
+ * El tope del examen blanco encadenado (Tarea 5) es de TANDAS, no de
+ * audiciones: una tanda ya encadena las dos audiciones del examen
+ * (`ReproductorEncadenado` mete `[...srcs, ...srcs]` dentro de una sola
+ * escucha), así que el tope cuenta tandas y no audiciones sueltas.
+ *
+ * Compartida entre `lib/escuchas.ts` (que la devuelve desde el servidor) y
+ * las dos caras que pintan `ReproductorEncadenado` (`opcion.tsx`,
+ * `relacionar.tsx`): con un literal en cada lado, uno se podía quedar
+ * desajustado del otro sin que nada avisara.
+ */
+export const TANDAS_ENCADENADO = 1;
+
 export type ItemCorregido = {
   /** Identificador del elemento: pregunta, hueco, pareja o pieza. */
   id: string;

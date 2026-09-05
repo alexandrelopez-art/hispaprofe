@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { RelacionarPublica } from "@/lib/ejercicios/relacionar";
-import { comoLista, type Respuestas } from "@/lib/ejercicios/tipos";
+import { comoLista, TANDAS_ENCADENADO, type Respuestas } from "@/lib/ejercicios/tipos";
 import type { Progreso, PropsCara } from "./ejercicio";
 import { Veredicto } from "./opcion";
 import Reproductor from "./reproductor";
@@ -57,7 +57,7 @@ export default function CaraRelacionar({
           <ReproductorEncadenado
             srcs={audiosEncadenados}
             pasoId={pasoId}
-            maximo={datos.escuchas}
+            maximo={TANDAS_ENCADENADO}
             usadas={escuchasUsadas["encadenado"] ?? 0}
             cerrado={cerrado || pasoId === "" || !puedeContar}
           />

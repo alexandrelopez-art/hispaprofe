@@ -1,7 +1,7 @@
 "use client";
 
 import type { OpcionPublica } from "@/lib/ejercicios/opcion";
-import { comoLista, trozos, type Respuestas } from "@/lib/ejercicios/tipos";
+import { comoLista, TANDAS_ENCADENADO, trozos, type Respuestas } from "@/lib/ejercicios/tipos";
 import type { Progreso, PropsCara } from "./ejercicio";
 import Reproductor from "./reproductor";
 import ReproductorEncadenado from "./reproductor-encadenado";
@@ -61,7 +61,7 @@ export default function CaraOpcion({
           <ReproductorEncadenado
             srcs={audiosEncadenados}
             pasoId={pasoId}
-            maximo={datos.escuchas}
+            maximo={TANDAS_ENCADENADO}
             usadas={escuchasUsadas["encadenado"] ?? 0}
             cerrado={cerrado || pasoId === "" || !puedeContar}
           />
@@ -108,33 +108,42 @@ export default function CaraOpcion({
             <div className={`mt-3 grid gap-2 ${pregunta.imagenes?.some((i) => i) ? "grid-cols-3" : "sm:grid-cols-2"}`}>
               {pregunta.opciones.map((opcion, indice) => {
                 const elegida = marcadas.has(String(indice));
+                const imagen = pregunta.imagenes?.[indice];
+                const entrada = (
+                  <input
+                    type={datos.multiple ? "checkbox" : "radio"}
+                    name={`p-${pregunta.id}`}
+                    checked={elegida}
+                    disabled={cerrado}
+                    onChange={() => alternar(pregunta.id, indice)}
+                    className="h-4 w-4 shrink-0 accent-hp-400"
+                  />
+                );
                 return (
                   <label
                     key={indice}
-                    className={`flex items-center gap-3 rounded-xl border-2 px-4 py-3 text-sm transition ${
-                      cerrado ? "cursor-default" : "cursor-pointer"
-                    } ${
+                    className={`flex min-w-0 rounded-xl border-2 py-3 text-sm transition ${
+                      imagen ? "flex-col items-center gap-2 px-2" : "items-center gap-3 px-4"
+                    } ${cerrado ? "cursor-default" : "cursor-pointer"} ${
                       elegida
                         ? "border-hp-400 bg-hp-50 font-bold text-tinta"
                         : "border-hp-100 bg-fondo text-tinta hover:border-hp-200"
                     }`}
                   >
-                    <input
-                      type={datos.multiple ? "checkbox" : "radio"}
-                      name={`p-${pregunta.id}`}
-                      checked={elegida}
-                      disabled={cerrado}
-                      onChange={() => alternar(pregunta.id, indice)}
-                      className="h-4 w-4 shrink-0 accent-hp-400"
-                    />
-                    {pregunta.imagenes?.[indice] ? (
-                      <span className="flex flex-col items-center gap-1">
+                    {imagen ? (
+                      <>
                         {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={pregunta.imagenes[indice]!} alt={`Opción ${opcion}`} className="max-h-40 rounded-lg object-contain" />
-                        <span>{opcion}</span>
-                      </span>
+                        <img src={imagen} alt={`Opción ${opcion}`} className="h-auto w-full max-h-40 rounded-lg object-contain" />
+                        <span className="flex items-center gap-2">
+                          {entrada}
+                          <span>{opcion}</span>
+                        </span>
+                      </>
                     ) : (
-                      <span>{opcion}</span>
+                      <>
+                        {entrada}
+                        <span>{opcion}</span>
+                      </>
                     )}
                   </label>
                 );

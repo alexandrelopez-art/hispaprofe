@@ -15,6 +15,7 @@ import {
   tareaDe,
 } from "@/lib/dele";
 import { apuntarEscucha, escuchasDe, escuchasDelPaso, esRacionado, maximoDeEscucha } from "@/lib/escuchas";
+import { TANDAS_ENCADENADO } from "@/lib/ejercicios/tipos";
 import { prisma } from "@/lib/prisma";
 
 function afirmar(condicion: boolean, mensaje: string) {
@@ -357,6 +358,10 @@ async function main() {
   afirmar(
     (await maximoDeEscucha(pasoEncadenado.id, "encadenado")) === 1,
     "con una pregunta de opcion con audio, la clave encadenado da UNA tanda (I-1: la tanda ya encadena las dos audiciones)",
+  );
+  afirmar(
+    (await maximoDeEscucha(pasoEncadenado.id, "encadenado")) === TANDAS_ENCADENADO,
+    "residuo I-1: el tope de encadenado es la constante compartida TANDAS_ENCADENADO, la misma que reciben opcion.tsx y relacionar.tsx",
   );
   afirmar(
     (await maximoDeEscucha(pasoEncadenado.id, "e1")) === 2,
