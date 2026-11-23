@@ -36,6 +36,9 @@ const nextConfig: NextConfig = {
     return [
       { source: "/preparacion", destination: "/dele", permanent: true },
       { source: "/preparacion/:bloque", destination: "/dele/:bloque", permanent: true },
+      // El LEXICON (TFM) es una página suelta en public/; con punto en la ruta
+      // el proxy la deja pasar sin sesión. /lexicon a secas pediría entrar.
+      { source: "/lexicon", destination: "/lexicon.html", permanent: false },
     ];
   },
 };
